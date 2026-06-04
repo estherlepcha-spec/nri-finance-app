@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head><style>
+  body { margin: 40px; background: #060e1a; display: flex; flex-direction: column; align-items: flex-start; gap: 32px; font-family: system-ui, sans-serif; }
+  .row { display: flex; align-items: center; gap: 20px; }
+  label { color: #4a6080; font-size: 12px; min-width: 110px; }
+  canvas { display: none; }
+  button { padding: 10px 24px; background: linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+</style></head>
+<body>
+
+<!-- The SVG logo repeated at multiple sizes -->
+<script>
+function logo(id, size) {
+  return `<svg id="${id}" width="${size}" height="${size}" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="g${id}" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#b7791f"/>
+        <stop offset="100%" stop-color="#78350f"/>
+      </linearGradient>
+    </defs>
+    <rect width="36" height="36" rx="9" fill="url(#g${id})"/>
+    <path d="M26 23 L16 23 L19 26" stroke="#1e3a5f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95"/>
+    <path d="M16 23 Q10 23 10 18 Q10 14.5 13 13.5" stroke="#1e3a5f" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.75"/>
+    <path d="M10 13 L20 13 L17 10" stroke="#06b6d4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95"/>
+    <path d="M20 13 Q26 13 26 18 Q26 23 20 23" stroke="#06b6d4" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.75"/>
+    <circle cx="18" cy="18" r="3.8" stroke="white" stroke-width="0.4" fill="none" opacity="1"/>
+    <line x1="14.2" y1="18" x2="21.8" y2="18" stroke="white" stroke-width="0.35" opacity="1"/>
+    <ellipse cx="18" cy="18" rx="1.6" ry="3.8" stroke="white" stroke-width="0.35" fill="none" opacity="1"/>
+    <line x1="15.1" y1="15.8" x2="20.9" y2="15.8" stroke="white" stroke-width="0.3" opacity="0.8"/>
+    <line x1="15.1" y1="20.2" x2="20.9" y2="20.2" stroke="white" stroke-width="0.3" opacity="0.8"/>
+  </svg>`
+}
+document.write(`
+  <div class="row"><label>36×36 (sidebar)</label>${logo('s1',36)}</div>
+  <div class="row"><label>96×96</label>${logo('s2',96)}</div>
+  <div class="row"><label>256×256</label>${logo('main',256)}</div>
+  <div class="row">
+    <label>With wordmark</label>
+    <div style="display:flex;align-items:center;gap:12px">
+      ${logo('s3',56)}
+      <div>
+        <div style="font-size:22px;font-weight:800;color:#f0f6ff;letter-spacing:-0.03em;line-height:1.15">NRI's & Expat's</div>
+        <div style="font-size:11px;color:#4a6080;letter-spacing:0.14em;text-transform:uppercase;margin-top:2px">Personal Finance</div>
+      </div>
+    </div>
+  </div>
+`)
+</script>
+
+<button onclick="downloadPNG()">⬇ Download 512px PNG</button>
+<canvas id="c"></canvas>
+
+<script>
+function downloadPNG() {
+  const svg = document.getElementById('main');
+  const canvas = document.getElementById('c');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const svgStr = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([svgStr], {type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, 512, 512);
+    URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.download = 'nri-expat-finance-logo.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.src = url;
+}
+</script>
+</body>
+</html>

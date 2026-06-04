@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Start-Process \"chrome\" \"http://localhost:3000\")",
+      "Bash(node -e \"require\\('puppeteer'\\)\")",
+      "Bash(npm run *)",
+      "Bash(node --input-type=module --eval \"import\\('./src/App.jsx'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
+      "Bash(npx vite *)",
+      "Bash(awk -F: '{print NR\": \"$0}')",
+      "Bash(grep -v \"^\\\\s*//\")",
+      "Bash(awk -F: '$2 > 7180 && $2 < 7260')",
+      "Bash(npx kill-port *)",
+      "Bash(cat > *)",
+      "Bash(curl -s http://localhost:3000)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(gh auth *)",
+      "Bash(winget install *)",
+      "PowerShell(gh auth status 2>&1)",
+      "PowerShell(winget install --id GitHub.cli)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; gh --version)"
+    ]
+  }
+}
