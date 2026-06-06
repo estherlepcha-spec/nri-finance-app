@@ -13,12 +13,27 @@ const load = (key, fallback) => {
     return parsed
   } catch { return fallback }
 }
-// Sync layer — _syncPush is set after sync.init(); _remoteKeys prevents echo loops
+// Sync layer — uses Supabase for cloud persistence + localStorage as cache
 let _syncPush = null
 const _remoteKeys = new Set()
 const persist = (key, val) => {
   try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
   if (!_remoteKeys.has(key)) _syncPush?.(key, val)
+}
+// Debounced Supabase push
+const _supabaseQueue = {}
+let _supabaseTimer = null
+const supabasePush = (key, val) => {
+  _supabaseQueue[key] = val
+  clearTimeout(_supabaseTimer)
+  _supabaseTimer = setTimeout(async () => {
+    const batch = { ..._supabaseQueue }
+    Object.keys(batch).forEach(k => delete _supabaseQueue[k])
+    const { saveToSupabase } = await import('./supabase.js')
+    for (const [k, v] of Object.entries(batch)) {
+      saveToSupabase(k, v)
+    }
+  }, 1000)
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2)
 const today = () => new Date().toISOString().split('T')[0]
@@ -8004,25 +8019,25 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState('checking') // 'checking'|'synced'|'syncing'|'offline'|'unavailable'
 
   useEffect(() => {
-    import('./sync.js').then(sync => {
-      _syncPush = sync.push
-      sync.init(setSyncStatus, remoteData => {
-        // Mark these keys as remote-sourced so persist() won't echo them back
+    import('./supabase.js').then(({ loadFromSupabase, saveToSupabase, subscribeToChanges, SYNC_KEYS }) => {
+      // Wire persist() to Supabase
+      _syncPush = supabasePush
+
+      const applyData = remoteData => {
+        if (!remoteData) return
         const keys = Object.keys(remoteData)
         keys.forEach(k => _remoteKeys.add(k))
         setTimeout(() => keys.forEach(k => _remoteKeys.delete(k)), 600)
-        // Apply each received key to React state
+
         if ('nri_setupComplete'  in remoteData) setSetupComplete(remoteData.nri_setupComplete)
         if ('nri_homeCurrency'   in remoteData) setHomeCurrency(remoteData.nri_homeCurrency)
         if ('nri_foreignCurrency' in remoteData) setForeignCurrency(remoteData.nri_foreignCurrency)
         if ('nri_primaryCurrency' in remoteData) setPrimaryCurrency(remoteData.nri_primaryCurrency)
         if ('nri_exchangeRate'   in remoteData) setExchangeRate(remoteData.nri_exchangeRate)
         if ('nri_accounts' in remoteData) setAccounts(prev => {
-          // Merge remote accounts with local — preserve fields the remote may be missing (creditLimit, apr, dueDay, minPayment)
           const localMap = Object.fromEntries((prev || []).map(a => [a.id, a]))
           return (remoteData.nri_accounts || []).map(ra => ({
-            ...localMap[ra.id],  // local fields first (has creditLimit etc.)
-            ...ra,               // remote overwrites most fields
+            ...localMap[ra.id], ...ra,
             creditLimit: ra.creditLimit ?? localMap[ra.id]?.creditLimit ?? 0,
             apr:         ra.apr         ?? localMap[ra.id]?.apr         ?? 0,
             dueDay:      ra.dueDay      ?? localMap[ra.id]?.dueDay      ?? 0,
@@ -8045,10 +8060,41 @@ export default function App() {
         if ('nri_savedScenarios' in remoteData) setSavedScenarios(remoteData.nri_savedScenarios)
         if ('nri_lastImport'     in remoteData) setLastImport(remoteData.nri_lastImport)
         if ('nri_smartRules'     in remoteData) setSmartRules(remoteData.nri_smartRules)
+      }
+
+      // Load from Supabase on startup
+      loadFromSupabase().then(remoteData => {
+        if (remoteData && Object.keys(remoteData).length > 0) {
+          applyData(remoteData)
+        } else {
+          // First time — upload existing localStorage data to Supabase
+          SYNC_KEYS.forEach(k => {
+            try { const v = localStorage.getItem(k); if (v) saveToSupabase(k, JSON.parse(v)) } catch {}
+          })
+        }
+        setSyncStatus('synced')
+      }).catch(() => setSyncStatus('offline'))
+
+      // Real-time updates from other devices
+      const channel = subscribeToChanges((key, value) => {
+        _remoteKeys.add(key); setTimeout(() => _remoteKeys.delete(key), 600)
+        applyData({ [key]: value })
+        setSyncStatus('synced')
       })
+
+      return () => { channel?.unsubscribe(); _syncPush = null }
     })
-    return () => { _syncPush = null }
   }, [])
+
+  useEffect(() => {
+    // Legacy local sync kept as fallback (no-op if Supabase is active)
+    import('./sync.js').then(sync => {
+      if (!_syncPush) { _syncPush = sync.push; sync.init(setSyncStatus, () => {}) }
+    })
+    return () => {}
+  // eslint-disable-next-line
+  }, [])
+
 
   // ── persistence ─────────────────────────────────────────────────────────────
   useEffect(() => { persist('nri_setupComplete', setupComplete) }, [setupComplete])
@@ -8407,35 +8453,8 @@ export default function App() {
         {/* Logo */}
         <div style={{ padding: '18px 18px 14px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            {/* Minimalist SVG Logo Mark */}
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <defs>
-                <linearGradient id="logoGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#b7791f"/>
-                  <stop offset="100%" stopColor="#78350f"/>
-                </linearGradient>
-              </defs>
-              {/* Background */}
-              <rect width="36" height="36" rx="9" fill="url(#logoGrad)"/>
-              {/* Bottom arrow ← (dark blue) — drawn first, goes behind */}
-              <path d="M26 23 L16 23 L19 26" stroke="#1e3a5f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.95"/>
-              {/* Left curve ↑ (dark blue) */}
-              <path d="M16 23 Q10 23 10 18 Q10 14.5 13 13.5" stroke="#1e3a5f" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.75"/>
-              {/* Top arrow → (teal) — drawn last, appears on top */}
-              <path d="M10 13 L20 13 L17 10" stroke="#06b6d4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.95"/>
-              {/* Right curve ↓ (teal) */}
-              <path d="M20 13 Q26 13 26 18 Q26 23 20 23" stroke="#06b6d4" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.75"/>
-              {/* Minimalist globe at center */}
-              <circle cx="18" cy="18" r="3.8" stroke="white" strokeWidth="0.4" fill="none" opacity="1"/>
-              {/* Equator line */}
-              <line x1="14.2" y1="18" x2="21.8" y2="18" stroke="white" strokeWidth="0.35" opacity="1"/>
-              {/* Longitude oval */}
-              <ellipse cx="18" cy="18" rx="1.6" ry="3.8" stroke="white" strokeWidth="0.35" fill="none" opacity="1"/>
-              {/* Extra latitude line (upper) */}
-              <line x1="15.1" y1="15.8" x2="20.9" y2="15.8" stroke="white" strokeWidth="0.3" opacity="0.8"/>
-              {/* Extra latitude line (lower) */}
-              <line x1="15.1" y1="20.2" x2="20.9" y2="20.2" stroke="white" strokeWidth="0.3" opacity="0.8"/>
-            </svg>
+            {/* App Logo */}
+            <img src="/app-icon.png" alt="NRI's & Expat's" style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, objectFit: 'cover' }} />
             <div className="sidebar-text">
               <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.25 }}>NRI's & Expat's</div>
               <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em' }}>Personal Finance</div>

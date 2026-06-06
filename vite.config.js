@@ -9,7 +9,12 @@ export default defineConfig({
     strictPort: false,
     host: '0.0.0.0',
     open: true,
-    allowedHosts: ['all', 'gumdrop-viral-effects.ngrok-free.dev']
+    allowedHosts: true,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    }
   },
   optimizeDeps: {
     force: false,

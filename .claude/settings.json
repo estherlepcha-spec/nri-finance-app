@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; Set-Location \"c:\\\\Users\\\\esthe\\\\nri-finance-app\"; git push -u origin master 2>&1)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; Set-Location \"c:\\\\Users\\\\esthe\\\\nri-finance-app\"; git add CLAUDE.md; git commit -m \"Add CLAUDE.md with project instructions and Git workflow rules`n`nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\"; git push origin master 2>&1)"
+    ]
+  }
+}
