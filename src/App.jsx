@@ -618,7 +618,7 @@ function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurrency, setForeig
       <div style={{ width: '100%', maxWidth: 460 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 13, background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, boxShadow: '0 4px 20px rgba(59,130,246,0.4)' }}>₹</div>
+            <img src="/app-icon.png" alt="logo" style={{ width: 42, height: 42, borderRadius: 13, objectFit: 'cover' }} />
             <div style={{ fontSize: 20, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', lineHeight: 1.2 }}>NRI's & Expat's<br /><span style={{ fontSize: 14, fontWeight: 600, color: C.mutedL }}>Personal Finance Manager</span></div>
           </div>
           <div style={{ color: C.muted, fontSize: 13 }}>Manage your money across borders — wherever you live and work</div>
@@ -8454,7 +8454,7 @@ export default function App() {
         <div style={{ padding: '18px 18px 14px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             {/* App Logo */}
-            <img src="/app-icon.png" alt="NRI's & Expat's" style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, objectFit: 'cover' }} />
+            <img src="/app-icon.png?v=2" alt="NRI's & Expat's" style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, objectFit: 'cover' }} />
             <div className="sidebar-text">
               <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.25 }}>NRI's & Expat's</div>
               <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em' }}>Personal Finance</div>
@@ -8570,11 +8570,11 @@ export default function App() {
         <div className="mobile-topbar">
           <button onClick={() => setDrawerOpen(true)} style={{ background: 'none', border: 'none', color: C.text, fontSize: 20, cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>☰</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 9, background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, boxShadow: '0 2px 8px rgba(59,130,246,0.35)' }}>₹</div>
+            <img src="/app-icon.png" alt="logo" style={{ width: 28, height: 28, borderRadius: 9, objectFit: 'cover' }} />
             <div>
               <span style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>NRI's & Expat's</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 500, color: C.muted, letterSpacing: '0.02em' }}>Personal Finance</span>
+                <span style={{ fontSize: 9, fontWeight: 500, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', fontStyle: 'italic' }}>Beyond Borders</span>
                 {syncStatus !== 'unavailable' && syncStatus !== 'checking' && (
                   <span title={syncStatus === 'synced' ? 'Synced across devices' : syncStatus === 'syncing' ? 'Syncing…' : 'Offline — changes saved locally'}
                     style={{ width: 6, height: 6, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
@@ -8672,7 +8672,7 @@ export default function App() {
           <div className="hamburger-drawer">
             <div style={{ padding: '16px 18px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: '0 2px 8px rgba(59,130,246,0.35)' }}>₹</div>
+                <img src="/app-icon.png" alt="logo" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover' }} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.25 }}>NRI's & Expat's</div>
                   <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em' }}>Personal Finance</div>
