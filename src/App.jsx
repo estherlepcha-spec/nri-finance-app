@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import './App.css'
 
+// ─── Extracted modules ────────────────────────────────────────────────────────
+import SetupWizardComponent from './components/SetupWizard/index.jsx'
+import FamilyComponent from './components/Family/index.jsx'
+
 // ─── Utilities ───────────────────────────────────────────────────────────────
 const load = (key, fallback) => {
   try {
@@ -8326,7 +8330,7 @@ export default function App() {
 
   if (!setupComplete) {
     return (
-      <SetupWizard
+      <SetupWizardComponent
         homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency}
         foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency}
         primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency}
@@ -8334,6 +8338,7 @@ export default function App() {
         onComplete={() => setSetupComplete(true)}
       />
     )
+
   }
 
   const openImport = (accountId = null) => { setImportAccountId(accountId || null); setShowImport(true) }
@@ -8613,7 +8618,7 @@ export default function App() {
           {activeTab === 'budget' && <Budget transactions={transactions} accounts={accounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} setActiveTab={setActiveTab} remittances={remittances} loans={loans} />}
           {activeTab === 'trends' && <Trends transactions={transactions} accounts={accounts} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} toINR={toINR} />}
           {activeTab === 'tax' && <TaxEstimator transactions={transactions} investments={investments} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} exchangeRate={exchangeRate} toINR={toINR} />}
-          {activeTab === 'family' && <Family {...shared} {...setters} />}
+          {activeTab === 'family' && <FamilyComponent familyMembers={familyMembers} setFamilyMembers={setFamilyMembers} remittances={remittances} foreignCurrency={foreignCurrency} />}
           {activeTab === 'simulator' && <WhatIfSimulator loans={loans} transactions={transactions} accounts={accounts} savedScenarios={savedScenarios} setSavedScenarios={setSavedScenarios} />}
           {activeTab === 'advisor' && <Estelle aiMessages={aiMessages} aiInput={aiInput} setAiInput={setAiInput} aiLoading={aiLoading} sendAI={sendAI} financialContext={buildEstelleContext()} />}
           {activeTab === 'settings' && <Settings {...shared} {...setters} setSetupComplete={setSetupComplete} homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency} foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency} primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency} exchangeRate={exchangeRate} setExchangeRate={setExchangeRate} smartRules={smartRules} setSmartRules={setSmartRules} />}
