@@ -1258,38 +1258,49 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
           </div>
           <div style={{ padding: '16px 20px' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.red, marginBottom: 12, letterSpacing: '0.5px' }}>LIABILITIES</div>
-            {wkCCAccs.length > 0 && <>
-              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6, display:'flex', alignItems:'center', gap:4 }}>{FlagWk}Working Country</div>
-              {wkCCAccs.map(a => (
-                <div key={a.id} style={{ marginBottom: 7 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: C.text }}>{a.name}</span>
-                    <span style={{ color: C.red, fontWeight: 600 }}>−{fmt(a.balance || 0, a.currency)}</span>
-                  </div>
-                  {a.currency !== homeCurrency && <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>≈ −{fmt(toINR(a.balance || 0, a.currency))}</div>}
-                </div>
-              ))}
-            </>}
-            {(hmCCAccs.length > 0 || loans.length > 0) && <>
-              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6, marginTop: wkCCAccs.length > 0 ? 10 : 0, display:'flex', alignItems:'center', gap:4 }}>{FlagHm}Home Country</div>
-              {hmCCAccs.map(a => (
-                <div key={a.id} style={{ marginBottom: 7 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: C.text }}>{a.name}</span>
-                    <span style={{ color: C.red, fontWeight: 600 }}>−{fmt(a.balance || 0, a.currency)}</span>
-                  </div>
-                </div>
-              ))}
-              {loans.map(l => (
+            {(() => {
+              const wkLoansL = loans.filter(l => l.country === 'foreign')
+              const hmLoansL = loans.filter(l => l.country !== 'foreign')
+              const hasWk = wkCCAccs.length > 0 || wkLoansL.length > 0
+              const hasHm = hmCCAccs.length > 0 || hmLoansL.length > 0
+              const LoanRow = ({ l }) => (
                 <div key={l.id} style={{ marginBottom: 7 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                     <span style={{ color: C.text }}>{l.name}</span>
-                    <span style={{ color: C.red, fontWeight: 600 }}>−{fmt(l.outstanding || 0)}</span>
+                    <span style={{ color: C.red, fontWeight: 600 }}>−{fmt(l.outstanding || 0, l.currency)}</span>
                   </div>
-                  <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>{fmt(l.emi || 0)}/mo EMI</div>
+                  {l.currency !== homeCurrency && <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>≈ −{fmt(toINR(l.outstanding || 0, l.currency))}</div>}
+                  <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>{fmt(l.emi || 0, l.currency)}/mo EMI</div>
                 </div>
-              ))}
-            </>}
+              )
+              return <>
+                {hasWk && <>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6, display:'flex', alignItems:'center', gap:4 }}>{FlagWk}Working Country</div>
+                  {wkCCAccs.map(a => (
+                    <div key={a.id} style={{ marginBottom: 7 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: C.text }}>{a.name}</span>
+                        <span style={{ color: C.red, fontWeight: 600 }}>−{fmt(a.balance || 0, a.currency)}</span>
+                      </div>
+                      {a.currency !== homeCurrency && <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>≈ −{fmt(toINR(a.balance || 0, a.currency))}</div>}
+                    </div>
+                  ))}
+                  {wkLoansL.map(l => <LoanRow key={l.id} l={l} />)}
+                </>}
+                {hasHm && <>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6, marginTop: hasWk ? 10 : 0, display:'flex', alignItems:'center', gap:4 }}>{FlagHm}Home Country</div>
+                  {hmCCAccs.map(a => (
+                    <div key={a.id} style={{ marginBottom: 7 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: C.text }}>{a.name}</span>
+                        <span style={{ color: C.red, fontWeight: 600 }}>−{fmt(a.balance || 0, a.currency)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {hmLoansL.map(l => <LoanRow key={l.id} l={l} />)}
+                </>}
+              </>
+            })()}
             {wkCCAccs.length === 0 && hmCCAccs.length === 0 && loans.length === 0 && (
               <div style={{ fontSize: 12, color: C.muted }}>No liabilities recorded</div>
             )}

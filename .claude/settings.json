@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; Set-Location \"c:\\\\Users\\\\esthe\\\\nri-finance-app\"; git push -u origin master 2>&1)",
-      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; Set-Location \"c:\\\\Users\\\\esthe\\\\nri-finance-app\"; git add CLAUDE.md; git commit -m \"Add CLAUDE.md with project instructions and Git workflow rules`n`nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\"; git push origin master 2>&1)"
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; Set-Location \"c:\\\\Users\\\\esthe\\\\nri-finance-app\"; git add CLAUDE.md; git commit -m \"Add CLAUDE.md with project instructions and Git workflow rules`n`nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\"; git push origin master 2>&1)",
+      "PowerShell($env:PATH = $env:PATH + \";C:\\\\Program Files\\\\GitHub CLI\"; gh auth status 2>&1)",
+      "Bash(cat \"C:\\\\Users\\\\esthe\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-esthe-nri-finance-app\\\\b6cc7620-a177-460b-99f8-57aae270051a\\\\tasks\\\\brg5z60m0.output\")",
+      "Read(//c/Users/esthe/AppData/Local/Temp/claude/C--Users-esthe-nri-finance-app/b6cc7620-a177-460b-99f8-57aae270051a/tasks/**)"
     ]
   }
 }
