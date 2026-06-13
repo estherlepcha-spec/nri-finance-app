@@ -2200,7 +2200,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
       <div className="tx-page-header">
         <h2 style={pgTitle}>Transactions</h2>
         <div className="tx-page-header-actions">
-          <Btn onClick={() => onOpenImport()} variant="ghost" style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Upload or Scan Document</span></Btn>
+          <Btn onClick={() => onOpenImport(null, 'invoice')} variant="ghost" style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Upload or Scan Document</span></Btn>
           {acctFilter && <Btn variant="ghost" onClick={() => setShowStatement(true)} style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Monthly Statement</span></Btn>}
           <Btn variant="ghost" style={{ fontSize:12, padding:'6px 11px', color: C.yellow }} onClick={() => {
             const normD = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
@@ -6624,9 +6624,9 @@ Rules:
 - Return ONLY the JSON object — do NOT include any text before { or after }`
 
 function BankStatementImport({ accounts, transactions, loans, setLoans, onImport, onClose, preAccountId,
-  foreignCurrency, smartRules, setSmartRules, setActiveTab, onInvoiceScan }) {
+  initialMode, foreignCurrency, smartRules, setSmartRules, setActiveTab, onInvoiceScan }) {
   const [step, setStep] = useState('upload')
-  const [mode, setMode] = useState('statement')
+  const [mode, setMode] = useState(initialMode || 'statement')
   const [file, setFile] = useState(null)
   const [accountId, setAccountId] = useState(preAccountId || '')
   const [error, setError] = useState('')
@@ -8045,6 +8045,7 @@ export default function App() {
 
   const [showImport, setShowImport] = useState(false)
   const [importAccountId, setImportAccountId] = useState(null)
+  const [importMode, setImportMode] = useState('statement')
   const [lastImport, setLastImport] = useState(() => load('nri_lastImport', null))
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
@@ -8370,7 +8371,7 @@ export default function App() {
 
   }
 
-  const openImport = (accountId = null) => { setImportAccountId(accountId || null); setShowImport(true) }
+  const openImport = (accountId = null, mode = 'statement') => { setImportAccountId(accountId || null); setImportMode(mode); setShowImport(true) }
   const handleImport = (txs, aiResult, _account, summary) => {
     const base = summary?.replaceNotes
       ? transactions.filter(t => !(t.notes === summary.replaceNotes && t.accountId === summary.replaceAccountId))
@@ -8796,6 +8797,7 @@ export default function App() {
           onImport={handleImport}
           onClose={() => setShowImport(false)}
           preAccountId={importAccountId}
+          initialMode={importMode}
           foreignCurrency={foreignCurrency}
           smartRules={smartRules}
           setSmartRules={setSmartRules}
