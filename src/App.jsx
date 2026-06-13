@@ -2168,9 +2168,9 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 
   return (
     <div style={pg}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+      <div className="tx-page-header">
         <h2 style={pgTitle}>Transactions</h2>
-        <div style={{ display:'flex', gap:7 }}>
+        <div className="tx-page-header-actions">
           <Btn onClick={() => onOpenImport()} variant="ghost" style={{ fontSize:12, padding:'6px 11px' }}>📄 Upload or Scan Document</Btn>
           {acctFilter && <Btn variant="ghost" onClick={() => setShowStatement(true)} style={{ fontSize:12, padding:'6px 11px' }}>📄 Monthly Statement</Btn>}
           <Btn variant="ghost" style={{ fontSize:12, padding:'6px 11px', color: C.yellow }} onClick={() => {
@@ -2313,7 +2313,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
       )}
 
       {/* Filter bar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="tx-filter-bar" style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {['all', 'income', 'expense'].map(v => (
           <button key={v} onClick={() => setFilter(v)} style={{
             background: filter === v ? (v === 'income' ? `linear-gradient(135deg,${C.green},#059669)` : v === 'expense' ? `linear-gradient(135deg,${C.red},#dc2626)` : `linear-gradient(135deg,${C.accent},${C.accentD})`) : C.card2,
@@ -2339,7 +2339,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
         </select>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <span style={{ position: 'absolute', left: 8, color: C.muted, fontSize: 12, pointerEvents: 'none' }}>🔍</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search desc, amount, date…" style={{ ...inputStyle, paddingLeft: 26, width: 180, fontSize: 12 }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search desc, amount, date…" className="tx-search-input" style={{ ...inputStyle, paddingLeft: 26, width: 180, fontSize: 12 }} />
         </div>
         {activeFilters > 0 && (
           <>

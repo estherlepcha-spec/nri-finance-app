@@ -269,6 +269,29 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+/* ── Transactions page header ────────────────────────── */
+.tx-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 8px;
+}
+.tx-page-header-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 767px) {
+  .tx-page-header { flex-wrap: wrap; }
+  .tx-page-header-actions { width: 100%; justify-content: flex-start; }
+  .tx-search-input { width: 100% !important; min-width: 0 !important; }
+  .tx-filter-bar { gap: 6px; }
+  .tx-filter-bar select,
+  .tx-filter-bar button { flex: 1 1 auto; min-width: 0; }
+}
+
 /* ── Swipe-reveal on transaction rows ────────────────── */
 .tx-row-wrap { position: relative; overflow: hidden; }
 .tx-row-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; transform: translateX(100%); transition: transform 0.2s; }
