@@ -2031,9 +2031,10 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   }
 
   useEffect(() => {
+    console.log('[INVOICE] invoicePrefill effect fired, value:', invoicePrefill)
     if (!invoicePrefill) return
-    // Defer one tick so the component is fully painted before opening the modal
     const t = setTimeout(() => {
+      console.log('[INVOICE] applying prefill:', invoicePrefill)
       applyPrefill(invoicePrefill)
       onClearInvoicePrefill?.()
     }, 50)
@@ -7173,7 +7174,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <Btn variant="ghost" onClick={() => { setInvoiceResult(null); setStep('upload') }} style={{ flex: 1 }}>← Re-scan</Btn>
-        <Btn onClick={() => { onInvoiceScan?.(invoiceResult); onClose() }} style={{ flex: 2 }}>✓ Fill Transaction Form</Btn>
+        <Btn onClick={() => { console.log('[INVOICE] Fill button clicked, data:', invoiceResult); onInvoiceScan?.(invoiceResult); onClose() }} style={{ flex: 2 }}>✓ Fill Transaction Form</Btn>
       </div>
     </Modal>
   )
@@ -8786,7 +8787,7 @@ export default function App() {
           smartRules={smartRules}
           setSmartRules={setSmartRules}
           setActiveTab={setActiveTab}
-          onInvoiceScan={data => { setInvoicePrefill(data); setShowImport(false); setActiveTab('transactions') }}
+          onInvoiceScan={data => { console.log('[INVOICE] onInvoiceScan received:', data); setInvoicePrefill(data); setShowImport(false); setActiveTab('transactions') }}
         />
       )}
     </div>
