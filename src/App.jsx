@@ -2171,8 +2171,8 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
       <div className="tx-page-header">
         <h2 style={pgTitle}>Transactions</h2>
         <div className="tx-page-header-actions">
-          <Btn onClick={() => onOpenImport()} variant="ghost" style={{ fontSize:12, padding:'6px 11px' }}>📄 Upload or Scan Document</Btn>
-          {acctFilter && <Btn variant="ghost" onClick={() => setShowStatement(true)} style={{ fontSize:12, padding:'6px 11px' }}>📄 Monthly Statement</Btn>}
+          <Btn onClick={() => onOpenImport()} variant="ghost" style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Upload or Scan Document</span></Btn>
+          {acctFilter && <Btn variant="ghost" onClick={() => setShowStatement(true)} style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Monthly Statement</span></Btn>}
           <Btn variant="ghost" style={{ fontSize:12, padding:'6px 11px', color: C.yellow }} onClick={() => {
             const normD = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
             const seen = new Set()
@@ -2187,8 +2187,8 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
               setTransactions(deduped)
               setAccounts(prev => recomputeAllBalances(prev, deduped))
             }
-          }}>🧹 Remove Duplicates</Btn>
-          <Btn variant="danger" style={{ fontSize:12, padding:'6px 11px' }} onClick={() => { setSelectedForDelete(new Set()); setShowDeleteModal(true) }}>🗑️ Delete</Btn>
+          }}>🧹 <span className="btn-label-hide">Remove Duplicates</span></Btn>
+          <Btn variant="danger" style={{ fontSize:12, padding:'6px 11px' }} onClick={() => { setSelectedForDelete(new Set()); setShowDeleteModal(true) }}>🗑️ <span className="btn-label-hide">Delete</span></Btn>
           <Btn onClick={() => { setForm(blank); setEditing(null); setShowAdd(true) }}>+ Add Transaction</Btn>
         </div>
       </div>

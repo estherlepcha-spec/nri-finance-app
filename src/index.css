@@ -291,6 +291,7 @@ input:focus, select:focus, textarea:focus {
   .tx-filter-bar { gap: 6px; }
   .tx-filter-bar select,
   .tx-filter-bar button { flex: 1 1 auto; min-width: 0; }
+  .btn-label-hide { display: none; }
 }
 
 /* ── Swipe-reveal on transaction rows ────────────────── */
