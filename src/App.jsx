@@ -526,10 +526,14 @@ function IconBtn({ onClick, children, danger }) {
 function DonutChart({ segments, size = 72, thickness = 11, label }) {
   const total = segments.reduce((s, sg) => s + (sg.value || 0), 0)
   if (!total) return <div style={{ width: size, height: size, borderRadius: '50%', background: C.card2, border: `${thickness}px solid ${C.card3}` }} />
-  const cx = size / 2, cy = size / 2, r = (size - thickness) / 2
+  const cx = 50, cy = 50, r = (100 - thickness) / 2
+  const activeSegs = segments.filter(s => s.value > 0)
   let angle = -Math.PI / 2
-  const arcs = segments.filter(s => s.value > 0).map(seg => {
-    const sweep = (seg.value / total) * 2 * Math.PI
+  const arcs = activeSegs.map(seg => {
+    const frac = seg.value / total
+    // Single-segment: draw as full circle to avoid degenerate arc
+    if (activeSegs.length === 1) return { full: true, color: seg.color }
+    const sweep = frac * 2 * Math.PI
     const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle)
     angle += sweep
     const x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle)
@@ -538,9 +542,13 @@ function DonutChart({ segments, size = 72, thickness = 11, label }) {
   })
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ display: 'block' }}>
+      <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block' }}>
         <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.card2} strokeWidth={thickness} />
-        {arcs.map((arc, i) => <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={thickness - 1} strokeLinecap="butt" />)}
+        {arcs.map((arc, i) =>
+          arc.full
+            ? <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={arc.color} strokeWidth={thickness - 1} />
+            : <path key={i} d={arc.d} fill="none" stroke={arc.color} strokeWidth={thickness - 1} strokeLinecap="butt" />
+        )}
       </svg>
       {label && <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: 10, color: C.muted, textAlign: 'center', lineHeight: 1.2, maxWidth: size - thickness * 2 - 4 }}>{label}</div>
