@@ -2030,14 +2030,27 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     setShowAdd(true)
   }
 
+  const tryApplyPrefill = (source) => {
+    const data = invoicePrefill || (() => {
+      try { const s = localStorage.getItem('nri_invoicePrefill'); return s ? JSON.parse(s) : null } catch { return null }
+    })()
+    console.log('[INVOICE] tryApplyPrefill from', source, '— prop:', invoicePrefill, 'resolved:', data)
+    if (!data) return
+    applyPrefill(data)
+    localStorage.removeItem('nri_invoicePrefill')
+    onClearInvoicePrefill?.()
+  }
+
+  // On mount — catches case where invoicePrefill was set before Transactions mounted
   useEffect(() => {
-    console.log('[INVOICE] invoicePrefill effect fired, value:', invoicePrefill)
+    const t = setTimeout(() => tryApplyPrefill('mount'), 100)
+    return () => clearTimeout(t)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On prop change — catches case where Transactions was already mounted
+  useEffect(() => {
     if (!invoicePrefill) return
-    const t = setTimeout(() => {
-      console.log('[INVOICE] applying prefill:', invoicePrefill)
-      applyPrefill(invoicePrefill)
-      onClearInvoicePrefill?.()
-    }, 50)
+    const t = setTimeout(() => tryApplyPrefill('prop-change'), 100)
     return () => clearTimeout(t)
   }, [invoicePrefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -8625,7 +8638,7 @@ export default function App() {
         <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
-          <div style={{ display: activeTab === 'transactions' ? 'block' : 'none' }}><Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} /></div>}
+          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
           {activeTab === 'bills' && <Bills {...shared} {...setters} />}
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
@@ -8787,7 +8800,14 @@ export default function App() {
           smartRules={smartRules}
           setSmartRules={setSmartRules}
           setActiveTab={setActiveTab}
-          onInvoiceScan={data => { console.log('[INVOICE] onInvoiceScan received:', data); setInvoicePrefill(data); setShowImport(false); setActiveTab('transactions') }}
+          onInvoiceScan={data => {
+            console.log('[INVOICE] onInvoiceScan received:', data)
+            // Store in localStorage as backup in case state doesn't propagate before mount
+            localStorage.setItem('nri_invoicePrefill', JSON.stringify(data))
+            setInvoicePrefill(data)
+            setShowImport(false)
+            setActiveTab('transactions')
+          }}
         />
       )}
     </div>
