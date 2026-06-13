@@ -2030,11 +2030,14 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     setShowAdd(true)
   }
 
+  // Ref always holds the latest invoicePrefill so effects don't capture a stale closure
+  const invoicePrefillRef = useRef(invoicePrefill)
+  useEffect(() => { invoicePrefillRef.current = invoicePrefill }, [invoicePrefill])
+
   const tryApplyPrefill = (source) => {
-    const data = invoicePrefill || (() => {
+    const data = invoicePrefillRef.current || (() => {
       try { const s = localStorage.getItem('nri_invoicePrefill'); return s ? JSON.parse(s) : null } catch { return null }
     })()
-    console.log('[INVOICE] tryApplyPrefill from', source, '— prop:', invoicePrefill, 'resolved:', data)
     if (!data) return
     applyPrefill(data)
     localStorage.removeItem('nri_invoicePrefill')
@@ -2043,14 +2046,14 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 
   // On mount — catches case where invoicePrefill was set before Transactions mounted
   useEffect(() => {
-    const t = setTimeout(() => tryApplyPrefill('mount'), 100)
+    const t = setTimeout(() => tryApplyPrefill('mount'), 150)
     return () => clearTimeout(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // On prop change — catches case where Transactions was already mounted
   useEffect(() => {
     if (!invoicePrefill) return
-    const t = setTimeout(() => tryApplyPrefill('prop-change'), 100)
+    const t = setTimeout(() => tryApplyPrefill('prop-change'), 50)
     return () => clearTimeout(t)
   }, [invoicePrefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
