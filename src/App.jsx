@@ -1156,7 +1156,7 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-3, repeat(3,1fr))', gap: 10, marginBottom: 14 }}>
                 {[
                   { label: remitsRec > 0 ? 'Available' : 'New Income', value: fmt(monIn, currency), color: C.green, count: `↑ ${inCount}`, sub: remitsRec > 0 ? `${fmt(directIncome, currency)} + ${fmt(remitsRec, currency)} remit` : openBal !== 0 ? `${fmt(openBal, currency)} carried in` : null },
                   { label: 'Expenses', value: fmt(monEx, currency), color: C.red, count: `↓ ${exCount}`, sub: null },
@@ -1216,7 +1216,7 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Net = Assets − Liabilities</div>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)' }}>
           <div style={{ padding: '16px 20px', borderRight: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.green, marginBottom: 12, letterSpacing: '0.5px' }}>ASSETS</div>
             {wkAssetAccs.length > 0 && <>
@@ -1455,7 +1455,7 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
       </div>
 
       {/* Bills + Recent Transactions */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 14 }}>
         <Card title="Upcoming Bills" action={<button onClick={() => setActiveTab('bills')} style={linkBtn}>View All →</button>}>
           {pendingBills.length === 0
             ? <Empty icon="📋" title="No pending bills" sub="Add recurring bills" />
@@ -1647,7 +1647,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
               <ProgressBar value={a.balance || 0} max={a.creditLimit} color={utilPct > 80 ? C.red : utilPct > 50 ? C.yellow : C.green} />
               <div style={{ fontSize: 10, color: C.muted, marginTop: 4, textAlign: 'right' }}>{utilPct.toFixed(0)}% utilised</div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 7 }}>
               <div style={{ background: C.card2, borderRadius: 8, padding: 9 }}>
                 <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Limit</div>
                 <div className="num" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmt(a.creditLimit, a.currency)}</div>
@@ -3654,7 +3654,7 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
                     <ProgressBar value={g.saved || 0} max={g.target} color={pct >= 100 ? C.green : C.gold} height={18} />
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: pct > 25 ? C.card : C.textS }}>{pct.toFixed(0)}%</div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 8, marginBottom: 10 }}>
                     <div style={{ background: C.card2, borderRadius: 9, padding: '8px 10px' }}>
                       <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Saved</div>
                       <div className="num" style={{ fontSize: 13, fontWeight: 700, color: C.green }}>{fmt(g.saved || 0, g.currency)}</div>
@@ -3761,7 +3761,7 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginBottom: 14 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 10 }}>Add Contribution</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 8, marginBottom: 8 }}>
                     <input type="number" placeholder="Amount" value={contribForm.amount} onChange={e => setContribForm(p => ({ ...p, amount: e.target.value }))} style={inputStyle} />
                     <input type="date" value={contribForm.date} onChange={e => setContribForm(p => ({ ...p, date: e.target.value }))} style={inputStyle} />
                   </div>
@@ -4142,7 +4142,7 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
         </div>
         <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2 }}>{l.name}</div>
         {l.lender && <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{l.lender}</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 8, marginBottom: 10 }}>
           <div style={{ background: `${C.red}0e`, border: `1px solid ${C.red}22`, borderRadius: 9, padding: 10 }}>
             <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Outstanding</div>
             <div className="num" style={{ fontSize: 14, fontWeight: 800, color: C.red }}>{fmt(l.outstanding, l.currency)}</div>
@@ -6360,7 +6360,7 @@ function TaxEstimator({ transactions = [], investments = [], remittances = [], f
           </div>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 16, alignItems: 'start' }}>
           <Card title={`Income Inputs (${profile.currency})`}>
             {profile.fields.filter(f => f !== 'dtaaCredit' && f !== 'taxCredits').map(f => (
               <Input key={f} label={FIELD_LABELS[f] || f} type="number" value={vals[f] || ''}
@@ -7575,7 +7575,7 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
       <h2 style={{ ...pgTitle, marginBottom: 24 }}>Settings</h2>
 
       <Card title="Currency Settings" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 14 }}>
           <CurrencySel label="Home Country Currency" value={homeCurrency} onChange={e => setHomeCurrency(e.target.value)} />
           <CurrencySel label="Working Country Currency" value={foreignCurrency} onChange={e => setForeignCurrency(e.target.value)} exclude={['INR']} />
           <CurrencySel label="Primary Display Currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
@@ -7615,7 +7615,7 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
       </Card>
 
       <Card title="NRI Quick Reference" style={{ marginBottom: 16 }} accent={C.accent}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 8 }}>
           {[
             { icon: '🏦', t: 'NRE Account', d: 'Tax-free in India. Freely repatriable. For foreign-earned income.', color: C.green },
             { icon: '🏦', t: 'NRO Account', d: 'Taxable in India. Repatriation up to USD 1M/year. For India income.', color: C.yellow },
@@ -7783,7 +7783,7 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
             <input type="range" min={-50} max={100} step={5} value={incomeChange} onChange={e => setIncomeChange(Number(e.target.value))} style={{ width: '100%' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}><span>-50%</span><span>+100%</span></div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 6, marginBottom: 12 }}>
             {[
               { label: 'New Income', value: fmt(Math.round(newIncome)), color: C.text },
               { label: 'New Savings/mo', value: fmt(Math.round(newSavings)), color: newSavings >= 0 ? C.green : C.red },
@@ -7822,7 +7822,7 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
                   <input type="range" min={0} max={Math.max(50000, (selLoan.emi || 0) * 2)} step={500}
                     value={extraEMI} onChange={e => setExtraEMI(Number(e.target.value))} style={{ width: '100%' }} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 6, marginBottom: 12 }}>
                   {[
                     { label: 'Loan Name', value: selLoan.name, color: C.text },
                     { label: 'Rate', value: `${selLoan.rate || 0}% p.a.`, color: C.text },
@@ -7860,7 +7860,7 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
           <Field label={`Time horizon: ${horizon} years`}>
             <input type="range" min={1} max={30} step={1} value={horizon} onChange={e => setHorizon(Number(e.target.value))} style={{ width: '100%' }} />
           </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 6, marginBottom: 10 }}>
             {[
               { label: 'Monthly SIP', value: fmt(extraInvest), color: C.purple },
               { label: 'Total Invested', value: fmt(totalInvested2), color: C.text },
