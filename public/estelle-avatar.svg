@@ -1,0 +1,47 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <circle cx="100" cy="100" r="100" fill="#f5f0e8"/>
+
+  <!-- Hair -->
+  <ellipse cx="100" cy="70" rx="55" ry="50" fill="#8b6f47"/>
+
+  <!-- Head -->
+  <circle cx="100" cy="100" r="45" fill="#fdd8b5"/>
+
+  <!-- Ears -->
+  <circle cx="65" cy="85" r="12" fill="#fdd8b5"/>
+  <circle cx="135" cy="85" r="12" fill="#fdd8b5"/>
+  <circle cx="65" cy="85" r="7" fill="#f0c8a0"/>
+  <circle cx="135" cy="85" r="7" fill="#f0c8a0"/>
+
+  <!-- Eyes -->
+  <circle cx="82" cy="90" r="6" fill="#333"/>
+  <circle cx="118" cy="90" r="6" fill="#333"/>
+  <circle cx="84" cy="88" r="2.5" fill="#fff"/>
+  <circle cx="120" cy="88" r="2.5" fill="#fff"/>
+
+  <!-- Eyebrows -->
+  <path d="M 73 80 Q 82 77 91 80" stroke="#8b6f47" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M 109 80 Q 118 77 127 80" stroke="#8b6f47" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Smile -->
+  <path d="M 85 108 Q 100 120 115 108" stroke="#d97706" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Blush -->
+  <ellipse cx="70" cy="105" rx="8" ry="6" fill="#ffc4d6" opacity="0.7"/>
+  <ellipse cx="130" cy="105" rx="8" ry="6" fill="#ffc4d6" opacity="0.7"/>
+
+  <!-- Hair ribbons/bows -->
+  <rect x="75" y="50" width="8" height="16" rx="2" fill="#c9a961"/>
+  <rect x="117" y="50" width="8" height="16" rx="2" fill="#c9a961"/>
+
+  <!-- Neck -->
+  <rect x="92" y="135" width="16" height="12" fill="#fdd8b5"/>
+
+  <!-- Shirt/Body -->
+  <path d="M 60 145 Q 60 150 65 155 L 135 155 Q 140 150 140 145 Z" fill="#8b6f47"/>
+
+  <!-- Shirt details -->
+  <circle cx="80" cy="160" r="4" fill="#c9a961"/>
+  <circle cx="120" cy="160" r="4" fill="#c9a961"/>
+</svg>

@@ -11,8 +11,8 @@ export function EstelleAvatar({ size = 40 }) {
   const s = typeof size === 'number' ? size : parseInt(size)
   return (
     <div style={{ width: s, height: s, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid #c9a961', boxShadow: '0 0 0 2px #0c1929, 0 0 0 4px #c9a961', backgroundColor: '#c9a961' }}>
-      <img src="/estelle-avatar.jpg" alt="Estelle"
-        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }}
+      <img src="/estelle-avatar.svg" alt="Estelle"
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         onError={e => {
           e.target.style.display = 'none'
           e.target.parentElement.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:${Math.round(s * 0.45)}px;font-weight:900;color:#0c1929">E</div>`
@@ -70,7 +70,7 @@ export function FloatingEstelle({ onOpen }) {
       <div onClick={onOpen} style={{ width: 72, height: 72, position: 'relative', cursor: 'pointer', pointerEvents: 'all', animation: 'eFloat 3.2s ease-in-out infinite' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', animation: 'eGlow 2s ease-in-out infinite', position: 'absolute', top: 0, left: 0 }} />
         <div style={{ width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', border: `3px solid ${GOLD}`, background: GOLD, position: 'relative', animation: 'eNod 2.6s ease-in-out infinite', transformOrigin: '50% 85%' }}>
-          <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
+          <img src="/estelle-avatar.svg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', display: 'block' }}
             onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:32px;font-weight:900;color:#0c1929">E</span>' }} />
           {['22%', '56%'].map((left, idx) => (
             <div key={idx}>
