@@ -562,7 +562,7 @@ function MiniBarChart({ data, color = C.accent, height = 36 }) {
   )
 }
 
-const pg = { padding: 'var(--pg, 24px 28px)', overflowY: 'auto', height: '100%' }
+const pg = { padding: 'var(--pg, 24px 28px)', overflowY: 'auto', overflowX: 'hidden', height: '100%', width: '100%', boxSizing: 'border-box' }
 const pgTitle = { fontSize: 'var(--title-fs, 24px)', fontWeight: 800, color: C.text, marginBottom: 4, letterSpacing: '-0.03em' }
 const grid2 = { display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 12 }
 const rowSep = { padding: '12px 0', borderBottom: `1px solid ${C.border}` }
@@ -8606,7 +8606,7 @@ export default function App() {
         </div>
 
         {/* Page */}
-        <main style={{ flex: 1, overflowY: 'auto', background: C.bg }} key={activeTab} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
+        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg }} key={activeTab} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
           {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}
