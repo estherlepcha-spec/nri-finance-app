@@ -2015,20 +2015,33 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     setAccounts(recomputeAllBalances(accounts, newTxs))
   }
 
+  const applyPrefill = prefill => {
+    setForm(p => ({
+      ...p,
+      date: prefill.date || today(),
+      amount: prefill.amount ? String(prefill.amount) : '',
+      currency: prefill.currency || p.currency,
+      description: prefill.description || '',
+      category: TX_CATS.includes(prefill.category) ? prefill.category : 'Other',
+      type: prefill.type === 'income' ? 'income' : 'expense',
+      amountINR: '',
+    }))
+    setEditing(null)
+    setShowAdd(true)
+  }
+
+  // Run on mount (invoicePrefill already set before Transactions mounts)
+  // and on subsequent changes (e.g. from Dashboard salary shortcut)
   useEffect(() => {
     if (invoicePrefill) {
-      setForm(p => ({
-        ...p,
-        date: invoicePrefill.date || today(),
-        amount: invoicePrefill.amount ? String(invoicePrefill.amount) : '',
-        currency: invoicePrefill.currency || p.currency,
-        description: invoicePrefill.description || '',
-        category: TX_CATS.includes(invoicePrefill.category) ? invoicePrefill.category : 'Other',
-        type: invoicePrefill.type === 'income' ? 'income' : 'expense',
-        amountINR: '',
-      }))
-      setEditing(null)
-      setShowAdd(true)
+      applyPrefill(invoicePrefill)
+      onClearInvoicePrefill?.()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (invoicePrefill) {
+      applyPrefill(invoicePrefill)
       onClearInvoicePrefill?.()
     }
   }, [invoicePrefill])
