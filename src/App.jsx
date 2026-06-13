@@ -2030,21 +2030,15 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     setShowAdd(true)
   }
 
-  // Run on mount (invoicePrefill already set before Transactions mounts)
-  // and on subsequent changes (e.g. from Dashboard salary shortcut)
   useEffect(() => {
-    if (invoicePrefill) {
+    if (!invoicePrefill) return
+    // Defer one tick so the component is fully painted before opening the modal
+    const t = setTimeout(() => {
       applyPrefill(invoicePrefill)
       onClearInvoicePrefill?.()
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (invoicePrefill) {
-      applyPrefill(invoicePrefill)
-      onClearInvoicePrefill?.()
-    }
-  }, [invoicePrefill])
+    }, 50)
+    return () => clearTimeout(t)
+  }, [invoicePrefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const DR_LABEL = { all: 'All Time', thisMonth: 'This Month', lastMonth: 'Last Month', '3months': 'Last 3mo', '6months': 'Last 6mo' }
   const inDateRange = t => {
@@ -8627,7 +8621,7 @@ export default function App() {
         </div>
 
         {/* Page */}
-        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg }} key={activeTab} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
+        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
           {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}
