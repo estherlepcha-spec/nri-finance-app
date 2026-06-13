@@ -8638,7 +8638,7 @@ export default function App() {
         <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
-          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}}
+          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
           {activeTab === 'bills' && <Bills {...shared} {...setters} />}
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
