@@ -8621,9 +8621,10 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div role="img" aria-label="logo" style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '180%', backgroundPosition: '48% 12%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 2px 10px rgba(255,136,0,0.5))' }} />
             <div>
-              <span style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>NRI's & Expat's</span>
+              <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.3 }}>NRI's & Expat's</div>
+              <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em', lineHeight: 1.3 }}>Personal Finance</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 500, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', fontStyle: 'italic' }}>Beyond Borders</span>
+                <span style={{ fontSize: 8, fontWeight: 500, color: C.gold, letterSpacing: '0.08em', textTransform: 'uppercase', fontStyle: 'italic' }}>Beyond Borders</span>
                 {syncStatus !== 'unavailable' && syncStatus !== 'checking' && (
                   <span title={syncStatus === 'synced' ? 'Synced across devices' : syncStatus === 'syncing' ? 'Syncing…' : 'Offline — changes saved locally'}
                     style={{ width: 6, height: 6, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
@@ -8725,6 +8726,7 @@ export default function App() {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.25 }}>NRI's & Expat's</div>
                   <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em' }}>Personal Finance</div>
+                  <div style={{ fontSize: 8, color: C.gold, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1, fontStyle: 'italic' }}>Beyond Borders</div>
                 </div>
               </div>
               <button onClick={() => setDrawerOpen(false)} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.mutedL, fontSize: 14, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
