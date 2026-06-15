@@ -630,7 +630,9 @@ function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurrency, setForeig
       <div style={{ width: '100%', maxWidth: 460 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <img src="/app-logo-v5.png" alt="logo" style={{ width: 68, height: 68, borderRadius: 12, objectFit: 'contain', filter: 'drop-shadow(0 2px 10px rgba(255,136,0,0.45))' }} />
+            <div style={{ width: 72, height: 72, borderRadius: 16, overflow: 'hidden', flexShrink: 0, filter: 'drop-shadow(0 3px 14px rgba(255,136,0,0.55))' }}>
+              <img src="/app-logo-v5.png" alt="logo" style={{ width: '160%', height: 'auto', marginLeft: '-28%', marginTop: '-5%' }} />
+            </div>
             <div style={{ fontSize: 20, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', lineHeight: 1.2 }}>NRI's & Expat's<br /><span style={{ fontSize: 14, fontWeight: 600, color: C.mutedL }}>Personal Finance Manager</span></div>
           </div>
           <div style={{ color: C.muted, fontSize: 13 }}>Manage your money across borders — wherever you live and work</div>
@@ -8502,8 +8504,10 @@ export default function App() {
         {/* Logo */}
         <div style={{ padding: '18px 18px 14px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            {/* App Logo */}
-            <img src="/app-logo-v5.png" alt="NRI's & Expat's" style={{ width: 68, height: 68, borderRadius: 12, flexShrink: 0, objectFit: 'contain', filter: 'drop-shadow(0 2px 10px rgba(255,136,0,0.5))' }} />
+            {/* App Logo — clipped to remove whitespace padding from PNG */}
+            <div style={{ width: 64, height: 64, borderRadius: 14, flexShrink: 0, overflow: 'hidden', filter: 'drop-shadow(0 3px 14px rgba(255,136,0,0.6))' }}>
+              <img src="/app-logo-v5.png" alt="NRI's & Expat's" style={{ width: '160%', height: 'auto', marginLeft: '-28%', marginTop: '-5%' }} />
+            </div>
             <div className="sidebar-text">
               <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.25 }}>NRI's & Expat's</div>
               <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em' }}>Personal Finance</div>
@@ -8619,7 +8623,9 @@ export default function App() {
         <div className="mobile-topbar">
           <button onClick={() => setDrawerOpen(true)} style={{ background: 'none', border: 'none', color: C.text, fontSize: 20, cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}>☰</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img src="/app-logo-v5.png" alt="logo" style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'contain', filter: 'drop-shadow(0 1px 6px rgba(255,136,0,0.4))' }} />
+            <div style={{ width: 52, height: 52, borderRadius: 12, overflow: 'hidden', flexShrink: 0, filter: 'drop-shadow(0 2px 10px rgba(255,136,0,0.5))' }}>
+              <img src="/app-logo-v5.png" alt="logo" style={{ width: '160%', height: 'auto', marginLeft: '-28%', marginTop: '-5%' }} />
+            </div>
             <div>
               <span style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>NRI's & Expat's</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -8721,7 +8727,9 @@ export default function App() {
           <div className="hamburger-drawer">
             <div style={{ padding: '16px 18px 12px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <img src="/app-logo-v5.png" alt="logo" style={{ width: 58, height: 58, borderRadius: 12, objectFit: 'contain', filter: 'drop-shadow(0 2px 6px rgba(255,136,0,0.4))' }} />
+                <div style={{ width: 56, height: 56, borderRadius: 12, overflow: 'hidden', flexShrink: 0, filter: 'drop-shadow(0 2px 10px rgba(255,136,0,0.5))' }}>
+                  <img src="/app-logo-v5.png" alt="logo" style={{ width: '160%', height: 'auto', marginLeft: '-28%', marginTop: '-5%' }} />
+                </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1.25 }}>NRI's & Expat's</div>
                   <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.04em' }}>Personal Finance</div>
