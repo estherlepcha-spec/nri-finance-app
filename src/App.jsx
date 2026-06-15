@@ -8041,17 +8041,40 @@ export default function App() {
   const [hmBudgets, setHmBudgets] = useState(() => load('nri_hmBudgets', DEFAULT_HM_BUDGETS.map(b => ({ ...b }))))
   const [budgetMonth, setBudgetMonth] = useState(() => load('nri_budgetMonth', new Date().toISOString().slice(0, 7)))
 
-  const [activeTab, setActiveTab] = useState('dashboard')
+  // Restore UI state after a camera-induced page reload on mobile.
+  // When the native camera opens (capture="environment"), the OS can unload
+  // and reload the PWA tab, wiping in-memory React state. We stash the
+  // "scan in progress" context in sessionStorage so we can reopen the modal.
+  const scanRestore = (() => {
+    try { const s = sessionStorage.getItem('nri_scanInProgress'); return s ? JSON.parse(s) : null } catch { return null }
+  })()
+
+  const [activeTab, setActiveTab] = useState(scanRestore?.activeTab || 'dashboard')
   const [aiMessages, setAiMessages] = useState([])
   const [aiInput, setAiInput] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
 
-  const [showImport, setShowImport] = useState(false)
-  const [importAccountId, setImportAccountId] = useState(null)
-  const [importMode, setImportMode] = useState('statement')
+  const [showImport, setShowImport] = useState(!!scanRestore?.showImport)
+  const [importAccountId, setImportAccountId] = useState(scanRestore?.importAccountId || null)
+  const [importMode, setImportMode] = useState(scanRestore?.importMode || 'statement')
   const [lastImport, setLastImport] = useState(() => load('nri_lastImport', null))
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
+
+  // Keep the camera-reload restore snapshot in sync with the import modal.
+  // When the native camera opens on mobile, the OS can unload and reload the
+  // PWA tab, wiping in-memory state. While the modal is open we stash enough
+  // context in sessionStorage to reopen it after such a reload; once it closes
+  // we clear the snapshot so a normal reload behaves normally.
+  useEffect(() => {
+    try {
+      if (showImport) {
+        sessionStorage.setItem('nri_scanInProgress', JSON.stringify({ showImport: true, importMode, importAccountId, activeTab }))
+      } else {
+        sessionStorage.removeItem('nri_scanInProgress')
+      }
+    } catch { /* sessionStorage unavailable — ignore */ }
+  }, [showImport, importMode, importAccountId, activeTab])
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const [drawerOpen, setDrawerOpen] = useState(false)
