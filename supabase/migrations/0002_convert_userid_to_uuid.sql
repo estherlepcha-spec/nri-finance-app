@@ -21,14 +21,19 @@ update public.nri_finance_data
   set user_id = '00000000-0000-0000-0000-000000000000'
   where user_id !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 
--- 3. Convert the column type text → uuid (every value is now a valid uuid).
+-- 3. Drop the legacy column default (it was the text 'default', which can't be
+--    cast to uuid and blocks the type change below).
+alter table public.nri_finance_data
+  alter column user_id drop default;
+
+-- 4. Convert the column type text → uuid (every value is now a valid uuid).
 alter table public.nri_finance_data
   alter column user_id type uuid using user_id::uuid;
 
--- 4. Enable RLS (denies all by default until policies exist).
+-- 5. Enable RLS (denies all by default until policies exist).
 alter table public.nri_finance_data enable row level security;
 
--- 5. Per-user policies: a user may only touch rows whose user_id = their JWT.
+-- 6. Per-user policies: a user may only touch rows whose user_id = their JWT.
 create policy "own rows: select"
   on public.nri_finance_data for select
   using (auth.uid() = user_id);
@@ -46,7 +51,7 @@ create policy "own rows: delete"
   on public.nri_finance_data for delete
   using (auth.uid() = user_id);
 
--- 6. Realtime (safe to skip the error if it says "already a member").
+-- 7. Realtime (safe to skip the error if it says "already a member").
 do $$
 begin
   alter publication supabase_realtime add table public.nri_finance_data;
