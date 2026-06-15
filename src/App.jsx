@@ -7974,8 +7974,112 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
   )
 }
 
+// ─── Auth UI ────────────────────────────────────────────────────────────────
+// Minimal splash shown while the session is being resolved (avoids a flash of
+// the sign-in screen for already-authenticated users on reload).
+function AuthSplash() {
+  return (
+    <div style={{ minHeight: '100vh', background: `radial-gradient(1200px 800px at 30% 20%, #0d1b2e 0%, ${C.bg} 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div role="img" aria-label="logo" style={{ width: 72, height: 72, borderRadius: 18, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 3px 16px rgba(255,136,0,0.5))', animation: 'pulse 1.4s ease-in-out infinite' }} />
+    </div>
+  )
+}
+
+const GoogleGlyph = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"/>
+    <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"/>
+    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
+  </svg>
+)
+
+// Full-screen sign-in. One action: Continue with Google.
+function AuthScreen() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleGoogle = async () => {
+    setLoading(true); setError('')
+    try {
+      const { signInWithGoogle } = await import('./auth.js')
+      await signInWithGoogle() // navigates away to Google
+    } catch (e) {
+      setError(e.message || 'Could not start sign-in. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  const features = [
+    ['🌍', 'Money across borders', 'Track your home-country and working-country finances in one place.'],
+    ['💱', 'Multi-currency, live rates', 'Balances and net worth always shown in the currency you think in.'],
+    ['📸', 'AI receipt & statement scan', 'Snap a bill or upload a statement — details are extracted for you.'],
+  ]
+
+  return (
+    <div style={{ minHeight: '100vh', background: `radial-gradient(1200px 800px at 28% 18%, #0d1b2e 0%, ${C.bg} 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        {/* Brand lockup */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div role="img" aria-label="NRI's & Expat's" style={{ width: 84, height: 84, margin: '0 auto 16px', borderRadius: 20, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 4px 18px rgba(255,136,0,0.5))' }} />
+          <div style={{ fontSize: 24, fontWeight: 900, color: C.text, letterSpacing: '-0.03em' }}>NRI's &amp; Expat's</div>
+          <div style={{ fontSize: 11, color: C.gold, letterSpacing: '0.14em', textTransform: 'uppercase', fontStyle: 'italic', marginTop: 3 }}>Beyond Borders</div>
+        </div>
+
+        {/* Card */}
+        <div style={{ background: C.card, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.45)' }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 4 }}>Welcome</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
+            Sign in to access your personal finances — securely synced across your devices.
+          </div>
+
+          {error && (
+            <div style={{ background: C.red + '15', border: `1px solid ${C.red}44`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.redL }}>
+              {error}
+            </div>
+          )}
+
+          <button onClick={handleGoogle} disabled={loading}
+            style={{ width: '100%', padding: '12px', borderRadius: 10, border: `1px solid ${C.borderL}`, background: '#fff', color: '#1f1f1f', cursor: loading ? 'wait' : 'pointer', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s' }}>
+            {loading ? '⏳ Opening Google…' : <><GoogleGlyph /> Continue with Google</>}
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
+            🔒 Your data is private to your account and protected by Google sign-in. We never see your password.
+          </div>
+        </div>
+
+        {/* Value props */}
+        <div style={{ marginTop: 22 }}>
+          {features.map(([ic, title, desc]) => (
+            <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 4px' }}>
+              <div style={{ fontSize: 20, flexShrink: 0, lineHeight: 1.3 }}>{ic}</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.textS }}>{title}</div>
+                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 18, fontSize: 10.5, color: C.muted, lineHeight: 1.6 }}>
+          By continuing you agree to keep your financial data accurate for your own use.<br />
+          This app is a personal finance tool, not financial advice.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  // session === undefined → still checking (show splash, avoid auth-screen flash)
+  // session === null      → signed out (show AuthScreen)
+  // session === object    → signed in
+  const [session, setSession] = useState(undefined)
+  const user = session?.user || null
+
   const [setupComplete, setSetupComplete] = useState(() => {
     if (load('nri_setupComplete', false)) return true
     // Auto-recover: skip wizard if the user already has data stored
@@ -8060,6 +8164,7 @@ export default function App() {
   const [lastImport, setLastImport] = useState(() => load('nri_lastImport', null))
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
+  const [showAccountMenu, setShowAccountMenu] = useState(false)
 
   // Keep the camera-reload restore snapshot in sync with the import modal.
   // When the native camera opens on mobile, the OS can unload and reload the
@@ -8076,6 +8181,59 @@ export default function App() {
     } catch { /* sessionStorage unavailable — ignore */ }
   }, [showImport, importMode, importAccountId, activeTab])
 
+  // ── Auth bootstrap ─────────────────────────────────────────────────────────
+  // Read the current session once, then subscribe to changes (sign-in/out,
+  // token refresh, and the OAuth redirect return). Setting `session` drives
+  // the AuthGate below and re-keys the data-sync effect.
+  useEffect(() => {
+    let unsub = () => {}
+    import('./auth.js').then(({ getSession, onAuthChange }) => {
+      getSession().then(s => setSession(s ?? null))
+      unsub = onAuthChange(s => setSession(s ?? null))
+    })
+    return () => unsub()
+  }, [])
+
+  // ── Clear cached data when the signed-in user changes ───────────────────────
+  // Initial state is seeded from localStorage (the `load()` calls above). On a
+  // shared device that cache could belong to a *different* user, so whenever the
+  // account changes (including sign-out) we wipe the nri_* cache and reload, so
+  // the next account starts from its own cloud data rather than someone else's.
+  const prevUserIdRef = useRef(undefined)
+  useEffect(() => {
+    if (session === undefined) return // still resolving — don't act yet
+    const uid = session?.user?.id || null
+    const prev = prevUserIdRef.current
+    if (prev !== undefined && prev !== uid) {
+      try {
+        Object.keys(localStorage).filter(k => k.startsWith('nri_')).forEach(k => localStorage.removeItem(k))
+      } catch { /* ignore */ }
+      // Reload so every useState initialiser re-reads a clean cache.
+      window.location.reload()
+      return
+    }
+    prevUserIdRef.current = uid
+  }, [session])
+
+  // ── Auto session timeout ───────────────────────────────────────────────────
+  // Sign the user out after a period of inactivity so an abandoned or stolen
+  // device doesn't stay logged into their finances.
+  const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
+  useEffect(() => {
+    if (!user) return
+    let timer
+    const reset = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        import('./auth.js').then(({ signOut }) => signOut().catch(() => {}))
+      }, SESSION_TIMEOUT_MS)
+    }
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll']
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }))
+    reset()
+    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, reset)) }
+  }, [user, SESSION_TIMEOUT_MS])
+
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -8090,6 +8248,9 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState('checking') // 'checking'|'synced'|'syncing'|'offline'|'unavailable'
 
   useEffect(() => {
+    if (!user) { setSyncStatus('unavailable'); return }
+    let channel = null
+    setSyncStatus('checking')
     import('./supabase.js').then(({ loadFromSupabase, saveToSupabase, subscribeToChanges, SYNC_KEYS }) => {
       // Wire persist() to Supabase
       _syncPush = supabasePush
@@ -8133,12 +8294,15 @@ export default function App() {
         if ('nri_smartRules'     in remoteData) setSmartRules(remoteData.nri_smartRules)
       }
 
-      // Load from Supabase on startup
+      // Load this user's data from Supabase on sign-in.
       loadFromSupabase().then(remoteData => {
         if (remoteData && Object.keys(remoteData).length > 0) {
           applyData(remoteData)
         } else {
-          // First time — upload existing localStorage data to Supabase
+          // New account with no cloud rows yet — seed it from whatever is in
+          // localStorage on this device (e.g. data created before sign-in).
+          // TODO(data-migration): decide whether the first user should also
+          // claim the legacy user_id='default' rows. Left intentionally manual.
           SYNC_KEYS.forEach(k => {
             try { const v = localStorage.getItem(k); if (v) saveToSupabase(k, JSON.parse(v)) } catch {}
           })
@@ -8146,16 +8310,16 @@ export default function App() {
         setSyncStatus('synced')
       }).catch(() => setSyncStatus('offline'))
 
-      // Real-time updates from other devices
-      const channel = subscribeToChanges((key, value) => {
+      // Real-time updates from this user's other devices (async — RLS-scoped).
+      subscribeToChanges((key, value) => {
         _remoteKeys.add(key); setTimeout(() => _remoteKeys.delete(key), 600)
         applyData({ [key]: value })
         setSyncStatus('synced')
-      })
-
-      return () => { channel?.unsubscribe(); _syncPush = null }
+      }).then(ch => { channel = ch })
     })
-  }, [])
+
+    return () => { channel?.unsubscribe(); _syncPush = null }
+  }, [user?.id])
 
   useEffect(() => {
     // Legacy local sync kept as fallback (no-op if Supabase is active)
@@ -8384,6 +8548,16 @@ export default function App() {
 
   const sidebarImportRef = useRef(null)
 
+  // ── Auth gate ───────────────────────────────────────────────────────────────
+  // Sits in front of the setup wizard and the app. While the session is being
+  // resolved we show a minimal splash to avoid flashing the sign-in screen.
+  if (session === undefined) {
+    return <AuthSplash />
+  }
+  if (session === null) {
+    return <AuthScreen />
+  }
+
   if (!setupComplete) {
     return (
       <SetupWizardComponent
@@ -8468,7 +8642,21 @@ export default function App() {
   const shared = { accounts, transactions, bills, remittances, investments, goals, allocations, loans, familyMembers, templates, wkBudgets, hmBudgets, budgetMonth, goalContribs, savedScenarios, exchangeRate, foreignCurrency, homeCurrency, primaryCurrency, rates, toINR, ratesFetching, ratesUpdatedAt, fetchRates }
   const setters = { setAccounts, setTransactions, setBills, setRemittances, setInvestments, setGoals, setAllocations, setLoans, setFamilyMembers, setTemplates, setWkBudgets, setHmBudgets, setBudgetMonth, setGoalContribs, setSavedScenarios }
 
-  const exportJSON = () => {
+  const exportJSON = async () => {
+    // Re-auth gate: exporting ALL data is sensitive. If the session isn't
+    // fresh, ask the user to confirm (and offer a re-sign-in) before dumping
+    // their entire financial history to a file — blocks a walk-up attacker.
+    try {
+      const { assertFreshSession, signInWithGoogle } = await import('./auth.js')
+      const fresh = await assertFreshSession()
+      if (!fresh) {
+        const ok = window.confirm('For your security, please confirm it\'s you before exporting all your data.\n\nClick OK to re-verify with Google, or Cancel to abort.')
+        if (!ok) return
+        await signInWithGoogle() // redirects; export can be re-tried after return
+        return
+      }
+    } catch { /* if auth module unavailable, fall through to export */ }
+
     const data = { accounts, transactions, bills, remittances, investments, goals, loans, familyMembers, templates, wkBudgets, hmBudgets, exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -8632,6 +8820,36 @@ export default function App() {
           <div className="sidebar-text" style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Net Worth</div>
           <div className="num" style={{ fontSize: 20, fontWeight: 900, color: C.gold, letterSpacing: '-0.04em', lineHeight: 1 }}>{fmt(netWorth)}</div>
           <div className="sidebar-text" style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>All accounts + investments</div>
+
+          {/* Account row */}
+          {user && (
+            <div style={{ position: 'relative', marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+              <button onClick={() => setShowAccountMenu(v => !v)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
+                {user.user_metadata?.avatar_url
+                  ? <img src={user.user_metadata.avatar_url} alt="" referrerPolicy="no-referrer" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, border: `1px solid ${C.borderL}` }} />
+                  : <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: C.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{(user.user_metadata?.full_name || user.email || '?')[0].toUpperCase()}</div>}
+                <div className="sidebar-text" style={{ overflow: 'hidden', flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.textS, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.user_metadata?.full_name || 'Account'}</div>
+                  <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                </div>
+                <span className="sidebar-text" style={{ fontSize: 10, color: C.muted, flexShrink: 0 }}>{showAccountMenu ? '▴' : '▾'}</span>
+              </button>
+
+              {showAccountMenu && (
+                <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: C.card3, border: `1px solid ${C.borderL}`, borderRadius: 10, overflow: 'hidden', boxShadow: '0 -8px 24px rgba(0,0,0,0.4)', zIndex: 20 }}>
+                  <button onClick={() => { setShowAccountMenu(false); import('./auth.js').then(({ signOut }) => signOut().catch(() => {})) }}
+                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.textS, cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    ↩︎ Sign out
+                  </button>
+                  <button onClick={() => { setShowAccountMenu(false); if (window.confirm('Sign out of ALL devices? Any device currently signed into this account will be logged out.')) import('./auth.js').then(({ signOutEverywhere }) => signOutEverywhere().catch(() => {})) }}
+                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: C.redL, cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    🛡️ Sign out everywhere
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </aside>
 

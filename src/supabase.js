@@ -14,14 +14,23 @@ export const SYNC_KEYS = [
   'nri_savedScenarios', 'nri_lastImport', 'nri_smartRules',
 ]
 
-const USER_ID = 'default'
+// Resolve the authenticated user's id from the live session.
+// Returns null when signed out — callers MUST treat that as "do nothing"
+// so we never write to a shared/guessed id again (the old 'default' bug).
+async function currentUserId() {
+  const { data } = await supabase.auth.getSession()
+  return data?.session?.user?.id || null
+}
 
-// Load all app data from Supabase
+// Load all app data for the signed-in user from Supabase.
 export async function loadFromSupabase() {
+  const userId = await currentUserId()
+  if (!userId) return null // signed out — nothing to load
+
   const { data, error } = await supabase
     .from('nri_finance_data')
     .select('key, value')
-    .eq('user_id', USER_ID)
+    .eq('user_id', userId)
 
   if (error) { console.error('Supabase load error:', error); return null }
 
@@ -32,25 +41,32 @@ export async function loadFromSupabase() {
   return result
 }
 
-// Save a single key to Supabase (upsert)
+// Save a single key to Supabase (upsert), scoped to the signed-in user.
 export async function saveToSupabase(key, value) {
+  const userId = await currentUserId()
+  if (!userId) return // signed out — never persist to a shared id
+
   const { error } = await supabase
     .from('nri_finance_data')
-    .upsert({ user_id: USER_ID, key, value, updated_at: new Date().toISOString() }, { onConflict: 'user_id,key' })
+    .upsert({ user_id: userId, key, value, updated_at: new Date().toISOString() }, { onConflict: 'user_id,key' })
 
   if (error) console.error('Supabase save error:', error)
 }
 
-// Subscribe to real-time changes from other devices
-export function subscribeToChanges(onUpdate) {
-  const channelName = `nri_finance_${Date.now()}`
+// Subscribe to real-time changes for the signed-in user's rows only.
+// Returns the channel (or null if signed out).
+export async function subscribeToChanges(onUpdate) {
+  const userId = await currentUserId()
+  if (!userId) return null
+
+  const channelName = `nri_finance_${userId}_${Date.now()}`
   const channel = supabase
     .channel(channelName)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
       table: 'nri_finance_data',
-      filter: `user_id=eq.${USER_ID}`,
+      filter: `user_id=eq.${userId}`,
     }, payload => {
       if (payload.new) onUpdate(payload.new.key, payload.new.value)
     })
