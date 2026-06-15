@@ -3,9 +3,13 @@
 -- This is the security boundary that keeps each user's financial data
 -- private. Without it, the anon API key could read/write every row.
 --
+-- ⚠️ IF YOUR TABLE ALREADY EXISTS with user_id typed as TEXT (it did, from the
+-- pre-auth 'default' era), this script FAILS with "operator does not exist:
+-- uuid = text". Use 0002_convert_userid_to_uuid.sql instead — it retypes the
+-- column safely and preserves the legacy data. This 0001 file is the clean
+-- "fresh table" version, kept for reference.
+--
 -- Run this in the Supabase SQL editor (Dashboard → SQL → New query) once.
--- It is safe to re-run: every statement is guarded with IF EXISTS / IF NOT EXISTS
--- or CREATE OR REPLACE semantics where possible.
 
 -- 1. The table (created here if it doesn't already exist, matching the shape
 --    supabase.js reads/writes: user_id + key + value JSON).
