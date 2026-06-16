@@ -370,6 +370,47 @@ const C = {
   muted: '#5b7fa6', mutedL: '#7fa3c4',
 }
 
+// ─── Scroll-to-top / bottom floating arrows ───────────────────────────────────
+// Two filled-yellow triangles fixed at the bottom-right. The up arrow jumps to
+// the top of the scrolling main area, the down arrow to the bottom.
+function ScrollArrows({ scrollRef, isMobile }) {
+  const scrollTo = pos => {
+    const el = scrollRef?.current
+    if (!el) return
+    el.scrollTo({ top: pos === 'top' ? 0 : el.scrollHeight, behavior: 'smooth' })
+  }
+  const btn = {
+    width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.yellowL}`,
+    background: C.card2, cursor: 'pointer', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', padding: 0, boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+    transition: 'transform 0.12s, background 0.12s',
+  }
+  const Tri = ({ dir }) => (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      {dir === 'up'
+        ? <polygon points="8,3 14,12 2,12" fill={C.yellow} />
+        : <polygon points="2,4 14,4 8,13" fill={C.yellow} />}
+    </svg>
+  )
+  return (
+    <div style={{
+      position: 'fixed', right: 16, bottom: isMobile ? 84 : 24, zIndex: 50,
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <button title="Scroll to top" aria-label="Scroll to top" style={btn}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
+        onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        onClick={() => scrollTo('top')}><Tri dir="up" /></button>
+      <button title="Scroll to bottom" aria-label="Scroll to bottom" style={btn}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
+        onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        onClick={() => scrollTo('bottom')}><Tri dir="down" /></button>
+    </div>
+  )
+}
+
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 function Card({ title, action, children, style: s = {}, accent, lift }) {
   return (
@@ -8165,6 +8206,7 @@ export default function App() {
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
   const [showAccountMenu, setShowAccountMenu] = useState(false)
+  const mainScrollRef = useRef(null)
 
   // Keep the camera-reload restore snapshot in sync with the import modal.
   // When the native camera opens on mobile, the OS can unload and reload the
@@ -8881,7 +8923,7 @@ export default function App() {
         </div>
 
         {/* Page */}
-        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
+        <main ref={mainScrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg, position: 'relative' }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
           {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}
@@ -8898,6 +8940,9 @@ export default function App() {
           {activeTab === 'advisor' && <Estelle aiMessages={aiMessages} aiInput={aiInput} setAiInput={setAiInput} aiLoading={aiLoading} sendAI={sendAI} financialContext={buildEstelleContext()} />}
           {activeTab === 'settings' && <Settings {...shared} {...setters} setSetupComplete={setSetupComplete} homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency} foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency} primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency} exchangeRate={exchangeRate} setExchangeRate={setExchangeRate} smartRules={smartRules} setSmartRules={setSmartRules} />}
         </main>
+
+        {/* Scroll-to-top / scroll-to-bottom floating arrows (bottom-right) */}
+        <ScrollArrows scrollRef={mainScrollRef} isMobile={isMobile} />
       </div>
 
       {/* ── Bottom Nav (mobile only, fixed) ─────────────────── */}
