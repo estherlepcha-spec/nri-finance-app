@@ -374,8 +374,18 @@ const C = {
 // Two filled-yellow triangles fixed at the bottom-right. The up arrow jumps to
 // the top of the scrolling main area, the down arrow to the bottom.
 function ScrollArrows({ scrollRef, isMobile }) {
+  // The actual scrolling element is the page wrapper INSIDE <main> (it has
+  // overflowY:auto + height:100%), not <main> itself. Resolve it at click time
+  // and fall back through <main>, the document, and window so a click always
+  // moves something.
+  const getScroller = () => {
+    const main = scrollRef?.current
+    const inner = main?.querySelector(':scope > div')
+    const candidates = [inner, main, document.scrollingElement, document.documentElement]
+    return candidates.find(el => el && el.scrollHeight > el.clientHeight + 4) || inner || main
+  }
   const scrollTo = pos => {
-    const el = scrollRef?.current
+    const el = getScroller()
     if (!el) return
     el.scrollTo({ top: pos === 'top' ? 0 : el.scrollHeight, behavior: 'smooth' })
   }
