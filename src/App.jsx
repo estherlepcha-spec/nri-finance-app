@@ -8262,6 +8262,7 @@ export default function App() {
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
   const [showAccountMenu, setShowAccountMenu] = useState(false)
+  const [showRates, setShowRates] = useState(false) // collapsed by default so nav items stay visible
   const mainScrollRef = useRef(null)
 
   // Keep the camera-reload restore snapshot in sync with the import modal.
@@ -8524,8 +8525,20 @@ export default function App() {
   const totalINR = accounts.filter(a => a.currency === 'INR').reduce((s, a) => s + (a.balance || 0), 0)
   const totalForeign = accounts.filter(a => a.currency !== 'INR').reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
   const totalInvested = investments.reduce((s, i) => s + toINR(i.currentValue || 0, i.currency), 0)
-  const netWorth = totalINR + totalForeign + totalInvested
   const totalLoanBalance = loans.reduce((s, l) => s + (l.outstanding || 0), 0)
+  // Net worth = assets − liabilities, everything converted to INR. Mirror the
+  // Dashboard's computation so the sidebar and dashboard always agree:
+  // assets = non-credit/non-loan accounts + investments; liabilities = credit
+  // card balances + loan outstanding.
+  const nwAssetsINR = accounts
+      .filter(a => a.type !== 'Credit Card' && a.type !== 'Loan Account')
+      .reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
+    + totalInvested
+  const nwLiabINR = accounts
+      .filter(a => a.type === 'Credit Card')
+      .reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
+    + totalLoanBalance
+  const netWorth = nwAssetsINR - nwLiabINR
   const monthlyEMI = loans.reduce((s, l) => s + (l.emi || 0), 0)
 
   // ── Estelle financial context builder ────────────────────────────────────────
@@ -8830,9 +8843,14 @@ export default function App() {
           </div>
         </div>
 
-        {/* Live Rates Ticker */}
-        <div className="sidebar-rates" style={{ borderBottom: `1px solid ${C.border}`, maxHeight: 220, overflowY: 'auto', flexShrink: 0 }}>
-          {[
+        {/* Live Rates Ticker — collapsible so the navigation stays visible */}
+        <div className="sidebar-rates" style={{ borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <button onClick={() => setShowRates(v => !v)} title="Toggle live exchange rates"
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 14px', color: C.muted }}>
+            <span className="sidebar-text" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>💱 Live Rates</span>
+            <span style={{ fontSize: 10 }}>{showRates ? '▴' : '▾'}</span>
+          </button>
+          {showRates && [
             { label: 'Arab Nations → ₹', currencies: ARAB_CURRENCIES },
             { label: 'World Markets → ₹', currencies: ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CNY', 'SGD', 'CAD', 'AUD', 'HKD'] },
           ].map(section => (
@@ -8889,18 +8907,18 @@ export default function App() {
           ))}
         </nav>
 
-        {/* Export / Import Backup */}
-        <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Export / Import Backup — compact icon row to save vertical space */}
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, display: 'flex', gap: 6 }}>
           <input ref={sidebarImportRef} type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} />
-          <button onClick={exportJSON} title="Download full data backup as JSON"
-            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: `${C.green}12`, border: `1px solid ${C.green}33`, borderRadius: 9, color: C.green, cursor: 'pointer', fontSize: 12, fontWeight: 600, textAlign: 'left' }}>
+          <button onClick={exportJSON} title="Export Backup — download full data as JSON"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 8px', background: `${C.green}12`, border: `1px solid ${C.green}33`, borderRadius: 9, color: C.green, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
             <span style={{ fontSize: 14, flexShrink: 0 }}>💾</span>
-            <span className="sidebar-text">Export Backup</span>
+            <span className="sidebar-text">Export</span>
           </button>
-          <button onClick={() => sidebarImportRef.current?.click()} title="Restore data from a backup JSON file"
-            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 9, color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600, textAlign: 'left' }}>
+          <button onClick={() => sidebarImportRef.current?.click()} title="Import Backup — restore data from a JSON file"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 8px', background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 9, color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
             <span style={{ fontSize: 14, flexShrink: 0 }}>📂</span>
-            <span className="sidebar-text">Import Backup</span>
+            <span className="sidebar-text">Import</span>
           </button>
         </div>
 
