@@ -389,31 +389,34 @@ function ScrollArrows({ scrollRef, isMobile }) {
     if (!el) return
     el.scrollTo({ top: pos === 'top' ? 0 : el.scrollHeight, behavior: 'smooth' })
   }
+  // Bare filled-yellow triangle, no button box/border/background. Rounded
+  // corners via stroke-linejoin:round (stroke same colour as fill so the
+  // rounding reads as a solid shape, like the reference image).
   const btn = {
-    width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.yellowL}`,
-    background: C.card2, cursor: 'pointer', display: 'flex', alignItems: 'center',
-    justifyContent: 'center', padding: 0, boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-    transition: 'transform 0.12s, background 0.12s',
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+    display: 'flex', lineHeight: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))',
+    transition: 'transform 0.12s',
   }
   const Tri = ({ dir }) => (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      {dir === 'up'
-        ? <polygon points="8,3 14,12 2,12" fill={C.yellow} />
-        : <polygon points="2,4 14,4 8,13" fill={C.yellow} />}
+    <svg width="30" height="26" viewBox="0 0 30 26" aria-hidden="true">
+      <polygon
+        points={dir === 'up' ? '15,3 27,23 3,23' : '3,3 27,3 15,23'}
+        fill={C.yellow} stroke={C.yellow} strokeWidth="4"
+        strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
   return (
     <div style={{
-      position: 'fixed', right: 16, bottom: isMobile ? 84 : 24, zIndex: 50,
-      display: 'flex', flexDirection: 'column', gap: 8,
+      position: 'fixed', right: 18, bottom: isMobile ? 84 : 24, zIndex: 50,
+      display: 'flex', flexDirection: 'column', gap: 6,
     }}>
       <button title="Scroll to top" aria-label="Scroll to top" style={btn}
-        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.88)'}
         onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
         onClick={() => scrollTo('top')}><Tri dir="up" /></button>
       <button title="Scroll to bottom" aria-label="Scroll to bottom" style={btn}
-        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.88)'}
         onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
         onClick={() => scrollTo('bottom')}><Tri dir="down" /></button>
