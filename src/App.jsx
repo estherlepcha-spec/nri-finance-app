@@ -100,7 +100,7 @@ const getAccountCountry = (currency) => {
   return 'home'
 }
 
-const CURRENCY_SYMBOLS = { KWD: 'KD', BHD: 'BD', OMR: 'OMR', QAR: 'QR', SAR: 'SR', AED: 'AED', USD: '$', EUR: '€', GBP: '£', INR: '₹' }
+const CURRENCY_SYMBOLS = { KWD: 'KD', BHD: 'BD', OMR: 'OMR', QAR: 'QR', SAR: 'SR', AED: 'AED', USD: '$', EUR: '€', GBP: '£', INR: '₹', PHP: '₱', NPR: 'रू', PKR: '₨', BDT: '৳', LKR: 'Rs' }
 const fmt = (n, cur = 'INR') => {
   try {
     const sym = CURRENCY_SYMBOLS[cur]
@@ -8895,6 +8895,7 @@ export default function App() {
           </button>
           {showRates && [
             { label: 'Arab Nations → ₹', currencies: ARAB_CURRENCIES },
+            { label: 'South Asia & SE Asia → ₹', currencies: ['PKR', 'BDT', 'LKR', 'NPR', 'PHP'] },
             { label: 'World Markets → ₹', currencies: ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CNY', 'SGD', 'CAD', 'AUD', 'HKD'] },
           ].map(section => (
             <div key={section.label} style={{ padding: '8px 14px 8px' }}>
