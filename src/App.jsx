@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from 'xlsx'
 import './App.css'
 
@@ -2751,8 +2752,6 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
     if (!scanFile) return
     setScanProcessing(true); setScanError('')
     try {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-      if (!apiKey) { setScanError('API key missing — add VITE_ANTHROPIC_API_KEY to your .env file'); setScanProcessing(false); return }
       const ext = scanFile.name.split('.').pop().toLowerCase()
       let msgContent
       if (ext === 'pdf') {
@@ -2768,13 +2767,8 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
         const mtype = scanFile.type || `image/${ext === 'jpg' ? 'jpeg' : ext}`
         msgContent = [{ type: 'image', source: { type: 'base64', media_type: mtype, data: b64 } }, { type: 'text', text: REMIT_EXTRACTION_PROMPT, cache_control: { type: 'ephemeral' } }]
       }
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'prompt-caching-2024-07-31', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: msgContent }] })
-      })
-      if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || resp.statusText) }
-      const data = await resp.json(); const raw = data.content?.[0]?.text || ''
+      const data = await anthropicMessages({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [{ role: 'user', content: msgContent }] })
+      const raw = data.content?.[0]?.text || ''
       const clean = raw.replace(/```json\n?|\n?```/g, '').trim()
       const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}')
       if (s < 0 || e2 < 0) throw new Error('Could not parse response — try a clearer image')
@@ -3289,8 +3283,6 @@ function Investments({ investments, setInvestments, foreignCurrency, homeCurrenc
     if (!uploadFile) return
     setUploadProcessing(true); setUploadError('')
     try {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-      if (!apiKey) { setUploadError('API key missing — add VITE_ANTHROPIC_API_KEY to .env'); setUploadProcessing(false); return }
       const ext = uploadFile.name.split('.').pop().toLowerCase()
       let msgContent
       if (ext === 'pdf') {
@@ -3304,9 +3296,8 @@ function Investments({ investments, setInvestments, foreignCurrency, homeCurrenc
         if (['xls','xlsx'].includes(ext)) { const buf = await uploadFile.arrayBuffer(); const wb = XLSX.read(buf, { type: 'array' }); text = wb.SheetNames.map(n => `${n}:\n${XLSX.utils.sheet_to_csv(wb.Sheets[n])}`).join('\n\n') }
         msgContent = [{ type: 'text', text: INVESTMENT_EXTRACTION_PROMPT + '\n\nDocument:\n' + text.slice(0, 12000), cache_control: { type: 'ephemeral' } }]
       }
-      const resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'prompt-caching-2024-07-31', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 3000, messages: [{ role: 'user', content: msgContent }] }) })
-      if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || resp.statusText) }
-      const data = await resp.json(); const raw = data.content?.[0]?.text || ''
+      const data = await anthropicMessages({ model: 'claude-sonnet-4-5', max_tokens: 3000, messages: [{ role: 'user', content: msgContent }] })
+      const raw = data.content?.[0]?.text || ''
       const match = raw.match(/\{[\s\S]*\}/)
       if (!match) throw new Error('No structured data found in response')
       const result = JSON.parse(match[0])
@@ -4131,12 +4122,6 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
     if (!importFile) return
     setImportProcessing(true); setImportError('')
     try {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-      console.log('Loan import API key check:', apiKey ? `Key found ✅ (starts with: ${apiKey.substring(0, 15)}...)` : 'Key NOT found ❌')
-      if (!apiKey) {
-        setImportError('AI features are not configured. Please check that your .env file exists at nri-finance-app/.env and contains: VITE_ANTHROPIC_API_KEY=sk-ant-... Then restart the app with npm run dev')
-        setImportProcessing(false); return
-      }
       const ext = importFile.name.split('.').pop().toLowerCase()
       let msgContent
       if (ext === 'pdf') {
@@ -4150,9 +4135,8 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
         if (['xls','xlsx'].includes(ext)) { const buf = await importFile.arrayBuffer(); const wb = XLSX.read(buf, { type: 'array' }); text = wb.SheetNames.map(n => `${n}:\n${XLSX.utils.sheet_to_csv(wb.Sheets[n])}`).join('\n\n') }
         msgContent = [{ type: 'text', text: LOAN_EXTRACTION_PROMPT + '\n\nDocument:\n' + text.slice(0, 8000), cache_control: { type: 'ephemeral' } }]
       }
-      const resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'prompt-caching-2024-07-31', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1000, messages: [{ role: 'user', content: msgContent }] }) })
-      if (!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || resp.statusText) }
-      const data = await resp.json(); const raw = data.content?.[0]?.text || ''
+      const data = await anthropicMessages({ model: 'claude-sonnet-4-5', max_tokens: 1000, messages: [{ role: 'user', content: msgContent }] })
+      const raw = data.content?.[0]?.text || ''
       const clean = raw.replace(/```json\n?|\n?```/g, '').trim()
       const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}')
       if (s < 0 || e2 < 0) throw new Error('Could not extract JSON from response')
@@ -6956,25 +6940,11 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
   }
 
   const apiCall = async (msgContent, maxTokens = 8000) => {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    const hdrs = {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'prompt-caching-2024-07-31',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    }
     // Attach cache_control to the last text block so the prompt is cached
     const msgs = Array.isArray(msgContent)
       ? [{ role: 'user', content: msgContent.map((b, i, arr) => i === arr.length - 1 && b.type === 'text' ? { ...b, cache_control: { type: 'ephemeral' } } : b) }]
       : [{ role: 'user', content: [{ type: 'text', text: msgContent, cache_control: { type: 'ephemeral' } }] }]
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: hdrs,
-      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: maxTokens, messages: msgs }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
-    return data
+    return anthropicMessages({ model: 'claude-sonnet-4-5', max_tokens: maxTokens, messages: msgs })
   }
 
   const PASS1_PROMPT = `Extract ALL transactions from this bank statement.
@@ -7023,8 +6993,6 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 
   const processInvoiceFile = async () => {
     if (!file) { setError('Please select a file'); return }
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!apiKey) { setError('API key missing — add VITE_ANTHROPIC_API_KEY to your .env file'); return }
     setError(''); setUploadError(null)
     setStep('processing'); setUploadProgress('Extracting invoice details…')
     try {
@@ -7055,8 +7023,6 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 
   const processFile = async () => {
     if (!file) { setError('Please select a file'); return }
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!apiKey) { setError('API key missing — add VITE_ANTHROPIC_API_KEY to your .env file'); return }
     setError(''); setUploadError(null); setUploadProgress('')
     setStep('processing')
     try {
@@ -7760,13 +7726,12 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
         </div>
       </Card>
 
-      <Card title="API Key" style={{ marginBottom: 16 }}>
+      <Card title="AI Features" style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-          The AI Advisor uses Claude. Add your key to a <code style={{ background: C.card2, padding: '2px 6px', borderRadius: 4 }}>.env</code> file in the project root:
+          The AI Advisor and document scanning use Claude, processed securely on
+          the server — no API key is stored in your browser. AI features are
+          available whenever you're signed in. 🔒
         </p>
-        <div style={{ background: C.card2, borderRadius: 8, padding: 12, marginTop: 10, fontFamily: 'monospace', fontSize: 12, color: C.green }}>
-          VITE_ANTHROPIC_API_KEY=sk-ant-api03-…
-        </div>
       </Card>
 
       <Card title="Smart Rules (learned from your corrections)" style={{ marginBottom: 16 }}>
@@ -8669,27 +8634,19 @@ export default function App() {
     })
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'prompt-caching-2024-07-31',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
+      let data
+      try {
+        data = await anthropicMessages({
           model: 'claude-sonnet-4-5',
           max_tokens: 1536,
           system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
           messages: apiMessages,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const msg = data?.error?.message || `API error ${res.status}`
-        setAiMessages(m => [...m, { role: 'assistant', content: `⚠️ ${msg}` }])
-      } else {
+        })
+      } catch (apiErr) {
+        setAiMessages(m => [...m, { role: 'assistant', content: `⚠️ ${apiErr.message}` }])
+        data = null
+      }
+      if (data) {
         const reply = data.content?.[0]?.text || 'Empty response from API.'
         setAiMessages(m => [...m, { role: 'assistant', content: reply }])
       }

@@ -1,26 +1,26 @@
 // ─── Anthropic API Service ─────────────────────────────────────────────────────
-// All calls to the Claude AI API are centralised here.
+// All calls to Claude go through the Supabase Edge Function proxy so the API
+// key stays server-side and is never bundled into the browser. The function
+// requires a signed-in Supabase user.
 
-const API_URL = 'https://api.anthropic.com/v1/messages'
-const DEFAULT_HEADERS = {
-  'anthropic-version': '2023-06-01',
-  'anthropic-beta': 'prompt-caching-2024-07-31',
-  'content-type': 'application/json',
-  'anthropic-dangerous-direct-browser-access': 'true',
-}
+import { supabase } from '../supabase.js'
 
-const getKey = () => import.meta.env.VITE_ANTHROPIC_API_KEY
+// Edge Function endpoint: <project>/functions/v1/anthropic
+const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/anthropic`
 
-export const callClaude = async (messages, { maxTokens = 1024, system = null, model = 'claude-sonnet-4-5' } = {}) => {
-  const key = getKey()
-  if (!key) throw new Error('API key missing — add VITE_ANTHROPIC_API_KEY to your .env file')
+// Low-level: POST a full Anthropic Messages body to the proxy, return parsed JSON.
+// Used by every AI feature (scan, advisor, statement import, etc.).
+export const anthropicMessages = async (body) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Please sign in to use AI features.')
 
-  const body = { model, max_tokens: maxTokens, messages }
-  if (system) body.system = system
-
-  const res = await fetch(API_URL, {
+  const res = await fetch(FN_URL, {
     method: 'POST',
-    headers: { ...DEFAULT_HEADERS, 'x-api-key': key },
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify(body),
   })
   const data = await res.json()
@@ -28,7 +28,14 @@ export const callClaude = async (messages, { maxTokens = 1024, system = null, mo
   return data
 }
 
-// Convenience: call with a simple text prompt and get the text back
+// Mid-level: messages + options → parsed JSON (matches old callClaude signature).
+export const callClaude = async (messages, { maxTokens = 1024, system = null, model = 'claude-sonnet-4-5' } = {}) => {
+  const body = { model, max_tokens: maxTokens, messages }
+  if (system) body.system = system
+  return anthropicMessages(body)
+}
+
+// Convenience: simple text prompt → text back.
 export const extractWithPrompt = async (prompt, content, maxTokens = 1024) => {
   const messages = [{ role: 'user', content: [
     { type: 'text', text: prompt + '\n\n' + content, cache_control: { type: 'ephemeral' } }
@@ -37,11 +44,8 @@ export const extractWithPrompt = async (prompt, content, maxTokens = 1024) => {
   return data.content?.[0]?.text || ''
 }
 
-// Call with mixed content (PDF document or image + prompt)
+// Convenience: PDF/image/text file + prompt → text back.
 export const extractFromFile = async (prompt, fileContent, fileType, maxTokens = 1024) => {
-  const key = getKey()
-  if (!key) throw new Error('API key missing — add VITE_ANTHROPIC_API_KEY to your .env file')
-
   let msgContent
   if (fileType === 'application/pdf') {
     msgContent = [
@@ -56,13 +60,6 @@ export const extractFromFile = async (prompt, fileContent, fileType, maxTokens =
   } else {
     msgContent = [{ type: 'text', text: prompt + '\n\n' + fileContent, cache_control: { type: 'ephemeral' } }]
   }
-
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { ...DEFAULT_HEADERS, 'x-api-key': key },
-    body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: maxTokens, messages: [{ role: 'user', content: msgContent }] }),
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || res.statusText)
+  const data = await anthropicMessages({ model: 'claude-sonnet-4-5', max_tokens: maxTokens, messages: [{ role: 'user', content: msgContent }] })
   return data.content?.[0]?.text || ''
 }
