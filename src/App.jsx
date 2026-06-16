@@ -1615,6 +1615,25 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
   const total = accounts.filter(a => a.type !== 'Credit Card').reduce((s, a) => s + toINR(a.balance, a.currency), 0)
   const totalDebt = accounts.filter(a => a.type === 'Credit Card').reduce((s, a) => s + toINR(a.balance, a.currency), 0)
 
+  // Per-country breakdown (assets, credit-card debt, net worth) expressed in
+  // that country's own currency. Each account is summed in its native currency
+  // when it matches the country currency; any odd-currency account is converted
+  // INR → the country currency so the totals stay in one unit.
+  const toCur = (amount, fromCur, targetCur) => {
+    if (fromCur === targetCur) return amount || 0
+    const inr = toINR(amount || 0, fromCur)
+    // convert INR → targetCur (inverse of toINR for the target)
+    if (targetCur === 'INR') return inr
+    return inr / (toINR(1, targetCur) || 1)
+  }
+  const countryTotals = (accs, cur) => {
+    const assets = accs.filter(a => a.type !== 'Credit Card')
+      .reduce((s, a) => s + toCur(a.balance, a.currency, cur), 0)
+    const debt = accs.filter(a => a.type === 'Credit Card')
+      .reduce((s, a) => s + toCur(a.balance, a.currency, cur), 0)
+    return { assets, debt, net: assets - debt }
+  }
+
   const typeColor = t => {
     if (t === 'NRE') return C.accent
     if (t === 'NRO') return C.yellow
@@ -1855,13 +1874,37 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
 
   return (
     <div style={pg}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div>
-          <h2 style={pgTitle}>Accounts</h2>
-          <div style={{ fontSize: 13, color: C.muted }}>Assets: {fmt(total)} · Credit card debt: {fmt(totalDebt)}</div>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+        <h2 style={pgTitle}>Accounts</h2>
         <Btn onClick={() => { setForm(blank); setEditing(null); setShowAdd(true) }}>+ Add Account</Btn>
       </div>
+
+      {/* Per-country net worth breakdown — each in its own currency */}
+      {accounts.length > 0 && (() => {
+        const wk = countryTotals(workAccounts, foreignCurrency)
+        const hm = countryTotals(homeAccounts, homeCurrency)
+        const SummaryCard = ({ title, color, cur, t, show }) => show ? (
+          <div style={{ flex: 1, minWidth: 220, background: C.card, border: `1px solid ${C.border}`, borderLeft: `3px solid ${color}`, borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>{title}</div>
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>Net Worth</div>
+            <div className="num" style={{ fontSize: 22, fontWeight: 900, color: t.net >= 0 ? C.gold : C.red, letterSpacing: '-0.03em', marginBottom: 10 }}>{fmt(t.net, cur)}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+              <span style={{ color: C.muted }}>Assets</span>
+              <span className="num" style={{ color: C.green, fontWeight: 700 }}>{fmt(t.assets, cur)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: C.muted }}>Credit Card Debt</span>
+              <span className="num" style={{ color: t.debt > 0 ? C.red : C.muted, fontWeight: 700 }}>{t.debt > 0 ? '−' : ''}{fmt(t.debt, cur)}</span>
+            </div>
+          </div>
+        ) : null
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 22 }}>
+            <SummaryCard title="Working Country" color={C.teal} cur={foreignCurrency} t={wk} show={workAccounts.length > 0} />
+            <SummaryCard title="Home Country (India)" color={C.purple} cur={homeCurrency} t={hm} show={homeAccounts.length > 0} />
+          </div>
+        )
+      })()}
 
       {accounts.length === 0
         ? <Empty icon="🏦" title="No accounts yet" sub="Add home and working country bank accounts" />
