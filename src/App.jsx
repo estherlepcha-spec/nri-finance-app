@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import './App.css'
 
@@ -2998,12 +2998,49 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
 }
 
 // ─── Bills ────────────────────────────────────────────────────────────────────
-function Bills({ bills, setBills, foreignCurrency, homeCurrency }) {
+function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurrency }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const blank = { name: '', amount: '', currency: 'INR', dueDate: '', frequency: 'Monthly', category: 'Utilities', paid: false, country: 'foreign' }
   const [form, setForm] = useState(blank)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  // ── Auto-mark bills paid from matching expense transactions ──────────────────
+  // When an expense in Transactions plausibly corresponds to a bill (same
+  // currency, amount within tolerance, and the bill name appears in the
+  // transaction description OR the category matches), flag the bill as paid.
+  // We mark autoPaid so it's distinguishable from a manual tick and so we can
+  // safely un-mark it if the matching transaction later disappears. Manual
+  // paid bills (paid && !autoPaid) are never touched here.
+  const findMatch = useCallback(b => {
+    if (!b.amount) return null
+    const bn = (b.name || '').trim().toLowerCase()
+    return transactions.find(t => {
+      if (t.type !== 'expense') return false
+      if ((t.currency || 'INR') !== (b.currency || 'INR')) return false
+      // amount within 1% or 1 unit, whichever is larger (covers rounding/fees)
+      const tol = Math.max(1, b.amount * 0.01)
+      if (Math.abs((t.amount || 0) - b.amount) > tol) return false
+      const desc = (t.description || '').toLowerCase()
+      const nameHit = bn.length >= 3 && desc.includes(bn)
+      const catHit = b.category && t.category && b.category.toLowerCase() === t.category.toLowerCase()
+      return nameHit || catHit
+    }) || null
+  }, [transactions])
+
+  useEffect(() => {
+    let changed = false
+    const next = bills.map(b => {
+      const match = findMatch(b)
+      if (b.autoSuppressed) return b // user deliberately un-ticked — leave alone
+      if (match && !b.paid) { changed = true; return { ...b, paid: true, autoPaid: true, autoPaidTxId: match.id } }
+      // If a previously auto-marked bill lost its matching transaction, revert it.
+      if (b.autoPaid && !match) { changed = true; const { autoPaid, autoPaidTxId, ...rest } = b; return { ...rest, paid: false } }
+      return b
+    })
+    if (changed) setBills(next)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, bills.length])
 
   const save = () => {
     if (!form.name || !form.amount) return
@@ -3012,7 +3049,13 @@ function Bills({ bills, setBills, foreignCurrency, homeCurrency }) {
     setShowAdd(false); setEditing(null); setForm(blank)
   }
 
-  const toggle = id => setBills(p => p.map(b => b.id === id ? { ...b, paid: !b.paid } : b))
+  const toggle = id => setBills(p => p.map(b => {
+    if (b.id !== id) return b
+    const nowPaid = !b.paid
+    // Manual action overrides auto-matching. If the user un-ticks an auto-paid
+    // bill, suppress re-matching so their choice sticks; ticking clears it.
+    return { ...b, paid: nowPaid, autoPaid: false, autoPaidTxId: undefined, autoSuppressed: !nowPaid }
+  }))
   const del = id => setBills(p => p.filter(b => b.id !== id))
   const edit = b => { setForm({ ...blank, ...b, amount: String(b.amount) }); setEditing(b); setShowAdd(true) }
   const unpaid = bills.filter(b => !b.paid)
@@ -3052,7 +3095,7 @@ function Bills({ bills, setBills, foreignCurrency, homeCurrency }) {
               <span style={{ fontSize: 13, fontWeight: 600, color: isOverdue && !b.paid ? C.red : C.text }}>{b.name}</span>
               <Badge color={b.country === 'home' ? C.purple : C.teal}><Flag currency={b.currency} size={13} /></Badge>
             </div>
-            <div style={{ fontSize: 11, color: C.muted }}>{b.frequency}{b.dueDate ? ` · Due ${b.dueDate}` : ''} · {b.category}</div>
+            <div style={{ fontSize: 11, color: C.muted }}>{b.frequency}{b.dueDate ? ` · Due ${b.dueDate}` : ''} · {b.category}{b.autoPaid ? ' · ✓ auto-matched from transactions' : ''}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3068,7 +3111,7 @@ function Bills({ bills, setBills, foreignCurrency, homeCurrency }) {
   return (
     <div style={pg}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={pgTitle}>Bills & Recurring</h2>
+        <h2 style={pgTitle}>Bills & Utilities</h2>
         <Btn onClick={() => setShowAdd(true)}>+ Add Bill</Btn>
       </div>
 
