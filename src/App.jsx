@@ -408,7 +408,7 @@ function ScrollArrows({ scrollRef, isMobile }) {
   )
   return (
     <div style={{
-      position: 'fixed', right: 18, bottom: isMobile ? 84 : 24, zIndex: 50,
+      position: 'fixed', right: 20, bottom: isMobile ? 148 : 88, zIndex: 50,
       display: 'flex', flexDirection: 'column', gap: 6,
     }}>
       <button title="Scroll to top" aria-label="Scroll to top" style={btn}
@@ -4789,8 +4789,8 @@ function FloatingEstelle({ onOpen }) {
     <button onClick={onOpen} title="Chat with Estelle" aria-label="Chat with Estelle"
       className="estelle-launcher"
       style={{
-        position: 'fixed', bottom: 24, left: 24, zIndex: 60,
-        width: 60, height: 60, borderRadius: '50%', padding: 0,
+        position: 'fixed', bottom: 20, right: 20, zIndex: 60,
+        width: 56, height: 56, borderRadius: '50%', padding: 0,
         border: '3px solid #c9a961', background: '#c9a961', cursor: 'pointer',
         overflow: 'hidden', boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
