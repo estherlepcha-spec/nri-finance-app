@@ -257,12 +257,12 @@ input:focus, select:focus, textarea:focus {
 /* ── FAB ─────────────────────────────────────────────── */
 .fab-container { display: none; }
 @media (max-width: 767px) {
-  .fab-container { display: block; position: fixed; bottom: 72px; right: 16px; z-index: 110; }
+  .fab-container { display: block; position: fixed; bottom: 72px; right: 18px; z-index: 110; }
   .fab {
-    width: 52px; height: 52px; border-radius: 50%;
+    width: 34px; height: 34px; border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: none; color: #fff;
-    font-size: 22px; display: flex !important; align-items: center; justify-content: center;
-    box-shadow: 0 4px 20px rgba(59,130,246,0.5); cursor: pointer;
+    font-size: 16px; display: flex !important; align-items: center; justify-content: center;
+    box-shadow: 0 3px 12px rgba(59,130,246,0.5); cursor: pointer;
   }
   .fab-menu {
     position: absolute; bottom: 60px; right: 0;

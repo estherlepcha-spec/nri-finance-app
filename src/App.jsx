@@ -8984,7 +8984,8 @@ export default function App() {
         </button>
       </nav>
 
-      {/* ── FAB (mobile only) ────────────────────────────────── */}
+      {/* ── FAB (mobile only, on add-relevant sections) ──────── */}
+      {['transactions', 'accounts', 'remittances', 'bills', 'goals', 'investments', 'loans'].includes(activeTab) && (
       <div className="fab-container">
         {fabOpen && (
           <>
@@ -9010,9 +9011,10 @@ export default function App() {
           </>
         )}
         <button className="fab" onClick={() => setFabOpen(f => !f)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 24, fontWeight: 300, lineHeight: 1, color: '#fff' }}>{fabOpen ? '✕' : '+'}</span>
+          <span style={{ fontSize: 16, fontWeight: 400, lineHeight: 1, color: '#fff' }}>{fabOpen ? '✕' : '+'}</span>
         </button>
       </div>
+      )}
 
       {/* ── Hamburger Drawer (mobile) ─────────────────────────── */}
       {drawerOpen && (
