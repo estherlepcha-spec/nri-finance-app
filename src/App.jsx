@@ -4780,96 +4780,24 @@ function Family({ familyMembers, setFamilyMembers, remittances, foreignCurrency 
   )
 }
 
-// ─── Floating Estelle Doll ────────────────────────────────────────────────────
+// ─── Estelle launcher button ──────────────────────────────────────────────────
+// Static (no float/nod/glow/blink animations) launcher for the Estelle chat.
+// Placed bottom-LEFT so it never collides with the scroll arrows (bottom-right)
+// or covers the sidebar account info / main content.
 function FloatingEstelle({ onOpen }) {
-  const [showBubble, setShowBubble] = useState(false)
-  const [tipIdx, setTipIdx] = useState(0)
-  const tips = ["Hey! 💅 Tap to chat!", "Check your budget ✨", "How's your savings? 📊", "Got a money question? 💕", "I've got money tips! 🤑"]
-
-  useEffect(() => {
-    if (!document.getElementById('estelle-float-css')) {
-      const s = document.createElement('style')
-      s.id = 'estelle-float-css'
-      s.textContent = `
-        @keyframes eFloat { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-10px)} }
-        @keyframes eNod { 0%,100%{transform:rotate(0deg)} 15%{transform:rotate(-7deg) translateY(-3px)} 35%{transform:rotate(5deg)} 55%{transform:rotate(-4deg) translateY(-2px)} 75%{transform:rotate(4deg)} }
-        @keyframes eGlow { 0%,100%{box-shadow:0 0 0 3px #c9a96188,0 8px 28px rgba(0,0,0,0.5)} 50%{box-shadow:0 0 0 10px rgba(201,169,97,0),0 8px 28px rgba(0,0,0,0.5)} }
-        @keyframes eLidTop { 0%,88%,100%{height:0%} 92%,96%{height:100%} }
-        @keyframes eLidBot { 0%,88%,100%{height:0%} 92%,96%{height:60%} }
-        @keyframes eBubble { 0%{opacity:0;transform:scale(0.7) translateY(8px)} 12%,88%{opacity:1;transform:scale(1) translateY(0)} 100%{opacity:0;transform:scale(0.7) translateY(8px)} }
-        @keyframes eBubblePop { 0%{transform:scale(0.8)} 60%{transform:scale(1.05)} 100%{transform:scale(1)} }
-      `
-      document.head.appendChild(s)
-    }
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => setShowBubble(true), 2000)
-    return () => clearTimeout(t)
-  }, [])
-
-  useEffect(() => {
-    if (!showBubble) return
-    const t = setTimeout(() => {
-      setShowBubble(false)
-      const t2 = setTimeout(() => { setTipIdx(i => (i + 1) % tips.length); setShowBubble(true) }, 5000)
-      return () => clearTimeout(t2)
-    }, 4000)
-    return () => clearTimeout(t)
-  }, [showBubble])
-
   return (
-    <div style={{ position: 'fixed', bottom: 90, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, pointerEvents: 'none' }}>
-
-      {/* Speech bubble */}
-      {showBubble && (
-        <div style={{
-          background: '#c9a961', color: '#0c1929', padding: '9px 14px',
-          borderRadius: '14px 14px 4px 14px', fontSize: 12, fontWeight: 700,
-          maxWidth: 160, textAlign: 'center', pointerEvents: 'none',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-          animation: 'eBubble 4s ease forwards',
-          position: 'relative',
-        }}>
-          {tips[tipIdx]}
-          <div style={{ position: 'absolute', bottom: -7, right: 14, width: 0, height: 0, borderLeft: '7px solid transparent', borderRight: '7px solid transparent', borderTop: '7px solid #c9a961' }} />
-        </div>
-      )}
-
-      {/* Floating avatar */}
-      <div onClick={onOpen} style={{ width: 72, height: 72, position: 'relative', cursor: 'pointer', pointerEvents: 'all', animation: 'eFloat 3.2s ease-in-out infinite' }}>
-
-        {/* Glow ring */}
-        <div style={{ width: 72, height: 72, borderRadius: '50%', animation: 'eGlow 2s ease-in-out infinite', position: 'absolute', top: 0, left: 0 }} />
-
-        {/* Head nod wrapper */}
-        <div style={{ width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', border: '3px solid #c9a961', background: '#c9a961', position: 'relative', animation: 'eNod 2.6s ease-in-out infinite', transformOrigin: '50% 85%' }}>
-          <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
-            onError={e => { e.target.style.display = 'none'; e.target.parentElement.style.display = 'flex'; e.target.parentElement.style.alignItems = 'center'; e.target.parentElement.style.justifyContent = 'center'; e.target.parentElement.innerHTML = '<span style="font-size:32px;font-weight:900;color:#0c1929">E</span>' }} />
-
-          {/* Top eyelid — left eye */}
-          <div style={{ position: 'absolute', top: '34%', left: '22%', width: '22%', height: '14%', overflow: 'hidden', pointerEvents: 'none', borderRadius: '0 0 50% 50%' }}>
-            <div style={{ width: '100%', background: 'rgba(120,80,50,0.92)', borderRadius: '0 0 50% 50%', animation: 'eLidTop 3.8s ease-in-out infinite', transformOrigin: 'top center' }} />
-          </div>
-          {/* Bottom eyelid — left eye */}
-          <div style={{ position: 'absolute', top: '46%', left: '22%', width: '22%', height: '8%', overflow: 'hidden', pointerEvents: 'none', borderRadius: '50% 50% 0 0', transform: 'scaleY(-1)', transformOrigin: 'top center' }}>
-            <div style={{ width: '100%', background: 'rgba(120,80,50,0.75)', borderRadius: '0 0 50% 50%', animation: 'eLidBot 3.8s ease-in-out infinite', transformOrigin: 'top center' }} />
-          </div>
-
-          {/* Top eyelid — right eye */}
-          <div style={{ position: 'absolute', top: '34%', right: '22%', width: '22%', height: '14%', overflow: 'hidden', pointerEvents: 'none', borderRadius: '0 0 50% 50%' }}>
-            <div style={{ width: '100%', background: 'rgba(120,80,50,0.92)', borderRadius: '0 0 50% 50%', animation: 'eLidTop 3.8s ease-in-out infinite', transformOrigin: 'top center' }} />
-          </div>
-          {/* Bottom eyelid — right eye */}
-          <div style={{ position: 'absolute', top: '46%', right: '22%', width: '22%', height: '8%', overflow: 'hidden', pointerEvents: 'none', borderRadius: '50% 50% 0 0', transform: 'scaleY(-1)', transformOrigin: 'top center' }}>
-            <div style={{ width: '100%', background: 'rgba(120,80,50,0.75)', borderRadius: '0 0 50% 50%', animation: 'eLidBot 3.8s ease-in-out infinite', transformOrigin: 'top center' }} />
-          </div>
-        </div>
-
-        {/* Sparkle badge */}
-        <div style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#c9a961', border: '2px solid #0c1929', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>💅</div>
-      </div>
-    </div>
+    <button onClick={onOpen} title="Chat with Estelle" aria-label="Chat with Estelle"
+      className="estelle-launcher"
+      style={{
+        position: 'fixed', bottom: 24, left: 24, zIndex: 60,
+        width: 60, height: 60, borderRadius: '50%', padding: 0,
+        border: '3px solid #c9a961', background: '#c9a961', cursor: 'pointer',
+        overflow: 'hidden', boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+      <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
+        onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:26px;font-weight:900;color:#0c1929">E</span>' }} />
+    </button>
   )
 }
 

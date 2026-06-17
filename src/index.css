@@ -222,6 +222,8 @@ input:focus, select:focus, textarea:focus {
     z-index: 100; align-items: stretch;
   }
   .mobile-main { padding-bottom: 70px; overflow-x: hidden; }
+  /* Lift the Estelle launcher above the mobile bottom nav so it isn't hidden */
+  .estelle-launcher { bottom: 72px !important; }
 }
 
 /* ── Drawers ─────────────────────────────────────────── */
