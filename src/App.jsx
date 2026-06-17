@@ -7554,6 +7554,42 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
+// Self-contained subscription status + manage button for Settings.
+function SubscriptionCard() {
+  const [sub, setSub] = useState(undefined)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    import('./subscription.js').then(async ({ getSubscription }) => setSub(await getSubscription() ?? null))
+  }, [])
+  const manage = async () => {
+    setBusy(true)
+    try { const { openPortal } = await import('./subscription.js'); await openPortal() }
+    catch { setBusy(false) }
+  }
+  const label = sub === undefined ? 'Loading…'
+    : !sub ? 'No active subscription'
+    : sub.status === 'trialing' ? 'Free trial active'
+    : sub.status === 'active' ? 'Active'
+    : sub.status
+  const ends = sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' }) : null
+  const col = sub?.status === 'active' || sub?.status === 'trialing' ? C.green : C.muted
+  return (
+    <Card title="Subscription" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ends ? 6 : 0 }}>
+        <span style={{ fontSize: 13, color: C.muted }}>Status</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: col }}>{label}</span>
+      </div>
+      {ends && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 13, color: C.muted }}>{sub?.cancel_at_period_end ? 'Ends on' : 'Renews on'}</span>
+          <span style={{ fontSize: 13, color: C.textS }}>{ends}</span>
+        </div>
+      )}
+      {sub && <Btn variant="ghost" onClick={manage} disabled={busy} style={{ width: '100%' }}>{busy ? 'Opening…' : '💳 Manage subscription'}</Btn>}
+    </Card>
+  )
+}
+
 function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCurrency, primaryCurrency, setPrimaryCurrency, exchangeRate, setExchangeRate, setSetupComplete, setAccounts, setTransactions, setBills, setRemittances, setInvestments, setGoals, setAllocations, setLoans, setFamilyMembers, setTemplates, setWkBudgets, setHmBudgets, setBudgetMonth, setGoalContribs, setSavedScenarios, accounts, transactions, bills, remittances, investments, goals, loans, familyMembers, templates, smartRules, setSmartRules }) {
   const [showClearModal, setShowClearModal] = useState(false)
   const [clearText, setClearText] = useState('')
@@ -7662,6 +7698,8 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
           available whenever you're signed in. 🔒
         </p>
       </Card>
+
+      <SubscriptionCard />
 
       <Card title="Smart Rules (learned from your corrections)" style={{ marginBottom: 16 }}>
         {Object.keys(smartRules || {}).length === 0
@@ -8186,6 +8224,78 @@ function AuthScreen() {
   )
 }
 
+// ─── Paywall / subscription screen ────────────────────────────────────────────
+// Shown when a signed-in user has no active subscription/trial. Starts Stripe
+// Checkout (14-day free trial, card required).
+function PaywallScreen({ sub, onSignOut }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const subscribe = async () => {
+    setLoading(true); setError('')
+    try {
+      const { startCheckout } = await import('./subscription.js')
+      await startCheckout() // redirects to Stripe
+    } catch (e) { setError(e.message || 'Could not start checkout.'); setLoading(false) }
+  }
+
+  const expired = sub && (sub.status === 'past_due' || sub.status === 'canceled' || sub.status === 'unpaid')
+  const perks = [
+    'Track money across home & working countries',
+    'Live multi-currency balances & net worth',
+    'AI receipt & bank-statement scanning',
+    'Estelle — your AI finance advisor',
+    'Synced securely across all your devices',
+  ]
+
+  return (
+    <div style={{ minHeight: '100vh', background: `radial-gradient(1200px 800px at 28% 18%, #0d1b2e 0%, ${C.bg} 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div role="img" aria-label="logo" style={{ width: 72, height: 72, margin: '0 auto 14px', borderRadius: 18, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 4px 18px rgba(255,136,0,0.5))' }} />
+          <div style={{ fontSize: 22, fontWeight: 900, color: C.text, letterSpacing: '-0.03em' }}>NRI's &amp; Expat's</div>
+          <div style={{ fontSize: 11, color: C.gold, letterSpacing: '0.14em', textTransform: 'uppercase', fontStyle: 'italic', marginTop: 3 }}>Beyond Borders</div>
+        </div>
+
+        <div style={{ background: C.card, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.45)' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 6 }}>
+            {expired ? 'Your subscription has ended' : 'Start your 14-day free trial'}
+          </div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, lineHeight: 1.5 }}>
+            {expired
+              ? 'Renew to regain access to your finances and all features.'
+              : 'Try everything free for 14 days. Cancel anytime before it ends and you won’t be charged.'}
+          </div>
+
+          <div style={{ background: C.card2, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
+            {perks.map(p => (
+              <div key={p} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, color: C.textS, padding: '4px 0' }}>
+                <span style={{ color: C.green, flexShrink: 0 }}>✓</span>{p}
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <div style={{ background: C.red + '15', border: `1px solid ${C.red}44`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.redL }}>{error}</div>
+          )}
+
+          <button onClick={subscribe} disabled={loading}
+            style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: C.accent, color: '#fff', cursor: loading ? 'wait' : 'pointer', fontSize: 15, fontWeight: 700, opacity: loading ? 0.7 : 1 }}>
+            {loading ? '⏳ Opening secure checkout…' : expired ? 'Renew subscription' : 'Start free trial'}
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
+            🔒 Secure payment by Stripe. We never see your card details.
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 14 }}>
+            <button onClick={onSignOut} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Sign out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -8194,6 +8304,11 @@ export default function App() {
   // session === object    → signed in
   const [session, setSession] = useState(undefined)
   const user = session?.user || null
+
+  // ── Subscription gate ───────────────────────────────────────────────────────
+  // sub === undefined → still loading; null → never subscribed; object → has row.
+  const [sub, setSub] = useState(undefined)
+  const [subEntitled, setSubEntitled] = useState(false)
 
   // Setup (home/working country) is per-account. It's only "complete" when the
   // user explicitly finished the wizard (nri_setupComplete === true), which
@@ -8310,6 +8425,23 @@ export default function App() {
     })
     return () => unsub()
   }, [])
+
+  // Load the subscription whenever the signed-in user changes. Re-checks on
+  // window focus too, so returning from Stripe Checkout reflects the new status.
+  useEffect(() => {
+    if (!user) { setSub(undefined); setSubEntitled(false); return }
+    let alive = true
+    const check = () => import('./subscription.js').then(async ({ getSubscription, isEntitled }) => {
+      const s = await getSubscription()
+      if (!alive) return
+      setSub(s ?? null)
+      setSubEntitled(isEntitled(s))
+    })
+    check()
+    const onFocus = () => check()
+    window.addEventListener('focus', onFocus)
+    return () => { alive = false; window.removeEventListener('focus', onFocus) }
+  }, [user?.id])
 
   // ── Clear cached data when the signed-in user changes ───────────────────────
   // Initial state is seeded from localStorage (the `load()` calls above). On a
@@ -8677,6 +8809,19 @@ export default function App() {
   }
   if (session === null) {
     return <AuthScreen />
+  }
+
+  // Subscription gate: after auth, before setup/app. Off by default — only
+  // active when VITE_ENABLE_BILLING is 'true', so the app isn't locked until
+  // Stripe is fully set up. When enabled: show splash while loading, then the
+  // paywall if the user has no active trial/subscription.
+  if (import.meta.env.VITE_ENABLE_BILLING === 'true') {
+    if (sub === undefined) {
+      return <AuthSplash />
+    }
+    if (!subEntitled) {
+      return <PaywallScreen sub={sub} onSignOut={() => import('./auth.js').then(({ signOut }) => signOut())} />
+    }
   }
 
   if (!setupComplete) {
