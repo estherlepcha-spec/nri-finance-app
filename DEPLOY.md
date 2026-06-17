@@ -95,3 +95,4 @@ OAuth client):
   `--no-verify-jwt`.
 - The legacy-data claim (`0003_claim_legacy_data.sql`) is still pending and
   independent of deployment.
+
