@@ -399,7 +399,7 @@ function ScrollArrows({ scrollRef, isMobile }) {
     transition: 'transform 0.12s',
   }
   const Tri = ({ dir }) => (
-    <svg width="30" height="26" viewBox="0 0 30 26" aria-hidden="true">
+    <svg width="15" height="13" viewBox="0 0 30 26" aria-hidden="true">
       <polygon
         points={dir === 'up' ? '15,3 27,23 3,23' : '3,3 27,3 15,23'}
         fill={C.yellow} stroke={C.yellow} strokeWidth="4"
