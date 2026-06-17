@@ -8032,9 +8032,13 @@ const GoogleGlyph = () => (
 function AuthScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [mode, setMode] = useState('signin')   // 'signin' | 'signup'
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [notice, setNotice] = useState('')     // success / info message (e.g. verify email)
 
   const handleGoogle = async () => {
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setNotice('')
     try {
       const { signInWithGoogle } = await import('./auth.js')
       await signInWithGoogle() // navigates away to Google
@@ -8044,11 +8048,50 @@ function AuthScreen() {
     }
   }
 
+  const handleEmailAuth = async (e) => {
+    e.preventDefault()
+    setError(''); setNotice('')
+    if (!email || !password) { setError('Please enter your email and password.'); return }
+    if (mode === 'signup' && password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    setLoading(true)
+    try {
+      const auth = await import('./auth.js')
+      if (mode === 'signup') {
+        const { needsVerification } = await auth.signUpWithEmail(email, password)
+        if (needsVerification) {
+          setNotice(`We've sent a verification link to ${email}. Click it to activate your account, then sign in.`)
+          setMode('signin')
+        }
+        // if no verification required, onAuthChange will sign them straight in
+      } else {
+        await auth.signInWithEmail(email, password)
+        // onAuthChange handles the rest
+      }
+    } catch (err) {
+      const msg = err.message || 'Something went wrong.'
+      // Friendlier message for the common unverified-email case
+      if (/email not confirmed/i.test(msg)) setError('Please verify your email first — check your inbox for the link.')
+      else setError(msg)
+    }
+    setLoading(false)
+  }
+
+  const handleForgot = async () => {
+    if (!email) { setError('Enter your email above first, then tap "Forgot password".'); return }
+    setError(''); setNotice('')
+    try {
+      const { resetPassword } = await import('./auth.js')
+      await resetPassword(email)
+      setNotice(`Password reset link sent to ${email}.`)
+    } catch (err) { setError(err.message || 'Could not send reset email.') }
+  }
+
   const features = [
     ['🌍', 'Money across borders', 'Track your home-country and working-country finances in one place.'],
     ['💱', 'Multi-currency, live rates', 'Balances and net worth always shown in the currency you think in.'],
     ['📸', 'AI receipt & statement scan', 'Snap a bill or upload a statement — details are extracted for you.'],
   ]
+  const inp = { width: '100%', padding: '11px 13px', borderRadius: 9, border: `1px solid ${C.borderL}`, background: C.card2, color: C.text, fontSize: 14, boxSizing: 'border-box', marginBottom: 10 }
 
   return (
     <div style={{ minHeight: '100vh', background: `radial-gradient(1200px 800px at 28% 18%, #0d1b2e 0%, ${C.bg} 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -8062,9 +8105,11 @@ function AuthScreen() {
 
         {/* Card */}
         <div style={{ background: C.card, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.45)' }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 4 }}>Welcome</div>
-          <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
-            Sign in to access your personal finances — securely synced across your devices.
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.text, marginBottom: 4 }}>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, lineHeight: 1.5 }}>
+            {mode === 'signup'
+              ? 'Sign up to start tracking your finances across borders.'
+              : 'Sign in to access your personal finances — synced across your devices.'}
           </div>
 
           {error && (
@@ -8072,6 +8117,42 @@ function AuthScreen() {
               {error}
             </div>
           )}
+          {notice && (
+            <div style={{ background: C.green + '15', border: `1px solid ${C.green}44`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.greenL, lineHeight: 1.5 }}>
+              ✉️ {notice}
+            </div>
+          )}
+
+          {/* Email / password form */}
+          <form onSubmit={handleEmailAuth}>
+            <input type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" style={inp} />
+            <input type="password" placeholder={mode === 'signup' ? 'Create a password (min 6 chars)' : 'Password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} style={inp} />
+            {mode === 'signin' && (
+              <div style={{ textAlign: 'right', marginBottom: 12 }}>
+                <button type="button" onClick={handleForgot} style={{ background: 'none', border: 'none', color: C.accentL, fontSize: 11, cursor: 'pointer', padding: 0 }}>Forgot password?</button>
+              </div>
+            )}
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', padding: '12px', borderRadius: 10, border: 'none', background: C.accent, color: '#fff', cursor: loading ? 'wait' : 'pointer', fontSize: 14, fontWeight: 700, opacity: loading ? 0.7 : 1 }}>
+              {loading ? '⏳ Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+            </button>
+          </form>
+
+          {/* Toggle sign in / sign up */}
+          <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12, color: C.muted }}>
+            {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+            <button onClick={() => { setMode(m => m === 'signup' ? 'signin' : 'signup'); setError(''); setNotice('') }}
+              style={{ background: 'none', border: 'none', color: C.accentL, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              {mode === 'signup' ? 'Sign in' : 'Sign up'}
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
+            <div style={{ flex: 1, height: 1, background: C.border }} />
+            <span style={{ fontSize: 11, color: C.muted }}>or</span>
+            <div style={{ flex: 1, height: 1, background: C.border }} />
+          </div>
 
           <button onClick={handleGoogle} disabled={loading}
             style={{ width: '100%', padding: '12px', borderRadius: 10, border: `1px solid ${C.borderL}`, background: '#fff', color: '#1f1f1f', cursor: loading ? 'wait' : 'pointer', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s' }}>
@@ -8079,7 +8160,7 @@ function AuthScreen() {
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
-            🔒 Your data is private to your account and protected by Google sign-in. We never see your password.
+            🔒 Your data is private to your account. We never store your password in plain text.
           </div>
         </div>
 
@@ -8114,13 +8195,13 @@ export default function App() {
   const [session, setSession] = useState(undefined)
   const user = session?.user || null
 
-  const [setupComplete, setSetupComplete] = useState(() => {
-    if (load('nri_setupComplete', false)) return true
-    // Auto-recover: skip wizard if the user already has data stored
-    return ['nri_accounts', 'nri_loans', 'nri_transactions'].some(k => {
-      try { return (JSON.parse(localStorage.getItem(k) || '[]')).length > 0 } catch { return false }
-    })
-  })
+  // Setup (home/working country) is per-account. It's only "complete" when the
+  // user explicitly finished the wizard (nri_setupComplete === true), which
+  // syncs from Supabase for the signed-in account. A brand-new account has no
+  // such flag, so the country/currency wizard runs for them. We intentionally
+  // do NOT auto-skip based on stray local data, so new accounts always set up
+  // their countries.
+  const [setupComplete, setSetupComplete] = useState(() => load('nri_setupComplete', false))
   const [homeCurrency, setHomeCurrency] = useState(() => load('nri_homeCurrency', DEFAULT_HOME_CURRENCY))
   const [foreignCurrency, setForeignCurrency] = useState(() => load('nri_foreignCurrency', DEFAULT_FOREIGN_CURRENCY))
   const [primaryCurrency, setPrimaryCurrency] = useState(() => load('nri_primaryCurrency', DEFAULT_PRIMARY_CURRENCY))

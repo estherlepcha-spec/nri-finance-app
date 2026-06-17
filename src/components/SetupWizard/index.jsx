@@ -56,7 +56,7 @@ export default function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurr
       <div style={{ width: '100%', maxWidth: 460 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <img src="/app-icon.png" alt="logo" style={{ width: 42, height: 42, borderRadius: 13, objectFit: 'cover' }} />
+            <div role="img" aria-label="logo" style={{ width: 56, height: 56, borderRadius: 14, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 3px 12px rgba(255,136,0,0.5))' }} />
             <div style={{ fontSize: 20, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', lineHeight: 1.2 }}>
               NRI's & Expat's<br />
               <span style={{ fontSize: 14, fontWeight: 600, color: C.mutedL }}>Personal Finance Manager</span>

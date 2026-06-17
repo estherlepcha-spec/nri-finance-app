@@ -30,6 +30,41 @@ export async function signInWithGoogle() {
   return data
 }
 
+// Sign up with email + password. With email confirmation enabled in the
+// Supabase dashboard, this sends a verification email and the user must click
+// the link before they can sign in. Returns { needsVerification } so the UI
+// can show "check your email".
+export async function signUpWithEmail(email, password) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: redirectTo() },
+  })
+  if (error) throw error
+  // When confirmation is required, Supabase returns a user but no session.
+  const needsVerification = !data.session
+  return { needsVerification, user: data.user }
+}
+
+// Sign in with email + password (after the email is verified).
+export async function signInWithEmail(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw error
+  return data
+}
+
+// Send a password-reset email.
+export async function resetPassword(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectTo() })
+  if (error) throw error
+}
+
+// Re-send the verification email (if the user didn't get / lost the first one).
+export async function resendVerification(email) {
+  const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirectTo() } })
+  if (error) throw error
+}
+
 // Sign out of this device only.
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
