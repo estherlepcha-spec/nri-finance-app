@@ -409,9 +409,8 @@ function ScrollArrows({ scrollRef, isMobile }) {
   return (
     <div style={{
       position: 'fixed', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 6,
-      // Mobile: bottom-LEFT, above Estelle, so the right side stays clear for
-      // the FAB + bottom nav. Desktop: bottom-right above Estelle.
-      ...(isMobile ? { left: 14, bottom: 150 } : { right: 20, bottom: 88 }),
+      // Mobile: bottom-right, stacked above the FAB. Desktop: bottom-right above Estelle.
+      ...(isMobile ? { right: 18, bottom: 134 } : { right: 20, bottom: 88 }),
     }}>
       <button title="Scroll to top" aria-label="Scroll to top" style={btn}
         onMouseDown={e => e.currentTarget.style.transform = 'scale(0.88)'}
@@ -8967,6 +8966,15 @@ export default function App() {
             <span style={{ fontSize: 9, fontWeight: 600 }}>{tab.label}</span>
           </button>
         ))}
+        <button onClick={() => setActiveTab('advisor')} style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: 'none', border: 'none', color: activeTab === 'advisor' ? C.accentL : C.muted, cursor: 'pointer', gap: 2, padding: '6px 0',
+        }}>
+          <span style={{ width: 20, height: 20, borderRadius: '50%', overflow: 'hidden', border: `1.5px solid ${activeTab === 'advisor' ? C.accentL : '#c9a961'}`, display: 'block' }}>
+            <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }} />
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 600 }}>Estelle</span>
+        </button>
         <button onClick={() => setMoreOpen(true)} style={{
           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           background: 'none', border: 'none', color: C.muted, cursor: 'pointer', gap: 2, padding: '6px 0',
