@@ -257,7 +257,7 @@ input:focus, select:focus, textarea:focus {
 /* ── FAB ─────────────────────────────────────────────── */
 .fab-container { display: none; }
 @media (max-width: 767px) {
-  .fab-container { display: block; position: fixed; bottom: 72px; right: 18px; z-index: 110; }
+  .fab-container { display: block; position: fixed; bottom: 112px; right: 18px; z-index: 110; }
   .fab {
     width: 34px; height: 34px; border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: none; color: #fff;

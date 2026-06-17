@@ -409,8 +409,8 @@ function ScrollArrows({ scrollRef, isMobile }) {
   return (
     <div style={{
       position: 'fixed', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 6,
-      // Mobile: bottom-right, stacked above the FAB. Desktop: bottom-right above Estelle.
-      ...(isMobile ? { right: 18, bottom: 134 } : { right: 20, bottom: 88 }),
+      // Mobile: bottom-right just above the nav bar. Desktop: bottom-right above Estelle.
+      ...(isMobile ? { right: 18, bottom: 68 } : { right: 20, bottom: 88 }),
     }}>
       <button title="Scroll to top" aria-label="Scroll to top" style={btn}
         onMouseDown={e => e.currentTarget.style.transform = 'scale(0.88)'}
