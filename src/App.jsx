@@ -8747,8 +8747,16 @@ export default function App() {
 
     if (imageFile) {
       imageUrl = URL.createObjectURL(imageFile)
-      const buf = await imageFile.arrayBuffer()
-      base64Data = btoa(String.fromCharCode(...new Uint8Array(buf)))
+      // Encode to base64 in chunks. Spreading a whole phone photo's byte array
+      // into String.fromCharCode(...) overflows the call stack, so process it
+      // in slices instead.
+      const bytes = new Uint8Array(await imageFile.arrayBuffer())
+      let binary = ''
+      const CHUNK = 0x8000
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK))
+      }
+      base64Data = btoa(binary)
       mediaType = imageFile.type || 'image/jpeg'
     }
 
