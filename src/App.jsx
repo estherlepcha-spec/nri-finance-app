@@ -5086,7 +5086,6 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
 
   // Transactions for selected month
   const monthTx = transactions.filter(t => t.type === 'expense' && (t.date || '').startsWith(budgetMonth))
-  console.log('[Budget] Month filter:', budgetMonth, '— matched', monthTx.length, 'expense transactions out of', transactions.length, 'total')
 
   // Route transactions: by accountId if set, else by currency
   const wkTx = monthTx.filter(t => t.accountId ? wkAccIds.has(t.accountId) : t.currency !== 'INR')
@@ -5393,9 +5392,12 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
       <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
         {monthLabel} Summary · {activeTx.length} expense transactions
       </div>
+      <div style={{ fontSize: 11, color: C.mutedL, marginBottom: 8, lineHeight: 1.5 }}>
+        Your allocation is a <strong style={{ color: C.textS }}>recurring monthly limit</strong>; spending shown is for <strong style={{ color: C.textS }}>{monthLabel}</strong> only.
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-4, repeat(4,1fr))', gap: 10, marginBottom: 16 }}>
-        <StatCard label="Total Budget" value={fmt(totalBudget, currency)} color={C.accent} />
-        <StatCard label="Total Spent" value={fmt(totalSpent, currency)} color={pctUsed >= 90 ? C.red : pctUsed >= 70 ? C.yellow : C.green} />
+        <StatCard label="Monthly Budget" value={fmt(totalBudget, currency)} color={C.accent} sub="recurring limit" />
+        <StatCard label={`Spent in ${new Date(yr, mo - 1).toLocaleString('default', { month: 'short' })}`} value={fmt(totalSpent, currency)} color={pctUsed >= 90 ? C.red : pctUsed >= 70 ? C.yellow : C.green} sub={`${activeTx.length} txns`} />
         <StatCard label={totalLeft >= 0 ? 'Remaining' : 'Over by'} value={fmt(Math.abs(totalLeft), currency)} color={totalLeft >= 0 ? C.green : C.red} />
         <StatCard label="% Used" value={`${Math.min(pctUsed, 999).toFixed(0)}%`} color={pctUsed >= 90 ? C.red : pctUsed >= 70 ? C.yellow : C.green} />
       </div>
