@@ -5062,6 +5062,7 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
   const [allocIncome, setAllocIncome] = useState('')
   const [showSavingsDist, setShowSavingsDist] = useState(false)
   const [savingsDistPcts, setSavingsDistPcts] = useState({})
+  const [expandedCat, setExpandedCat] = useState(null) // budget id whose transactions are shown
 
   // Month navigation
   const [yr, mo] = budgetMonth.split('-').map(Number)
@@ -5476,7 +5477,10 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
           ? <Empty icon="📊" title="No budget categories" sub="Add categories to start tracking" />
           : budgets.map(b => {
             const s = getSpent(b.name)
-            const txCount = activeTx.filter(t => matchCategory(t.category, b.name)).length
+            const catTxs = activeTx.filter(t => matchCategory(t.category, b.name))
+              .sort((x, y) => (y.date || '').localeCompare(x.date || ''))
+            const txCount = catTxs.length
+            const isExpanded = expandedCat === b.id
             const pct = b.limit > 0 ? Math.min((s / b.limit) * 100, 100) : 0
             const rawPct = b.limit > 0 ? (s / b.limit) * 100 : 0
             const over = s > b.limit && b.limit > 0
@@ -5486,8 +5490,11 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
             const spentPctColor = rawPct >= 100 ? C.red : rawPct >= 90 ? '#f97316' : rawPct >= 70 ? C.yellow : C.green
             return (
               <div key={b.id} style={{ paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                <div onClick={() => txCount > 0 && setExpandedCat(isExpanded ? null : b.id)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7, cursor: txCount > 0 ? 'pointer' : 'default' }}
+                  title={txCount > 0 ? 'Click to see transactions' : ''}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    {txCount > 0 && <span style={{ fontSize: 10, color: C.muted, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>}
                     <span style={{ fontSize: 13, fontWeight: 600, color: over ? C.red : C.text, letterSpacing: '-0.01em' }}>{b.name}</span>
                     <span style={{ fontSize: 10, background: spentPctColor + '22', color: spentPctColor, borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>{rawPct.toFixed(0)}%</span>
                     {over && <Badge color={C.red}>⚠️ Over Budget</Badge>}
@@ -5500,8 +5507,8 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
                     <span className="num" style={{ fontSize: 12, color: over ? C.redL : C.mutedL, fontWeight: 600 }}>
                       {fmt(s, currency)} <span style={{ color: C.muted, fontWeight: 400 }}>/ {fmt(b.limit, currency)}</span>
                     </span>
-                    <IconBtn onClick={() => startEdit(b)}>✏️</IconBtn>
-                    <IconBtn onClick={() => delCat(b.id)} danger>🗑️</IconBtn>
+                    <IconBtn onClick={e => { e.stopPropagation(); startEdit(b) }}>✏️</IconBtn>
+                    <IconBtn onClick={e => { e.stopPropagation(); delCat(b.id) }} danger>🗑️</IconBtn>
                   </div>
                 </div>
                 <ProgressBar value={s} max={b.limit} color={bc} />
@@ -5511,8 +5518,29 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
                       ? <span className="num">⚠️ {fmt(Math.abs(remaining), currency)} over limit</span>
                       : <span className="num">{fmt(remaining, currency)} remaining</span>}
                   </span>
-                  <span style={{ color: C.muted }}>{txCount} transaction{txCount !== 1 ? 's' : ''} in {monthLabel}</span>
+                  <span onClick={() => txCount > 0 && setExpandedCat(isExpanded ? null : b.id)}
+                    style={{ color: txCount > 0 ? C.accentL : C.muted, cursor: txCount > 0 ? 'pointer' : 'default', fontWeight: txCount > 0 ? 600 : 400 }}>
+                    {txCount} transaction{txCount !== 1 ? 's' : ''} in {monthLabel}{txCount > 0 ? (isExpanded ? ' ▴' : ' ▾') : ''}
+                  </span>
                 </div>
+
+                {/* Expanded transaction list for this category */}
+                {isExpanded && txCount > 0 && (
+                  <div style={{ marginTop: 10, background: C.card2, borderRadius: 10, padding: '8px 10px', border: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6, padding: '0 2px' }}>
+                      {over ? '⚠️ Overspent — ' : ''}{txCount} transaction{txCount !== 1 ? 's' : ''} counted as {b.name} spend
+                    </div>
+                    {catTxs.map(t => (
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 2px', borderTop: `1px solid ${C.border}55`, fontSize: 12 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description || t.category || '—'}</div>
+                          <div style={{ color: C.muted, fontSize: 10 }}>{fmtDate(t.date)}{t.category && t.category.toLowerCase() !== b.name.toLowerCase() ? ` · tagged "${t.category}"` : ''}</div>
+                        </div>
+                        <span className="num" style={{ color: C.redL, fontWeight: 700, flexShrink: 0, marginLeft: 10 }}>−{fmt(activeAmt(t), currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
