@@ -4017,6 +4017,7 @@ Rules:
 - currency: 3-letter ISO code (e.g. KWD, AED, USD, INR); infer from document headers or symbols if not explicit; empty string if truly unclear
 - description: merchant/vendor name or a brief description of what was purchased
 - category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
+- Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
 - type: "expense" for invoices/bills/purchases, "income" for salary slips or incoming payment notices
 - For CSV/Excel files: read column headers carefully to identify the amount column; numbers may have comma thousand-separators — always parse them as plain decimals
 Return ONLY the JSON object — no text before { or after }\``
@@ -5098,7 +5099,10 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
     'groceries': ['groceries', 'grocery', 'supermarket', 'sultan center', 'lulu', 'carrefour'],
     'food': ['food', 'groceries', 'grocery', 'dining', 'restaurant', 'eating out'],
     'dining': ['dining', 'restaurant', 'eating out', 'cafe', 'coffee', 'food court'],
-    'transport': ['transport', 'transportation', 'petrol', 'fuel', 'uber', 'careem', 'commute', 'travel', 'parking'],
+    // Transport = getting around locally: fuel, ride-hailing, commuting, parking.
+    'transport': ['transport', 'transportation', 'petrol', 'fuel', 'gas station', 'diesel', 'uber', 'careem', 'taxi', 'commute', 'parking', 'metro', 'bus', 'car service'],
+    // Travel = trips out of the country: flights, hotels, holidays. Kept separate.
+    'travel': ['travel', 'flight', 'flights', 'airline', 'airfare', 'hotel', 'holiday', 'vacation', 'trip', 'tourism', 'visa'],
     'utilities': ['utilities', 'utility', 'electricity', 'water', 'mew', 'internet', 'electric', 'gas', 'broadband'],
     'healthcare': ['healthcare', 'health', 'medical', 'doctor', 'hospital', 'pharmacy', 'clinic', 'dentist'],
     'shopping': ['shopping', 'clothes', 'clothing', 'retail', 'mall'],
@@ -5201,7 +5205,7 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
   const ALLOC_RULES_WK = [
     { keys: ['rent', 'housing', 'accommodation'], pct: 25 },
     { keys: ['groceries', 'food', 'grocery'], pct: 10 },
-    { keys: ['transport', 'commute', 'travel'], pct: 8 },
+    { keys: ['transport', 'commute', 'fuel', 'petrol'], pct: 8 },
     { keys: ['utilities', 'utility', 'electric', 'water', 'gas'], pct: 5 },
     { keys: ['healthcare', 'health', 'medical'], pct: 4 },
     { keys: ['insurance'], pct: 3 },
@@ -5219,7 +5223,7 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
     { keys: ['utilities', 'utility', 'electric', 'water', 'gas'], pct: 8 },
     { keys: ['healthcare', 'health', 'medical'], pct: 8 },
     { keys: ['education', 'school', 'tuition'], pct: 10 },
-    { keys: ['transport', 'commute', 'travel'], pct: 7 },
+    { keys: ['transport', 'commute', 'fuel', 'petrol'], pct: 7 },
     { keys: ['shopping', 'clothing', 'clothes'], pct: 7 },
     { keys: ['entertainment', 'leisure'], pct: 5 },
     { keys: ['savings', 'saving', 'investment', 'invest'], pct: 10 },
@@ -6712,6 +6716,7 @@ Rules:
 - For CSV/Excel: read column headers carefully; debit and credit may be in separate columns — combine them (debit = negative, credit = positive)
 - date must be in YYYY-MM-DD format — if no year use 2026; DD/MM/YYYY → YYYY-MM-DD, DD-MM-YYYY → YYYY-MM-DD
 - category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+- Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
 - Kuwait hints: KWD amounts, Sultan Center, Lulu, Talabat, Careem, Zain, MEW, salary on 1st or last day
 - India hints: INR amounts, UPI (GPay PhonePe Paytm), NEFT/RTGS, Amazon, Swiggy, Zomato
 - creditLimit: credit limit as a plain number if shown (e.g. "Credit Limit: KWD 2,000" → 2000); null if not found or not a credit card statement
@@ -6945,6 +6950,7 @@ Rules:
         setUploadProgress(`Categorising transactions ${i + 1}–${Math.min(i + BATCH, basic.transactions.length)} of ${basic.transactions.length}…`)
       const catPrompt = `Categorise these bank transactions for an NRI in Kuwait/India. Return ONLY a JSON array, no other text.
 Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+IMPORTANT category rule: "Transport" = local getting-around — fuel/petrol/diesel, gas stations, ride-hailing (Uber/Careem), taxi, parking, metro/bus. "Travel" = trips OUT of the country — flights, airlines, hotels, holidays, visas. Put ALL fuel/petrol expenses under Transport, never Travel.
 Transactions: ${JSON.stringify(batch)}
 Return: [{"date":"same","description":"same","amount":same,"type":"same","category":"from list","confidence":"high/medium/low"}]`
       try {
