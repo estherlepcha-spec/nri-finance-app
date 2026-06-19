@@ -2049,7 +2049,7 @@ const CAT_COLORS = {
   'ATM Withdrawal': '#94a3b8', Transfer: '#64748b', Other: '#64748b',
 }
 
-function Transactions({ transactions, setTransactions, accounts, setAccounts, foreignCurrency, homeCurrency, templates, setTemplates, toINR, onOpenImport, remittances, invoicePrefill, onClearInvoicePrefill }) {
+function Transactions({ transactions, setTransactions, accounts, setAccounts, foreignCurrency, homeCurrency, templates, setTemplates, toINR, onOpenImport, remittances, invoicePrefill, onClearInvoicePrefill, smartRules = {}, setSmartRules }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -2099,6 +2099,14 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     const amountINR = parseFloat(form.amountINR) || toINR(amt, txCur)
     const item = { ...form, amount: amt, currency: txCur, amountINR, id: editing?.id || uid() }
 
+    // Learn from a manual category correction: if the user changed an existing
+    // transaction's category, remember it keyed on the description so future
+    // transactions from the same merchant auto-apply the user's choice.
+    if (setSmartRules && editing && form.category && form.category !== editing.category && (form.description || '').trim()) {
+      const key = form.description.toLowerCase().trim().slice(0, 50)
+      if (key) setSmartRules(p => { const u = { ...p, [key]: form.category }; persist('nri_smartRules', u); return u })
+    }
+
     const newTxs = editing
       ? transactions.map(t => t.id === editing.id ? item : t)
       : [item, ...transactions]
@@ -2106,6 +2114,16 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     // Recompute all balances from setupBalance + transactions (handles add, edit, and account changes)
     setAccounts(recomputeAllBalances(accounts, newTxs))
     setEditing(null); setShowAdd(false); setForm(blank)
+  }
+
+  // When typing a description for a NEW transaction, auto-suggest the category
+  // from a learned rule (the user can still override before saving).
+  const applyLearnedCategory = desc => {
+    if (editing || !desc) return
+    const d = desc.toLowerCase()
+    for (const [k, v] of Object.entries(smartRules || {})) {
+      if (k && d.includes(k)) { setForm(p => ({ ...p, category: v })); break }
+    }
   }
 
   const saveTemplate = () => {
@@ -2581,7 +2599,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
               Amount will be recorded in <strong style={{ color: C.text }}>{selAcct.currency}</strong> — {CURRENCY_FULL_NAMES[selAcct.currency] || selAcct.currency} ({selAcct.name} currency)
             </div>
           )}
-          <Input label="Description" value={form.description} onChange={f('description')} placeholder="What was this for?" />
+          <Input label="Description" value={form.description} onChange={f('description')} onBlur={e => applyLearnedCategory(e.target.value)} placeholder="What was this for?" />
           <CatSel label="Category" value={form.category} onChange={f('category')} />
 
           {/* Grouped account selector */}
@@ -8441,6 +8459,26 @@ export default function App() {
   const [lastImport, setLastImport] = useState(() => load('nri_lastImport', null))
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
+
+  // One-time bulk fix: re-tag fuel transactions that were mis-categorised as
+  // "Travel" → "Transport" (Travel now means out-of-country trips only).
+  // Guarded by a flag so it runs once per device.
+  useEffect(() => {
+    if (load('nri_fuelRetagDone', false)) return
+    const FUEL = /\b(fuel|petrol|diesel|gas station|gasoline|filling station|adnoc|enoc|woqod|knpc|petrol pump|hp petrol|indian oil|bharat petroleum|shell|gulf petrol)\b/i
+    let changed = false
+    setTransactions(prev => {
+      const next = prev.map(t => {
+        if ((t.category || '').toLowerCase() === 'travel' && FUEL.test(t.description || '')) {
+          changed = true
+          return { ...t, category: 'Transport' }
+        }
+        return t
+      })
+      return changed ? next : prev
+    })
+    persist('nri_fuelRetagDone', true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const [showRates, setShowRates] = useState(false) // collapsed by default so nav items stay visible
   const mainScrollRef = useRef(null)
@@ -9211,7 +9249,7 @@ export default function App() {
         <main ref={mainScrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg, position: 'relative' }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
-          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} />}
+          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
           {activeTab === 'bills' && <Bills {...shared} {...setters} />}
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
