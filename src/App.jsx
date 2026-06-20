@@ -2130,6 +2130,29 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     }
   }
 
+  // Does a salary income transaction already exist for the given YYYY-MM?
+  // Counts both on-time (date in that month) and delayed (salaryForMonth set).
+  const salaryExistsFor = ym => transactions.some(t =>
+    t.type === 'income' && (t.category || '').toLowerCase() === 'salary' &&
+    ((t.salaryForMonth ? t.salaryForMonth === ym : (t.date || '').slice(0, 7) === ym)))
+
+  // Auto-suggest delayed salary: when adding a NEW Salary income and there is
+  // NO salary recorded for the PREVIOUS month, default "salary is for month" to
+  // that previous month (likely a delayed payout). The user can still change it.
+  useEffect(() => {
+    if (editing) return
+    if (form.category !== 'Salary' || form.type !== 'income') return
+    if (form.salaryForMonth) return // user already chose
+    const txMonth = (form.date || today()).slice(0, 7)
+    const [y, m] = txMonth.split('-').map(Number)
+    const prev = new Date(y, m - 2) // m is 1-based; m-2 = previous month index
+    const prevYm = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`
+    if (!salaryExistsFor(prevYm) && salaryExistsFor(txMonth) === false) {
+      setForm(p => ({ ...p, salaryForMonth: prevYm }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.category, form.type, form.date])
+
   const saveTemplate = () => {
     if (!tmplName.trim()) return
     setTemplates(p => [...p, { ...form, name: tmplName.trim(), id: uid() }])
@@ -2614,19 +2637,27 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 
           {/* Salary delay note — only for Salary income. If the salary is for an
               earlier month than when it was received, record which month. */}
-          {form.category === 'Salary' && form.type === 'income' && (
+          {form.category === 'Salary' && form.type === 'income' && (() => {
+            const txMonth = (form.date || today()).slice(0, 7)
+            const isDelayed = form.salaryForMonth && form.salaryForMonth !== txMonth
+            return (
             <Field label="Salary is for month (only if delayed)">
-              <input type="month" value={form.salaryForMonth || (form.date || '').slice(0, 7)}
-                max={(form.date || today()).slice(0, 7)}
+              <input type="month" value={form.salaryForMonth || txMonth}
+                max={txMonth}
                 onChange={e => setForm(p => ({ ...p, salaryForMonth: e.target.value }))}
                 style={inputStyle} />
-              {form.salaryForMonth && form.salaryForMonth !== (form.date || '').slice(0, 7) && (
-                <div style={{ fontSize: 11, color: C.yellow, marginTop: 5 }}>
-                  ⏳ Marked as delayed — this is the salary for {new Date(form.salaryForMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}, received in {new Date((form.date || today()) + 'T00:00:00').toLocaleString('default', { month: 'long' })}.
+              {isDelayed && (
+                <div style={{ fontSize: 11, color: C.yellow, marginTop: 5, lineHeight: 1.6 }}>
+                  ⏳ Recorded as the salary for <strong>{new Date(form.salaryForMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</strong>, received in {new Date(txMonth + '-02').toLocaleString('default', { month: 'long' })} (no salary was found for {new Date(form.salaryForMonth + '-02').toLocaleString('default', { month: 'long' })}).
+                  {' '}<button type="button" onClick={() => setForm(p => ({ ...p, salaryForMonth: txMonth }))}
+                    style={{ background: 'none', border: 'none', color: C.accentL, cursor: 'pointer', fontSize: 11, padding: 0, textDecoration: 'underline' }}>
+                    No, it's for {new Date(txMonth + '-02').toLocaleString('default', { month: 'long' })}
+                  </button>
                 </div>
               )}
             </Field>
-          )}
+            )
+          })()}
 
           {/* Grouped account selector */}
           <Field label="Account">
