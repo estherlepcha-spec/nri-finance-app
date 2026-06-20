@@ -4122,8 +4122,9 @@ Rules:
 - category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
 - Giving/Donation: money given to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms). Use this for all charitable and religious giving.
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
-- Groceries vs Shopping: "Groceries" = food and consumable household needs from supermarkets/hypermarkets (Lulu, Carrefour, Oncost, Sultan Center, Co-op/Jam3eya, TSC, Grand Hyper, DMart, Reliance Fresh). "Shopping" = durable/discretionary goods — clothing, electronics, home appliances, furniture, interiors (Xcite, Best Al Yousifi, Sharaf DG, Jarir, IKEA, Home Centre, H&M, Zara, Amazon, Noon).
-- Fuel stations in Kuwait (Alfa, Oula, KNPC, Q8) and India (Indian Oil, BPCL, HP) → Transport.
+- USE YOUR GLOBAL MERCHANT KNOWLEDGE: identify the merchant from the receipt/description and categorise by what it sells, in ANY country. Recognise supermarkets, fuel stations, pharmacies, restaurants, electronics/furniture retailers etc. worldwide.
+- Groceries vs Shopping: "Groceries" = food and consumable household needs from supermarkets/hypermarkets/grocers (e.g. Walmart, Tesco, Aldi, Lidl, Costco, Woolworths, Migros, FairPrice, Carrefour, Lulu, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, home appliances, furniture, interiors (e.g. Amazon, IKEA, Best Buy, MediaMarkt, Currys, Sharaf DG, Xcite, Croma). These are examples — apply the same reasoning to any merchant globally.
+- Fuel/petrol/gas stations anywhere (Shell, BP, Exxon, Total, Petronas, Alfa, Indian Oil...) → Transport.
 - type: "expense" for invoices/bills/purchases, "income" for salary slips or incoming payment notices
 - For CSV/Excel files: read column headers carefully to identify the amount column; numbers may have comma thousand-separators — always parse them as plain decimals
 Return ONLY the JSON object — no text before { or after }\``
@@ -5202,19 +5203,23 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
   // Fuzzy category matching — handles "Apartment Rent" → "Rent", etc.
   const CAT_VARIATIONS = {
     'rent': ['rent', 'apartment rent', 'house rent', 'flat rent', 'housing', 'accommodation'],
+    // Budget matcher keywords are intentionally GENERIC (global). Specific
+    // merchant recognition is handled by the AI categoriser, which knows
+    // stores worldwide; the user's learned corrections personalise the rest.
     // Groceries = food / consumable household needs (you use up and rebuy).
-    'groceries': ['groceries', 'grocery', 'supermarket', 'hypermarket', 'sultan center', 'lulu', 'carrefour', 'oncost', 'on cost', 'tsc', 'co-op', 'coop', 'jam3eya', 'baqala', 'grand hyper', 'spar', 'geant', 'big mart', 'dmart', 'reliance fresh', 'more supermarket'],
+    'groceries': ['groceries', 'grocery', 'supermarket', 'hypermarket', 'grocer', 'mart', 'food market', 'provisions'],
     'food': ['food', 'groceries', 'grocery', 'dining', 'restaurant', 'eating out'],
     'dining': ['dining', 'restaurant', 'eating out', 'cafe', 'coffee', 'food court'],
     // Transport = getting around locally: fuel, ride-hailing, commuting, parking.
-    'transport': ['transport', 'transportation', 'petrol', 'fuel', 'gas station', 'diesel', 'uber', 'careem', 'taxi', 'commute', 'parking', 'metro', 'bus', 'car service', 'alfa', 'aldana fuel', 'kuwait national petroleum', 'oula', 'q8 fuel', 'adnoc', 'enoc', 'eppco', 'indian oil', 'bharat petroleum', 'hp petrol', 'shell'],
+    'transport': ['transport', 'transportation', 'petrol', 'fuel', 'gas station', 'gasoline', 'diesel', 'uber', 'careem', 'taxi', 'cab', 'commute', 'parking', 'metro', 'subway', 'bus', 'tram', 'car service', 'ride'],
     // Travel = trips out of the country: flights, hotels, holidays. Kept separate.
     'travel': ['travel', 'flight', 'flights', 'airline', 'airfare', 'hotel', 'holiday', 'vacation', 'trip', 'tourism', 'visa'],
     'utilities': ['utilities', 'utility', 'electricity', 'water', 'mew', 'internet', 'electric', 'gas', 'broadband'],
     'healthcare': ['healthcare', 'health', 'medical', 'doctor', 'hospital', 'pharmacy', 'clinic', 'dentist'],
     // Shopping = durable / discretionary goods: clothing, electronics, home
-    // appliances, furniture, interiors (NOT consumable groceries).
-    'shopping': ['shopping', 'clothes', 'clothing', 'apparel', 'fashion', 'retail', 'mall', 'electronics', 'appliance', 'appliances', 'furniture', 'interior', 'interiors', 'home centre', 'home center', 'ikea', 'xcite', 'eureka', 'best al yousifi', 'sharaf dg', 'jarir', 'amazon', 'noon', 'h&m', 'zara', 'centrepoint', 'lulu fashion'],
+    // appliances, furniture, interiors (NOT consumable groceries). Generic
+    // keywords only; brand recognition is the AI categoriser's job.
+    'shopping': ['shopping', 'clothes', 'clothing', 'apparel', 'fashion', 'footwear', 'retail', 'mall', 'department store', 'electronics', 'appliance', 'appliances', 'furniture', 'interior', 'interiors', 'home centre', 'home center', 'homeware'],
     // Entertainment = outings/leisure: cinema, movies, events. NOT subscriptions.
     'entertainment': ['entertainment', 'cinema', 'movies', 'movie', 'leisure', 'concert', 'event', 'gaming', 'theme park'],
     // Subscription = recurring services: streaming, apps, memberships. Kept separate.
@@ -6840,10 +6845,10 @@ Rules:
 - category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
 - Giving/Donation: money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
-- Groceries vs Shopping: "Groceries" = food/consumables from supermarkets (Lulu, Carrefour, Oncost, Sultan Center, Co-op/Jam3eya, TSC, Grand Hyper, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, home appliances, furniture, interiors (Xcite, Best Al Yousifi, Sharaf DG, Jarir, IKEA, Home Centre, H&M, Zara, Amazon, Noon).
-- Fuel stations Alfa, Oula, KNPC, Q8 (Kuwait), Indian Oil/BPCL/HP (India) → Transport (NOT Groceries).
-- Kuwait hints: KWD amounts, Sultan Center, Lulu, Oncost, Talabat, Careem, Zain, MEW, Alfa/Oula petrol, salary on 1st or last day
-- India hints: INR amounts, UPI (GPay PhonePe Paytm), NEFT/RTGS, Amazon, Swiggy, Zomato
+- USE YOUR GLOBAL MERCHANT KNOWLEDGE: identify the merchant from the description and categorise by what that business actually sells, anywhere in the world. Recognise supermarket chains, fuel stations, pharmacies, restaurants, airlines, electronics/furniture retailers etc. across all countries (e.g. Walmart, Tesco, Aldi, Lidl, Costco, Kroger, Sainsbury's, Woolworths, Coles, Migros, Albert Heijn, FairPrice, BIM, Carrefour, Lulu, Reliance, DMart for groceries; Shell, BP, Exxon, Chevron, Total, Petronas, Alfa, Indian Oil for fuel→Transport; Amazon, IKEA, Best Buy, MediaMarkt, Currys, Sharaf DG, Xcite, Croma for Shopping). These are examples — apply the same reasoning to ANY merchant globally.
+- Groceries vs Shopping: "Groceries" = food/consumable household needs from supermarkets/hypermarkets/grocers. "Shopping" = durable/discretionary goods — clothing, electronics, home appliances, furniture, interiors.
+- Fuel/petrol/gas stations anywhere → Transport (NOT Groceries).
+- Region hints: KWD/Gulf → Kuwait/GCC merchants; INR + UPI (GPay/PhonePe/Paytm), NEFT/RTGS → India; otherwise infer the country from the currency and merchant.
 - creditLimit: credit limit as a plain number if shown (e.g. "Credit Limit: KWD 2,000" → 2000); null if not found or not a credit card statement
 - apr: annual interest/finance charge rate as a plain decimal percent (e.g. "APR 3.75%" → 3.75, "Finance charge rate: 2.99% per month" → 35.88 annualised); null if not found
 - minPayment: minimum payment due as a plain number; null if not found
@@ -7077,7 +7082,7 @@ Rules:
 Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
 IMPORTANT category rule: "Transport" = local getting-around — fuel/petrol/diesel, gas stations, ride-hailing (Uber/Careem), taxi, parking, metro/bus. "Travel" = trips OUT of the country — flights, airlines, hotels, holidays, visas. Put ALL fuel/petrol expenses under Transport, never Travel.
 "Giving/Donation" = money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
-"Groceries" = food/consumables from supermarkets (Lulu, Carrefour, Oncost, Sultan Center, Co-op/Jam3eya, TSC, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, appliances, furniture, interiors (Xcite, Sharaf DG, Jarir, IKEA, Home Centre, H&M, Amazon, Noon). Fuel stations (Alfa, Oula, KNPC, Q8, Indian Oil, HP) → Transport, NOT Groceries.
+USE YOUR GLOBAL MERCHANT KNOWLEDGE: identify the merchant and categorise by what it sells, in ANY country. "Groceries" = food/consumables from supermarkets/grocers worldwide (e.g. Walmart, Tesco, Aldi, Lidl, Costco, Kroger, Woolworths, Migros, FairPrice, Carrefour, Lulu, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, appliances, furniture, interiors (e.g. Amazon, IKEA, Best Buy, MediaMarkt, Currys, Sharaf DG, Xcite, Croma). Fuel/petrol/gas stations anywhere (Shell, BP, Exxon, Total, Petronas, Alfa, Indian Oil...) → Transport, NOT Groceries. These are examples — apply the same reasoning to any merchant globally.
 Transactions: ${JSON.stringify(batch)}
 Return: [{"date":"same","description":"same","amount":same,"type":"same","category":"from list","confidence":"high/medium/low"}]`
       try {
