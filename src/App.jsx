@@ -814,7 +814,8 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
 
   // Exclude remittance-type credits from "direct" home income — they're added
   // separately via hmRemitsReceived, so counting them here would double-count.
-  const isRemittanceCredit = t => (t.category || '').toLowerCase() === 'remittance' || t.type === 'remittance' || (t.notes || '').toLowerCase().includes('remittance')
+  // Match by category/type only, so genuine income streams are never dropped.
+  const isRemittanceCredit = t => (t.category || '').toLowerCase() === 'remittance' || t.type === 'remittance'
   const hmMonIn    = allHmTx.filter(t => isCredit(t) && !isRemittanceCredit(t)).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const hmMonEx    = allHmTx.filter(isTrueExpense).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const hmMonSaved = hmMonIn - hmMonEx
@@ -2273,10 +2274,11 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   // "Direct" home income = income transactions that are NOT remittances. A
   // remittance recorded as an income transaction (category Remittance, or a
   // remittance-type tx) is the SAME money as the remittance record below, so
-  // excluding it here prevents double-counting in Total Income.
+  // excluding it prevents double-counting. We match by CATEGORY/TYPE only — never
+  // by notes — so genuine income streams (rent, commercial property, home salary,
+  // dividends...) are always fully counted, even if their notes mention the word.
   const isRemittanceTx = t => t.type === 'remittance'
     || (t.category || '').toLowerCase() === 'remittance'
-    || (t.notes || '').toLowerCase().includes('remittance')
   const hmIn  = hmTx.filter(t => t.type === 'income' && !isRemittanceTx(t)).reduce((s, t) => s + (t.amount || 0), 0)
   const hmEx  = hmTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
   const hmRemitsTotal = (remittances || []).reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
@@ -5317,9 +5319,10 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
   const hmAccIds = new Set(accounts.filter(a => a.country === 'home').map(a => a.id))
 
   // Home country money available = direct income + remittances received this budget month.
-  // Exclude remittance-type income transactions (counted via hmRemitsBudget) to avoid double-counting.
+  // Exclude remittance-type income (counted via hmRemitsBudget) to avoid double-counting;
+  // match by category/type only so real income streams (rent, salary, dividends) always count.
   const hmDirectIncomeBudget = transactions.filter(t => t.type === 'income' && (t.date || '').startsWith(budgetMonth) && hmAccIds.has(t.accountId)
-      && (t.category || '').toLowerCase() !== 'remittance' && t.type !== 'remittance' && !(t.notes || '').toLowerCase().includes('remittance'))
+      && (t.category || '').toLowerCase() !== 'remittance' && t.type !== 'remittance')
     .reduce((s, t) => s + (t.amount || 0), 0)
   const hmRemitsBudget = (remittances || []).filter(r => (r.date || '').startsWith(budgetMonth))
     .reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
