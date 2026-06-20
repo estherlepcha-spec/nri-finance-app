@@ -2064,7 +2064,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedForDelete, setSelectedForDelete] = useState(new Set())
 
-  const blank = { type: 'expense', date: today(), description: '', category: 'Groceries', amount: '', currency: 'AED', amountINR: '', accountId: '', ccPayAccountId: '' }
+  const blank = { type: 'expense', date: today(), description: '', category: 'Groceries', amount: '', currency: 'AED', amountINR: '', accountId: '', ccPayAccountId: '', salaryForMonth: '' }
   const [form, setForm] = useState(blank)
   const f = k => e => {
     const val = e.target.value
@@ -2097,7 +2097,11 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     const amt = parseFloat(form.amount) || 0
     const txCur = selAcct ? selAcct.currency : form.currency
     const amountINR = parseFloat(form.amountINR) || toINR(amt, txCur)
-    const item = { ...form, amount: amt, currency: txCur, amountINR, id: editing?.id || uid() }
+    // Only keep salaryForMonth when it's a real delay (different from the tx month).
+    const txMonth = (form.date || '').slice(0, 7)
+    const salaryForMonth = (form.category === 'Salary' && form.type === 'income'
+      && form.salaryForMonth && form.salaryForMonth !== txMonth) ? form.salaryForMonth : ''
+    const item = { ...form, amount: amt, currency: txCur, amountINR, salaryForMonth, id: editing?.id || uid() }
 
     // Learn from a manual category correction: if the user changed an existing
     // transaction's category, remember it keyed on the description so future
@@ -2554,6 +2558,12 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: acct ? 3 : 0 }}>
                           <span style={{ fontSize: 11, color: C.muted }}>{t.date}</span>
                           <span style={{ background: catColor + '20', color: catColor, border: `1px solid ${catColor}44`, borderRadius: 5, padding: '1px 7px', fontSize: 10, fontWeight: 600 }}>{t.category}</span>
+                          {t.salaryForMonth && (
+                            <span title={`Delayed salary — this is for ${new Date(t.salaryForMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}`}
+                              style={{ background: C.yellow + '20', color: C.yellow, border: `1px solid ${C.yellow}44`, borderRadius: 5, padding: '1px 7px', fontSize: 10, fontWeight: 600 }}>
+                              ⏳ for {new Date(t.salaryForMonth + '-02').toLocaleString('default', { month: 'short', year: '2-digit' })}
+                            </span>
+                          )}
                         </div>
                         {acct && <div style={{ fontSize: 11, color: C.muted, display:'flex', alignItems:'center', gap:3 }}><Flag currency={acct.currency} size={11} />{isCC ? '💳' : '🏦'} {acct.name}</div>}
                       </div>
@@ -2601,6 +2611,22 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
           )}
           <Input label="Description" value={form.description} onChange={f('description')} onBlur={e => applyLearnedCategory(e.target.value)} placeholder="What was this for?" />
           <CatSel label="Category" value={form.category} onChange={f('category')} />
+
+          {/* Salary delay note — only for Salary income. If the salary is for an
+              earlier month than when it was received, record which month. */}
+          {form.category === 'Salary' && form.type === 'income' && (
+            <Field label="Salary is for month (only if delayed)">
+              <input type="month" value={form.salaryForMonth || (form.date || '').slice(0, 7)}
+                max={(form.date || today()).slice(0, 7)}
+                onChange={e => setForm(p => ({ ...p, salaryForMonth: e.target.value }))}
+                style={inputStyle} />
+              {form.salaryForMonth && form.salaryForMonth !== (form.date || '').slice(0, 7) && (
+                <div style={{ fontSize: 11, color: C.yellow, marginTop: 5 }}>
+                  ⏳ Marked as delayed — this is the salary for {new Date(form.salaryForMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}, received in {new Date((form.date || today()) + 'T00:00:00').toLocaleString('default', { month: 'long' })}.
+                </div>
+              )}
+            </Field>
+          )}
 
           {/* Grouped account selector */}
           <Field label="Account">
