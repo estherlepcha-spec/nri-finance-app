@@ -812,7 +812,10 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
   const wkMonSaved  = wkMonIn - wkMonEx
   const wkSavRate   = sanitizeRate(wkMonIn > 0 ? (wkMonSaved / wkMonIn) * 100 : null, wkMonIn)
 
-  const hmMonIn    = allHmTx.filter(isCredit).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
+  // Exclude remittance-type credits from "direct" home income — they're added
+  // separately via hmRemitsReceived, so counting them here would double-count.
+  const isRemittanceCredit = t => (t.category || '').toLowerCase() === 'remittance' || t.type === 'remittance' || (t.notes || '').toLowerCase().includes('remittance')
+  const hmMonIn    = allHmTx.filter(t => isCredit(t) && !isRemittanceCredit(t)).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const hmMonEx    = allHmTx.filter(isTrueExpense).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const hmMonSaved = hmMonIn - hmMonEx
   const hmSavRate  = sanitizeRate(hmMonIn > 0 ? (hmMonSaved / hmMonIn) * 100 : null, hmMonIn)
@@ -2267,7 +2270,14 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const hmTx  = filtered.filter(t => getAcctCountry(t) === 'home')
   const wkIn  = wkTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)
   const wkEx  = wkTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
-  const hmIn  = hmTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)
+  // "Direct" home income = income transactions that are NOT remittances. A
+  // remittance recorded as an income transaction (category Remittance, or a
+  // remittance-type tx) is the SAME money as the remittance record below, so
+  // excluding it here prevents double-counting in Total Income.
+  const isRemittanceTx = t => t.type === 'remittance'
+    || (t.category || '').toLowerCase() === 'remittance'
+    || (t.notes || '').toLowerCase().includes('remittance')
+  const hmIn  = hmTx.filter(t => t.type === 'income' && !isRemittanceTx(t)).reduce((s, t) => s + (t.amount || 0), 0)
   const hmEx  = hmTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
   const hmRemitsTotal = (remittances || []).reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
   const hmAvailable = hmIn + hmRemitsTotal
@@ -5306,8 +5316,10 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
   const wkAccIds = new Set(accounts.filter(a => a.country === 'foreign').map(a => a.id))
   const hmAccIds = new Set(accounts.filter(a => a.country === 'home').map(a => a.id))
 
-  // Home country money available = direct income + remittances received this budget month
-  const hmDirectIncomeBudget = transactions.filter(t => t.type === 'income' && (t.date || '').startsWith(budgetMonth) && hmAccIds.has(t.accountId))
+  // Home country money available = direct income + remittances received this budget month.
+  // Exclude remittance-type income transactions (counted via hmRemitsBudget) to avoid double-counting.
+  const hmDirectIncomeBudget = transactions.filter(t => t.type === 'income' && (t.date || '').startsWith(budgetMonth) && hmAccIds.has(t.accountId)
+      && (t.category || '').toLowerCase() !== 'remittance' && t.type !== 'remittance' && !(t.notes || '').toLowerCase().includes('remittance'))
     .reduce((s, t) => s + (t.amount || 0), 0)
   const hmRemitsBudget = (remittances || []).filter(r => (r.date || '').startsWith(budgetMonth))
     .reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
