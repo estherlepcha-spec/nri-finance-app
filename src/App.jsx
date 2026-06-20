@@ -5163,7 +5163,7 @@ function Estelle({ aiMessages, aiInput, setAiInput, aiLoading, sendAI, financial
 }
 
 // ─── Budget ───────────────────────────────────────────────────────────────────
-function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, budgetMonth, setBudgetMonth, foreignCurrency, homeCurrency, setActiveTab, remittances, loans }) {
+function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, budgetMonth, setBudgetMonth, foreignCurrency, homeCurrency, setActiveTab, remittances, loans, smartRules = {}, setSmartRules }) {
   const [countryTab, setCountryTab] = useState('working')
   const [showAdd, setShowAdd] = useState(false)
   const [editItem, setEditItem] = useState(null)
@@ -5256,6 +5256,18 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
   }
   const getSpentFrom = (txs, amtFn, name) =>
     txs.filter(t => matchCategory(t.category, name)).reduce((s, t) => s + amtFn(t), 0)
+
+  // Re-categorise a transaction directly from the budget drill-down. Also learns
+  // the correction (description → category) so future ones from that merchant
+  // auto-apply, matching the Transactions-page behaviour.
+  const recategorize = (tx, newCat) => {
+    if (!newCat || newCat === tx.category) return
+    if (setTransactions) setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, category: newCat } : t))
+    if (setSmartRules && (tx.description || '').trim()) {
+      const key = tx.description.toLowerCase().trim().slice(0, 50)
+      if (key) setSmartRules(p => { const u = { ...p, [key]: newCat }; persist('nri_smartRules', u); return u })
+    }
+  }
 
   const isWorking = countryTab === 'working'
   const budgets   = isWorking ? wkBudgets : hmBudgets
@@ -5673,12 +5685,18 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
                       {over ? '⚠️ Overspent — ' : ''}{txCount} transaction{txCount !== 1 ? 's' : ''} counted as {b.name} spend
                     </div>
                     {catTxs.map(t => (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 2px', borderTop: `1px solid ${C.border}55`, fontSize: 12 }}>
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 2px', borderTop: `1px solid ${C.border}55`, fontSize: 12 }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description || t.category || '—'}</div>
                           <div style={{ color: C.muted, fontSize: 10 }}>{fmtDate(t.date)}{t.category && t.category.toLowerCase() !== b.name.toLowerCase() ? ` · tagged "${t.category}"` : ''}</div>
                         </div>
-                        <span className="num" style={{ color: C.redL, fontWeight: 700, flexShrink: 0, marginLeft: 10 }}>−{fmt(activeAmt(t), currency)}</span>
+                        {/* Re-categorise dropdown — fix a wrongly-tagged transaction in place */}
+                        <select value={t.category || ''} onClick={e => e.stopPropagation()} onChange={e => recategorize(t, e.target.value)}
+                          title="Change this transaction's category"
+                          style={{ flexShrink: 0, fontSize: 10, padding: '2px 4px', borderRadius: 5, border: `1px solid ${C.border}`, background: C.card, color: C.mutedL, maxWidth: 110 }}>
+                          {TX_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <span className="num" style={{ color: C.redL, fontWeight: 700, flexShrink: 0, marginLeft: 4 }}>−{fmt(activeAmt(t), currency)}</span>
                       </div>
                     ))}
                   </div>
@@ -9404,7 +9422,7 @@ export default function App() {
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
           {activeTab === 'goals' && <Goals {...shared} {...setters} />}
           {activeTab === 'loans' && <Loans {...shared} {...setters} />}
-          {activeTab === 'budget' && <Budget transactions={transactions} accounts={accounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} setActiveTab={setActiveTab} remittances={remittances} loans={loans} />}
+          {activeTab === 'budget' && <Budget transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} setActiveTab={setActiveTab} remittances={remittances} loans={loans} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'trends' && <Trends transactions={transactions} accounts={accounts} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} toINR={toINR} />}
           {activeTab === 'tax' && <TaxEstimator transactions={transactions} investments={investments} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} exchangeRate={exchangeRate} toINR={toINR} />}
           {activeTab === 'family' && <FamilyComponent familyMembers={familyMembers} setFamilyMembers={setFamilyMembers} remittances={remittances} foreignCurrency={foreignCurrency} />}
