@@ -8536,6 +8536,51 @@ export default function App() {
     })
     persist('nri_fuelRetagDone', true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One-time: retroactively mark delayed salaries. A delayed salary is a SECOND
+  // (catch-up) salary in a month whose PREVIOUS month has none — i.e. the month
+  // got paid twice to cover a missed month. We only reattribute the extra one,
+  // never a month's sole salary (so normal monthly pay is left alone). Runs once
+  // per device; user-set salaryForMonth values are never touched.
+  useEffect(() => {
+    if (load('nri_salaryBackfillDone', false)) return
+    setTransactions(prev => {
+      const isSalary = t => t.type === 'income' && (t.category || '').toLowerCase() === 'salary'
+      const prevMonthOf = ym => {
+        const [y, m] = ym.split('-').map(Number)
+        const d = new Date(y, m - 2)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      }
+      // Count salaries received per month (by received date).
+      const countByMonth = {}
+      prev.filter(isSalary).forEach(t => {
+        const ym = (t.salaryForMonth || (t.date || '').slice(0, 7))
+        if (ym) countByMonth[ym] = (countByMonth[ym] || 0) + 1
+      })
+      const hasSalary = ym => (countByMonth[ym] || 0) > 0
+
+      // Within each received-month that has 2+ salaries, if the prior month has
+      // none, mark the EXTRA (later-dated) ones as the prior month's.
+      const updates = {}
+      const byMonth = {}
+      prev.filter(isSalary).filter(t => !t.salaryForMonth).forEach(t => {
+        const ym = (t.date || '').slice(0, 7)
+        if (ym) (byMonth[ym] = byMonth[ym] || []).push(t)
+      })
+      Object.entries(byMonth).forEach(([ym, list]) => {
+        if (list.length < 2) return // a sole monthly salary is normal — leave it
+        const pm = prevMonthOf(ym)
+        if (hasSalary(pm)) return    // prior month already covered
+        // Keep the earliest as this month's; reattribute the rest to the prior month.
+        list.sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+        list.slice(1).forEach(t => { updates[t.id] = pm })
+      })
+      if (Object.keys(updates).length === 0) return prev
+      return prev.map(t => updates[t.id] ? { ...t, salaryForMonth: updates[t.id] } : t)
+    })
+    persist('nri_salaryBackfillDone', true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const [showRates, setShowRates] = useState(false) // collapsed by default so nav items stay visible
   const mainScrollRef = useRef(null)
