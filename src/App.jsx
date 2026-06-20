@@ -180,7 +180,7 @@ const DEFAULT_GOALS = [
 const LOAN_TYPES = ['Home Loan', 'Car Loan', 'Personal Loan', 'Education Loan', 'Business Loan', 'Other']
 const TX_CATEGORY_GROUPS = {
   'Daily Living':      ['Rent', 'Groceries', 'Dining', 'Transport', 'Utilities', 'Household'],
-  'Family & Personal': ['Healthcare', 'Education', 'Personal Care', 'Shopping', 'Entertainment'],
+  'Family & Personal': ['Healthcare', 'Education', 'Personal Care', 'Shopping', 'Entertainment', 'Giving/Donation'],
   'Financial':         ['Remittance', 'Loan EMI', 'Credit Card Bill', 'Insurance', 'Investment', 'Savings'],
   'Work & Travel':     ['Travel', 'Subscription', 'Fees & Charges'],
   'Income':            ['Salary', 'Other Income', 'Rental Income', 'Dividends'],
@@ -226,7 +226,7 @@ const ALLOCATION_BUCKETS = {
   Essentials:    ['Groceries', 'Dining', 'Transport', 'Utilities', 'Household', 'Healthcare'],
   Remittance:    ['Remittance'],
   Investments:   ['Investment', 'Savings'],
-  Discretionary: ['Shopping', 'Entertainment', 'Personal Care', 'Travel', 'Subscription'],
+  Discretionary: ['Shopping', 'Entertainment', 'Personal Care', 'Travel', 'Subscription', 'Giving/Donation'],
   Bills:         ['Loan EMI', 'Credit Card Bill', 'Insurance', 'Fees & Charges'],
   Buffer:        ['Other', 'ATM Withdrawal'],
 }
@@ -234,7 +234,7 @@ const DEFAULT_BUDGETS = {
   Groceries: 15000, Dining: 8000, Transport: 5000, Utilities: 4000, Household: 3000,
   Healthcare: 5000, Education: 10000, 'Personal Care': 3000, Shopping: 8000, Entertainment: 3000,
   Remittance: 50000, 'Loan EMI': 20000, 'Credit Card Bill': 10000, Insurance: 3000, Investment: 20000, Savings: 15000,
-  Travel: 10000, Subscription: 2000, 'Fees & Charges': 1000,
+  Travel: 10000, Subscription: 2000, 'Fees & Charges': 1000, 'Giving/Donation': 2000,
   Salary: 0, 'Other Income': 0, 'Rental Income': 0, Dividends: 0,
   'ATM Withdrawal': 5000, Transfer: 0, Other: 3000,
 }
@@ -255,6 +255,7 @@ const DEFAULT_WK_BUDGETS = [
   { id: 'wk-sub',        name: 'Subscription',   limit: 15 },
   { id: 'wk-fees',       name: 'Fees & Charges', limit: 10 },
   { id: 'wk-travel',     name: 'Travel',         limit: 100 },
+  { id: 'wk-giving',     name: 'Giving/Donation', limit: 20 },
   { id: 'wk-other',      name: 'Other',          limit: 30 },
 ]
 const DEFAULT_HM_BUDGETS = [
@@ -269,6 +270,7 @@ const DEFAULT_HM_BUDGETS = [
   { id: 'hm-household',  name: 'Household',           limit: 5000 },
   { id: 'hm-care',       name: 'Personal Care',       limit: 3000 },
   { id: 'hm-entertain',  name: 'Entertainment',       limit: 2000 },
+  { id: 'hm-giving',     name: 'Giving/Donation',     limit: 3000 },
   { id: 'hm-other',      name: 'Other',               limit: 5000 },
 ]
 
@@ -2044,7 +2046,7 @@ const CAT_COLORS = {
   Household: '#d97706', Healthcare: '#ef4444', Education: '#6366f1', 'Personal Care': '#ec4899',
   Shopping: '#a855f7', Entertainment: '#8b5cf6', Remittance: '#14b8a6', 'Loan EMI': '#f97316',
   'Credit Card Bill': '#ef4444', Insurance: '#3b82f6', Investment: '#14b8a6', Savings: '#c9a961',
-  Travel: '#0ea5e9', Subscription: '#8b5cf6', 'Fees & Charges': '#475569',
+  Travel: '#0ea5e9', Subscription: '#8b5cf6', 'Fees & Charges': '#475569', 'Giving/Donation': '#10b981',
   Salary: '#c9a961', 'Other Income': '#22c55e', 'Rental Income': '#14b8a6', Dividends: '#c9a961',
   'ATM Withdrawal': '#94a3b8', Transfer: '#64748b', Other: '#64748b',
 }
@@ -4117,7 +4119,8 @@ Rules:
 - amount: the EXACT total amount as a plain number — strip all commas and currency symbols (e.g. "KWD 1,250.500" → 1250.5, "INR 45,000" → 45000). Preserve decimal precision exactly as shown; do NOT round. 0 if not found
 - currency: 3-letter ISO code (e.g. KWD, AED, USD, INR); infer from document headers or symbols if not explicit; empty string if truly unclear
 - description: merchant/vendor name or a brief description of what was purchased
-- category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
+- category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
+- Giving/Donation: money given to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms). Use this for all charitable and religious giving.
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
 - type: "expense" for invoices/bills/purchases, "income" for salary slips or incoming payment notices
 - For CSV/Excel files: read column headers carefully to identify the amount column; numbers may have comma thousand-separators — always parse them as plain decimals
@@ -5212,6 +5215,8 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
     // Subscription = recurring services: streaming, apps, memberships. Kept separate.
     'subscription': ['subscription', 'subscriptions', 'streaming', 'netflix', 'spotify', 'prime', 'disney', 'youtube premium', 'icloud', 'membership'],
     'personal care': ['personal care', 'grooming', 'salon', 'gym', 'fitness', 'spa'],
+    // Giving/Donation: charity + religious giving (church, temple, mosque, etc.)
+    'giving/donation': ['giving/donation', 'giving', 'donation', 'donations', 'donate', 'charity', 'charitable', 'tithe', 'tithing', 'offering', 'zakat', 'sadaqah', 'church', 'temple', 'mosque', 'masjid', 'gurudwara', 'religious', 'ministry', 'mission', 'alms', 'seva', 'dakshina'],
     'insurance': ['insurance'],
     'savings': ['savings', 'saving', 'invest', 'investment', 'goal'],
     'loan emi': ['loan emi', 'loan', 'emi', 'mortgage'],
@@ -6827,7 +6832,8 @@ Rules:
 - Indian number formatting uses lakhs: "1,25,000" means 125000 — parse correctly
 - For CSV/Excel: read column headers carefully; debit and credit may be in separate columns — combine them (debit = negative, credit = positive)
 - date must be in YYYY-MM-DD format — if no year use 2026; DD/MM/YYYY → YYYY-MM-DD, DD-MM-YYYY → YYYY-MM-DD
-- category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+- category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+- Giving/Donation: money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
 - Kuwait hints: KWD amounts, Sultan Center, Lulu, Talabat, Careem, Zain, MEW, salary on 1st or last day
 - India hints: INR amounts, UPI (GPay PhonePe Paytm), NEFT/RTGS, Amazon, Swiggy, Zomato
@@ -7061,8 +7067,9 @@ Rules:
       if (basic.transactions.length > BATCH)
         setUploadProgress(`Categorising transactions ${i + 1}–${Math.min(i + BATCH, basic.transactions.length)} of ${basic.transactions.length}…`)
       const catPrompt = `Categorise these bank transactions for an NRI in Kuwait/India. Return ONLY a JSON array, no other text.
-Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
 IMPORTANT category rule: "Transport" = local getting-around — fuel/petrol/diesel, gas stations, ride-hailing (Uber/Careem), taxi, parking, metro/bus. "Travel" = trips OUT of the country — flights, airlines, hotels, holidays, visas. Put ALL fuel/petrol expenses under Transport, never Travel.
+"Giving/Donation" = money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
 Transactions: ${JSON.stringify(batch)}
 Return: [{"date":"same","description":"same","amount":same,"type":"same","category":"from list","confidence":"high/medium/low"}]`
       try {
