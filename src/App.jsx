@@ -2063,6 +2063,15 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const [stmtMonth, setStmtMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedForDelete, setSelectedForDelete] = useState(new Set())
+  const [salaryMonthEdit, setSalaryMonthEdit] = useState(null) // tx id being month-tagged
+
+  // Set/clear salaryForMonth on a transaction directly from the list.
+  const setSalaryMonth = (tx, ym) => {
+    const txMonth = (tx.date || '').slice(0, 7)
+    const val = ym && ym !== txMonth ? ym : '' // only store a real delay
+    setTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, salaryForMonth: val } : t))
+    setSalaryMonthEdit(null)
+  }
 
   const blank = { type: 'expense', date: today(), description: '', category: 'Groceries', amount: '', currency: 'AED', amountINR: '', accountId: '', ccPayAccountId: '', salaryForMonth: '' }
   const [form, setForm] = useState(blank)
@@ -2581,11 +2590,28 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: acct ? 3 : 0 }}>
                           <span style={{ fontSize: 11, color: C.muted }}>{t.date}</span>
                           <span style={{ background: catColor + '20', color: catColor, border: `1px solid ${catColor}44`, borderRadius: 5, padding: '1px 7px', fontSize: 10, fontWeight: 600 }}>{t.category}</span>
-                          {t.salaryForMonth && (
-                            <span title={`Delayed salary — this is for ${new Date(t.salaryForMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}`}
-                              style={{ background: C.yellow + '20', color: C.yellow, border: `1px solid ${C.yellow}44`, borderRadius: 5, padding: '1px 7px', fontSize: 10, fontWeight: 600 }}>
-                              ⏳ for {new Date(t.salaryForMonth + '-02').toLocaleString('default', { month: 'short', year: '2-digit' })}
-                            </span>
+                          {/* Salary delay tag — clickable for salary income to set/change/clear the month it's for */}
+                          {t.type === 'income' && (t.category || '').toLowerCase() === 'salary' && (
+                            salaryMonthEdit === t.id ? (
+                              <input type="month" autoFocus defaultValue={t.salaryForMonth || (t.date || '').slice(0, 7)}
+                                max={(t.date || '').slice(0, 7)}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => setSalaryMonth(t, e.target.value)}
+                                onBlur={() => setSalaryMonthEdit(null)}
+                                style={{ fontSize: 10, padding: '1px 4px', borderRadius: 5, border: `1px solid ${C.yellow}66`, background: C.card2, color: C.text }} />
+                            ) : t.salaryForMonth ? (
+                              <span onClick={e => { e.stopPropagation(); setSalaryMonthEdit(t.id) }}
+                                title={`Delayed salary — for ${new Date(t.salaryForMonth + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })}. Click to change.`}
+                                style={{ background: C.yellow + '20', color: C.yellow, border: `1px solid ${C.yellow}44`, borderRadius: 5, padding: '1px 7px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                ⏳ for {new Date(t.salaryForMonth + '-02').toLocaleString('default', { month: 'short', year: '2-digit' })}
+                              </span>
+                            ) : (
+                              <span onClick={e => { e.stopPropagation(); setSalaryMonthEdit(t.id) }}
+                                title="Mark which month this salary is for (if delayed)"
+                                style={{ color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 5, padding: '1px 7px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                                + mark month
+                              </span>
+                            )
                           )}
                         </div>
                         {acct && <div style={{ fontSize: 11, color: C.muted, display:'flex', alignItems:'center', gap:3 }}><Flag currency={acct.currency} size={11} />{isCC ? '💳' : '🏦'} {acct.name}</div>}
@@ -8537,48 +8563,25 @@ export default function App() {
     persist('nri_fuelRetagDone', true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // One-time: retroactively mark delayed salaries. A delayed salary is a SECOND
-  // (catch-up) salary in a month whose PREVIOUS month has none — i.e. the month
-  // got paid twice to cover a missed month. We only reattribute the extra one,
-  // never a month's sole salary (so normal monthly pay is left alone). Runs once
-  // per device; user-set salaryForMonth values are never touched.
+  // One-time: undo the earlier auto-backfill, which guessed delayed salaries
+  // from data alone and could mis-tag a month's extra salary (e.g. tagging an
+  // April salary "for March"). Delayed salaries are now set manually via the
+  // quick control on each salary row. This clears only auto-applied tags; it
+  // cannot distinguish user-set ones, so it runs ONCE and only if the old
+  // backfill ran, accepting that a user who manually tagged before this update
+  // would need to re-tag (rare; the feature is new).
   useEffect(() => {
-    if (load('nri_salaryBackfillDone', false)) return
+    if (!load('nri_salaryBackfillDone', false)) return
+    if (load('nri_salaryBackfillUndone', false)) return
     setTransactions(prev => {
-      const isSalary = t => t.type === 'income' && (t.category || '').toLowerCase() === 'salary'
-      const prevMonthOf = ym => {
-        const [y, m] = ym.split('-').map(Number)
-        const d = new Date(y, m - 2)
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      }
-      // Count salaries received per month (by received date).
-      const countByMonth = {}
-      prev.filter(isSalary).forEach(t => {
-        const ym = (t.salaryForMonth || (t.date || '').slice(0, 7))
-        if (ym) countByMonth[ym] = (countByMonth[ym] || 0) + 1
+      let changed = false
+      const next = prev.map(t => {
+        if (t.salaryForMonth) { changed = true; const { salaryForMonth, ...rest } = t; return rest }
+        return t
       })
-      const hasSalary = ym => (countByMonth[ym] || 0) > 0
-
-      // Within each received-month that has 2+ salaries, if the prior month has
-      // none, mark the EXTRA (later-dated) ones as the prior month's.
-      const updates = {}
-      const byMonth = {}
-      prev.filter(isSalary).filter(t => !t.salaryForMonth).forEach(t => {
-        const ym = (t.date || '').slice(0, 7)
-        if (ym) (byMonth[ym] = byMonth[ym] || []).push(t)
-      })
-      Object.entries(byMonth).forEach(([ym, list]) => {
-        if (list.length < 2) return // a sole monthly salary is normal — leave it
-        const pm = prevMonthOf(ym)
-        if (hasSalary(pm)) return    // prior month already covered
-        // Keep the earliest as this month's; reattribute the rest to the prior month.
-        list.sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-        list.slice(1).forEach(t => { updates[t.id] = pm })
-      })
-      if (Object.keys(updates).length === 0) return prev
-      return prev.map(t => updates[t.id] ? { ...t, salaryForMonth: updates[t.id] } : t)
+      return changed ? next : prev
     })
-    persist('nri_salaryBackfillDone', true)
+    persist('nri_salaryBackfillUndone', true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showAccountMenu, setShowAccountMenu] = useState(false)
