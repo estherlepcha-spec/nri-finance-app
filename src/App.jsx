@@ -8927,6 +8927,35 @@ export default function App() {
     persist('nri_salaryBackfillUndone', true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-detect self-transfers: a "Transfer" expense that matches a credit landing
+  // in ANOTHER of the user's OWN accounts (same |amount|, within ±3 days) is an
+  // internal move, not spending. Mark it transferTo:'own:<that account>' so the
+  // central rule excludes it. Runs on transactions; only marks unset transfers,
+  // so a user's manual choice is never overwritten. Re-runs when accounts change.
+  useEffect(() => {
+    const ownIds = new Set(accounts.map(a => a.id))
+    const dayMs = 86400000
+    let changed = false
+    const next = transactions.map(t => {
+      const isTransferOut = (t.category === 'Transfer' || t.type === 'transfer')
+        && (t.type === 'expense' || t.type === 'transfer')
+      if (!isTransferOut || t.transferTo) return t // skip non-transfers / already-marked
+      const amt = Math.abs(t.amount || 0)
+      const td = t.date ? Date.parse(t.date) : NaN
+      if (!amt || isNaN(td)) return t
+      // Find a credit of the same amount in a DIFFERENT own account within ±3 days.
+      const match = transactions.find(c =>
+        c.id !== t.id && c.accountId && c.accountId !== t.accountId && ownIds.has(c.accountId)
+        && (c.type === 'income' || c.type === 'transfer')
+        && Math.abs(Math.abs(c.amount || 0) - amt) <= Math.max(1, amt * 0.005)
+        && c.date && Math.abs(Date.parse(c.date) - td) <= 3 * dayMs)
+      if (match) { changed = true; return { ...t, transferTo: `own:${match.accountId}` } }
+      return t
+    })
+    if (changed) setTransactions(next)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts])
+
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const [showRates, setShowRates] = useState(false) // collapsed by default so nav items stay visible
   const mainScrollRef = useRef(null)
