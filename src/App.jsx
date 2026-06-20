@@ -181,7 +181,7 @@ const LOAN_TYPES = ['Home Loan', 'Car Loan', 'Personal Loan', 'Education Loan', 
 const TX_CATEGORY_GROUPS = {
   'Daily Living':      ['Rent', 'Groceries', 'Dining', 'Transport', 'Utilities', 'Household'],
   'Family & Personal': ['Healthcare', 'Education', 'Personal Care', 'Shopping', 'Entertainment', 'Giving/Donation'],
-  'Financial':         ['Remittance', 'Loan EMI', 'Credit Card Bill', 'Insurance', 'Investment', 'Savings'],
+  'Financial':         ['Remittance', 'Loan EMI', 'Installment/EMI Purchase', 'Credit Card Bill', 'Insurance', 'Investment', 'Savings'],
   'Work & Travel':     ['Travel', 'Subscription', 'Fees & Charges'],
   'Income':            ['Salary', 'Other Income', 'Rental Income', 'Dividends'],
   'Other':             ['ATM Withdrawal', 'Transfer', 'Other'],
@@ -227,13 +227,13 @@ const ALLOCATION_BUCKETS = {
   Remittance:    ['Remittance'],
   Investments:   ['Investment', 'Savings'],
   Discretionary: ['Shopping', 'Entertainment', 'Personal Care', 'Travel', 'Subscription', 'Giving/Donation'],
-  Bills:         ['Loan EMI', 'Credit Card Bill', 'Insurance', 'Fees & Charges'],
+  Bills:         ['Loan EMI', 'Installment/EMI Purchase', 'Credit Card Bill', 'Insurance', 'Fees & Charges'],
   Buffer:        ['Other', 'ATM Withdrawal'],
 }
 const DEFAULT_BUDGETS = {
   Groceries: 15000, Dining: 8000, Transport: 5000, Utilities: 4000, Household: 3000,
   Healthcare: 5000, Education: 10000, 'Personal Care': 3000, Shopping: 8000, Entertainment: 3000,
-  Remittance: 50000, 'Loan EMI': 20000, 'Credit Card Bill': 10000, Insurance: 3000, Investment: 20000, Savings: 15000,
+  Remittance: 50000, 'Loan EMI': 20000, 'Installment/EMI Purchase': 5000, 'Credit Card Bill': 10000, Insurance: 3000, Investment: 20000, Savings: 15000,
   Travel: 10000, Subscription: 2000, 'Fees & Charges': 1000, 'Giving/Donation': 2000,
   Salary: 0, 'Other Income': 0, 'Rental Income': 0, Dividends: 0,
   'ATM Withdrawal': 5000, Transfer: 0, Other: 3000,
@@ -2046,7 +2046,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
 const CAT_COLORS = {
   Groceries: '#22c55e', Dining: '#f97316', Transport: '#3b82f6', Utilities: '#eab308',
   Household: '#d97706', Healthcare: '#ef4444', Education: '#6366f1', 'Personal Care': '#ec4899',
-  Shopping: '#a855f7', Entertainment: '#8b5cf6', Remittance: '#14b8a6', 'Loan EMI': '#f97316',
+  Shopping: '#a855f7', Entertainment: '#8b5cf6', Remittance: '#14b8a6', 'Loan EMI': '#f97316', 'Installment/EMI Purchase': '#fb923c',
   'Credit Card Bill': '#ef4444', Insurance: '#3b82f6', Investment: '#14b8a6', Savings: '#c9a961',
   Travel: '#0ea5e9', Subscription: '#8b5cf6', 'Fees & Charges': '#475569', 'Giving/Donation': '#10b981',
   Salary: '#c9a961', 'Other Income': '#22c55e', 'Rental Income': '#14b8a6', Dividends: '#c9a961',
@@ -4121,7 +4121,8 @@ Rules:
 - amount: the EXACT total amount as a plain number — strip all commas and currency symbols (e.g. "KWD 1,250.500" → 1250.5, "INR 45,000" → 45000). Preserve decimal precision exactly as shown; do NOT round. 0 if not found
 - currency: 3-letter ISO code (e.g. KWD, AED, USD, INR); infer from document headers or symbols if not explicit; empty string if truly unclear
 - description: merchant/vendor name or a brief description of what was purchased
-- category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
+- category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Installment/EMI Purchase, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
+- Loan EMI vs Installment/EMI Purchase: "Loan EMI" = repayment of a formal loan (home/car/personal/education loan, mortgage). "Installment/EMI Purchase" = an ITEM bought in installments (phone, appliance, furniture on EMI, or BNPL like Tabby/Tamara/Klarna/Afterpay). Buying a thing on EMI is NOT a Loan EMI.
 - Giving/Donation: money given to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms). Use this for all charitable and religious giving.
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
 - USE YOUR GLOBAL MERCHANT KNOWLEDGE: identify the merchant from the receipt/description and categorise by what it sells, in ANY country. Recognise supermarkets, fuel stations, pharmacies, restaurants, electronics/furniture retailers etc. worldwide.
@@ -5232,6 +5233,9 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
     'insurance': ['insurance'],
     'savings': ['savings', 'saving', 'invest', 'investment', 'goal'],
     'loan emi': ['loan emi', 'loan', 'emi', 'mortgage'],
+    // Installment/EMI Purchase: an ITEM bought on installments (phone, appliance,
+    // furniture on EMI) — distinct from formal loan repayments above.
+    'installment/emi purchase': ['installment/emi purchase', 'installment', 'instalment', 'emi purchase', 'bnpl', 'buy now pay later', 'tabby', 'tamara', 'no cost emi', 'easy payment plan'],
     'remittance': ['remittance', 'transfer', 'remit', 'wire'],
   }
   // Set of category names that own a dedicated variations list — these are
@@ -6849,7 +6853,8 @@ Rules:
 - Indian number formatting uses lakhs: "1,25,000" means 125000 — parse correctly
 - For CSV/Excel: read column headers carefully; debit and credit may be in separate columns — combine them (debit = negative, credit = positive)
 - date must be in YYYY-MM-DD format — if no year use 2026; DD/MM/YYYY → YYYY-MM-DD, DD-MM-YYYY → YYYY-MM-DD
-- category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+- category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Installment/EMI Purchase, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+- Loan EMI vs Installment/EMI Purchase: "Loan EMI" = formal loan repayment (home/car/personal/education loan, mortgage). "Installment/EMI Purchase" = an item bought in installments / BNPL (Tabby, Tamara, Klarna, Afterpay).
 - Giving/Donation: money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
 - USE YOUR GLOBAL MERCHANT KNOWLEDGE: identify the merchant from the description and categorise by what that business actually sells, anywhere in the world. Recognise supermarket chains, fuel stations, pharmacies, restaurants, airlines, electronics/furniture retailers etc. across all countries (e.g. Walmart, Tesco, Aldi, Lidl, Costco, Kroger, Sainsbury's, Woolworths, Coles, Migros, Albert Heijn, FairPrice, BIM, Carrefour, Lulu, Reliance, DMart for groceries; Shell, BP, Exxon, Chevron, Total, Petronas, Alfa, Indian Oil for fuel→Transport; Amazon, IKEA, Best Buy, MediaMarkt, Currys, Sharaf DG, Xcite, Croma for Shopping). These are examples — apply the same reasoning to ANY merchant globally.
@@ -7086,7 +7091,8 @@ Rules:
       if (basic.transactions.length > BATCH)
         setUploadProgress(`Categorising transactions ${i + 1}–${Math.min(i + BATCH, basic.transactions.length)} of ${basic.transactions.length}…`)
       const catPrompt = `Categorise these bank transactions for an NRI in Kuwait/India. Return ONLY a JSON array, no other text.
-Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Installment/EMI Purchase, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
+"Loan EMI" = formal loan repayment (home/car/personal/education loan, mortgage). "Installment/EMI Purchase" = an item bought in installments / BNPL (Tabby, Tamara, Klarna, Afterpay) — buying a thing on EMI is NOT a Loan EMI.
 IMPORTANT category rule: "Transport" = local getting-around — fuel/petrol/diesel, gas stations, ride-hailing (Uber/Careem), taxi, parking, metro/bus. "Travel" = trips OUT of the country — flights, airlines, hotels, holidays, visas. Put ALL fuel/petrol expenses under Transport, never Travel.
 "Giving/Donation" = money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
 USE YOUR GLOBAL MERCHANT KNOWLEDGE: identify the merchant and categorise by what it sells, in ANY country. "Groceries" = food/consumables from supermarkets/grocers worldwide (e.g. Walmart, Tesco, Aldi, Lidl, Costco, Kroger, Woolworths, Migros, FairPrice, Carrefour, Lulu, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, appliances, furniture, interiors (e.g. Amazon, IKEA, Best Buy, MediaMarkt, Currys, Sharaf DG, Xcite, Croma). Fuel/petrol/gas stations anywhere (Shell, BP, Exxon, Total, Petronas, Alfa, Indian Oil...) → Transport, NOT Groceries. These are examples — apply the same reasoning to any merchant globally.
