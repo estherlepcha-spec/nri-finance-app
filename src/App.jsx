@@ -5207,18 +5207,29 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
     'utilities': ['utilities', 'utility', 'electricity', 'water', 'mew', 'internet', 'electric', 'gas', 'broadband'],
     'healthcare': ['healthcare', 'health', 'medical', 'doctor', 'hospital', 'pharmacy', 'clinic', 'dentist'],
     'shopping': ['shopping', 'clothes', 'clothing', 'retail', 'mall'],
-    'entertainment': ['entertainment', 'cinema', 'movies', 'leisure', 'streaming', 'subscription'],
+    // Entertainment = outings/leisure: cinema, movies, events. NOT subscriptions.
+    'entertainment': ['entertainment', 'cinema', 'movies', 'movie', 'leisure', 'concert', 'event', 'gaming', 'theme park'],
+    // Subscription = recurring services: streaming, apps, memberships. Kept separate.
+    'subscription': ['subscription', 'subscriptions', 'streaming', 'netflix', 'spotify', 'prime', 'disney', 'youtube premium', 'icloud', 'membership'],
     'personal care': ['personal care', 'grooming', 'salon', 'gym', 'fitness', 'spa'],
     'insurance': ['insurance'],
     'savings': ['savings', 'saving', 'invest', 'investment', 'goal'],
     'loan emi': ['loan emi', 'loan', 'emi', 'mortgage'],
     'remittance': ['remittance', 'transfer', 'remit', 'wire'],
   }
+  // Set of category names that own a dedicated variations list — these are
+  // "exact" categories. If a transaction is tagged with one of them, it must
+  // match ONLY its own budget, never bleed into another via fuzzy rules.
+  const KNOWN_CATS = new Set(Object.keys(CAT_VARIATIONS))
   const matchCategory = (txCat, budgetCat) => {
     if (!txCat || !budgetCat) return false
     const t = txCat.toLowerCase().trim()
     const b = budgetCat.toLowerCase().trim()
     if (t === b) return true
+    // If the transaction's category is itself a known category, only an exact
+    // name match counts (prevents e.g. "Subscription" → "Entertainment" double-
+    // counting). Fuzzy matching only applies to free-form / unknown tx categories.
+    if (KNOWN_CATS.has(t)) return false
     const vars = CAT_VARIATIONS[b] || [b]
     return vars.some(v => t === v || t.includes(v) || v.includes(t))
   }
