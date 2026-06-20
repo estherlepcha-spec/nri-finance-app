@@ -2991,7 +2991,11 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
                     const mSent = mRemits.reduce((s, r) => s + (r.amount || 0), 0)
                     const mReceived = mRemits.reduce((s, r) => s + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
                     const EXCL_CATS = ['Remittance', 'Credit Card Bill', 'Transfer']
-                    const mHmEx = (transactions || []).filter(t => t.type === 'expense' && !EXCL_CATS.includes(t.category) && (t.date || '').startsWith(m) && hmAccIds.has(t.accountId)).reduce((s, t) => s + (t.amount || 0), 0)
+                    // A home expense is one in a home account — or, if no account is
+                    // assigned, one in the home currency. Without this fallback,
+                    // home expenses with no accountId were dropped (under-counting).
+                    const isHomeTx = t => t.accountId ? hmAccIds.has(t.accountId) : t.currency === homeCurrency
+                    const mHmEx = (transactions || []).filter(t => t.type === 'expense' && !EXCL_CATS.includes(t.category) && (t.date || '').startsWith(m) && isHomeTx(t)).reduce((s, t) => s + (t.amount || 0), 0)
                     const afterEx = mReceived - mHmEx
                     const surplus = afterEx >= 0
                     return (
