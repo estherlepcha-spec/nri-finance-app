@@ -564,9 +564,11 @@ function Badge({ children, color = C.accent }) {
   return <span style={{ background: color + '1a', color, border: `1px solid ${color}33`, borderRadius: 6, padding: '2px 9px', fontSize: 11, fontWeight: 600, display: 'inline-block', letterSpacing: '0.01em' }}>{children}</span>
 }
 
-function ProgressBar({ value, max, color = C.accent, height = 7 }) {
+function ProgressBar({ value, max, color = C.accent, height = 7, keepColor = false }) {
   const pct = Math.min(100, max > 0 ? (value / max) * 100 : 0)
-  const barColor = pct >= 100 ? C.green : color
+  // For goals, hitting 100% is good → show green. For budgets (keepColor), the
+  // caller's colour already encodes over/near/within, so don't override it.
+  const barColor = (!keepColor && pct >= 100) ? C.green : color
   return (
     <div style={{ background: C.card2, borderRadius: 100, height, overflow: 'hidden' }}>
       <div className="progress-bar" style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${barColor}, ${barColor}cc)`, borderRadius: 100, boxShadow: `0 0 6px ${barColor}55` }} />
@@ -5282,7 +5284,12 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
   const hColor = overallH >= 80 ? C.green : overallH >= 60 ? C.yellow : overallH >= 40 ? '#f97316' : C.red
   const hLabel = overallH >= 80 ? 'Excellent' : overallH >= 60 ? 'Good' : overallH >= 40 ? 'Needs Attention' : 'Over Budget'
 
-  const barColor = pct => pct >= 90 ? C.red : pct >= 70 ? C.yellow : C.green
+  // Budget bar colour by % of the allocated limit USED (pass the UNCAPPED %):
+  //   red    → over budget (>100%, crossed the allocation)
+  //   orange → nearing the limit (90–100%)
+  //   yellow → getting close (75–90%)
+  //   green  → comfortably within budget (<75%)
+  const barColor = pct => pct > 100 ? C.red : pct >= 90 ? '#f97316' : pct >= 75 ? C.yellow : C.green
 
   const saveCategory = () => {
     if (!addForm.name.trim() || !addForm.limit) return
@@ -5617,8 +5624,8 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
             const over = s > b.limit && b.limit > 0
             const nearLimit = !over && rawPct >= 90
             const remaining = b.limit - s
-            const bc = barColor(pct)
-            const spentPctColor = rawPct >= 100 ? C.red : rawPct >= 90 ? '#f97316' : rawPct >= 70 ? C.yellow : C.green
+            const bc = barColor(rawPct)
+            const spentPctColor = rawPct > 100 ? C.red : rawPct >= 90 ? '#f97316' : rawPct >= 75 ? C.yellow : C.green
             return (
               <div key={b.id} style={{ paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${C.border}` }}>
                 <div onClick={() => txCount > 0 && setExpandedCat(isExpanded ? null : b.id)}
@@ -5642,7 +5649,7 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
                     <IconBtn onClick={e => { e.stopPropagation(); delCat(b.id) }} danger>🗑️</IconBtn>
                   </div>
                 </div>
-                <ProgressBar value={s} max={b.limit} color={bc} />
+                <ProgressBar value={s} max={b.limit} color={bc} keepColor />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 4 }}>
                   <span style={{ color: over ? C.red : C.muted }}>
                     {over
