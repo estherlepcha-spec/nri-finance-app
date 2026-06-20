@@ -2072,6 +2072,11 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedForDelete, setSelectedForDelete] = useState(new Set())
   const [salaryMonthEdit, setSalaryMonthEdit] = useState(null) // tx id being month-tagged
+  const [showAssign, setShowAssign] = useState(false)
+
+  // Transactions with no account linked — these need assigning for per-account
+  // accuracy (totals already work via currency fallback).
+  const unlinkedTxs = transactions.filter(t => !t.accountId)
 
   // Set/clear salaryForMonth on a transaction directly from the list.
   const setSalaryMonth = (tx, ym) => {
@@ -2401,6 +2406,11 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
               setAccounts(prev => recomputeAllBalances(prev, deduped))
             }
           }}>🧹 <span className="btn-label-hide">Remove Duplicates</span></Btn>
+          {unlinkedTxs.length > 0 && (
+            <Btn variant="ghost" style={{ fontSize:12, padding:'6px 11px', color: C.accent }} onClick={() => setShowAssign(true)}>
+              🔗 <span className="btn-label-hide">Assign Account ({unlinkedTxs.length})</span>
+            </Btn>
+          )}
           <Btn variant="danger" style={{ fontSize:12, padding:'6px 11px' }} onClick={() => { setSelectedForDelete(new Set()); setShowDeleteModal(true) }}>🗑️ <span className="btn-label-hide">Delete</span></Btn>
           <Btn onClick={() => { setForm(blank); setEditing(null); setShowAdd(true) }}>+ Add Transaction</Btn>
         </div>
@@ -2861,6 +2871,78 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
       })()}
 
       {showDeleteModal && <DeleteModal />}
+
+      {/* Smart Assign Account — link transactions that have no account set */}
+      {showAssign && (() => {
+        // Group the unlinked transactions by currency so we can suggest accounts.
+        const byCur = {}
+        unlinkedTxs.forEach(t => { const c = t.currency || '?'; (byCur[c] = byCur[c] || []).push(t) })
+        const acctsByCur = c => accounts.filter(a => a.currency === c)
+        const opts = a => `${a.name} — ${a.country === 'home' ? 'Home' : 'Working'} (${a.currency})`
+
+        const assignGroup = (txList, acctId) => {
+          if (!acctId) return
+          const ids = new Set(txList.map(t => t.id))
+          const acct = accounts.find(a => a.id === acctId)
+          const newTxs = transactions.map(t => ids.has(t.id) ? { ...t, accountId: acctId, currency: acct ? acct.currency : t.currency } : t)
+          setTransactions(newTxs)
+          setAccounts(prev => recomputeAllBalances(prev, newTxs))
+        }
+        const assignOne = (tx, acctId) => assignGroup([tx], acctId)
+
+        return (
+          <Modal title="🔗 Assign Account" onClose={() => setShowAssign(false)} width={560}>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
+              {unlinkedTxs.length} transaction{unlinkedTxs.length !== 1 ? 's' : ''} have no account linked. Assign them so per-account balances are accurate. The app never guesses — you choose the account.
+            </div>
+            {Object.entries(byCur).map(([cur, txList]) => {
+              const matchAccts = acctsByCur(cur)
+              return (
+                <div key={cur} style={{ marginBottom: 16, background: C.card2, borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}><Flag currency={cur} size={13} />{cur} · {txList.length} txn{txList.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  {matchAccts.length === 0 ? (
+                    <div style={{ fontSize: 11, color: C.yellow }}>No {cur} account exists. Add one in Accounts first.</div>
+                  ) : matchAccts.length === 1 ? (
+                    // Exactly one matching account → safe one-click bulk assign.
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: C.mutedL }}>All to <strong style={{ color: C.text }}>{matchAccts[0].name}</strong></span>
+                      <Btn onClick={() => assignGroup(txList, matchAccts[0].id)} style={{ fontSize: 12, padding: '6px 12px' }}>Assign all {txList.length}</Btn>
+                    </div>
+                  ) : (
+                    // Multiple matching accounts → user must choose.
+                    <>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, color: C.muted }}>Bulk assign all to:</span>
+                        <select defaultValue="" onChange={e => { if (e.target.value) assignGroup(txList, e.target.value) }}
+                          style={{ ...inputStyle, fontSize: 12, padding: '5px 8px', flex: 1 }}>
+                          <option value="">— choose account —</option>
+                          {matchAccts.map(a => <option key={a.id} value={a.id}>{opts(a)}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>…or assign individually:</div>
+                      <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                        {txList.map(t => (
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '5px 0', borderTop: `1px solid ${C.border}44`, fontSize: 11 }}>
+                            <span style={{ color: C.textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{fmtDate(t.date)} · {t.description || t.category}</span>
+                            <select defaultValue="" onChange={e => { if (e.target.value) assignOne(t, e.target.value) }}
+                              style={{ ...inputStyle, fontSize: 11, padding: '3px 6px', maxWidth: 150 }}>
+                              <option value="">— account —</option>
+                              {matchAccts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+            <Btn variant="ghost" onClick={() => setShowAssign(false)} style={{ width: '100%', marginTop: 4 }}>Done</Btn>
+          </Modal>
+        )
+      })()}
 
     </div>
   )
