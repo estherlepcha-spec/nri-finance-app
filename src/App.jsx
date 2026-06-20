@@ -3810,6 +3810,55 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
   const [contribForm, setContribForm] = useState({ amount: '', date: today(), note: '' })
   const [whatIfExtra, setWhatIfExtra] = useState(0)
 
+  // ── Savings Allocation Planner (Type 2) ─────────────────────────────────────
+  // Splits monthly SAVINGS across financial goals (Savings, Emergency Fund,
+  // personal projects). % per goal, capped at 100%, recommended defaults.
+  const [showSavingsPlanner, setShowSavingsPlanner] = useState(false)
+  const [savingsAmt, setSavingsAmt] = useState('')
+  const [savingsPcts, setSavingsPcts] = useState({})
+
+  // Recommended split principle: Emergency Fund first (until built), then
+  // Retirement/long-term, then personal projects. Returns a % by goal type.
+  const recommendedSavingsPct = g => {
+    const type = (g.type || '').toLowerCase()
+    const name = (g.name || '').toLowerCase()
+    if (/emergency/.test(type + name)) return 30
+    if (/retirement/.test(type + name)) return 20
+    if (/education|children/.test(type + name)) return 15
+    if (/home|house|down payment/.test(type + name)) return 15
+    return 10 // personal projects, business, travel, other
+  }
+
+  const openSavingsPlanner = () => {
+    const active = goals.filter(g => (g.saved || 0) < (g.target || Infinity))
+    const init = {}
+    active.forEach(g => { init[g.id] = recommendedSavingsPct(g) })
+    // Scale recommended to not exceed 100 if many goals.
+    const sum = Object.values(init).reduce((s, v) => s + v, 0)
+    if (sum > 100) { const f = 100 / sum; Object.keys(init).forEach(k => init[k] = Math.round(init[k] * f)) }
+    setSavingsPcts(init)
+    setSavingsAmt('')
+    setShowSavingsPlanner(true)
+  }
+
+  const applySavingsPlanner = () => {
+    const amt = parseFloat(savingsAmt) || 0
+    const total = Object.values(savingsPcts).reduce((s, v) => s + v, 0)
+    if (total > 100 || amt <= 0) return
+    const date = today()
+    const newContribs = []
+    setGoals(p => p.map(g => {
+      const pct = savingsPcts[g.id]
+      if (!pct) return g
+      const add = Math.round(amt * pct / 100)
+      if (add <= 0) return g
+      newContribs.push({ id: uid(), goalId: g.id, amount: add, date, note: `Monthly savings allocation (${pct}%)` })
+      return { ...g, saved: (g.saved || 0) + add }
+    }))
+    if (newContribs.length) setGoalContribs(p => [...newContribs, ...p])
+    setShowSavingsPlanner(false)
+  }
+
   const save = () => {
     if (!form.name || !form.target) return
     const item = { ...form, target: parseFloat(form.target) || 0, saved: parseFloat(form.saved) || 0, monthlyContribution: parseFloat(form.monthlyContribution) || 0, id: editing?.id || uid() }
@@ -3881,7 +3930,10 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div><h2 style={pgTitle}>Financial Goals</h2><div style={{ fontSize: 13, color: C.muted }}>Track your savings milestones</div></div>
-        <Btn onClick={() => { setForm(blank); setEditing(null); setShowAdd(true) }}>+ Add Goal</Btn>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Btn variant="ghost" onClick={openSavingsPlanner} style={{ fontSize: 11 }}>💰 Savings Planner</Btn>
+          <Btn onClick={() => { setForm(blank); setEditing(null); setShowAdd(true) }}>+ Add Goal</Btn>
+        </div>
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
@@ -3967,6 +4019,71 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
           </div>
         )
       }
+
+      {/* Savings Allocation Planner (Type 2: savings → financial goals) */}
+      {showSavingsPlanner && (() => {
+        const amt = parseFloat(savingsAmt) || 0
+        const active = goals.filter(g => (g.saved || 0) < (g.target || Infinity))
+        const total = Object.values(savingsPcts).reduce((s, v) => s + v, 0)
+        const totalR = Math.round(total * 10) / 10
+        const totalColor = totalR === 100 ? C.green : totalR < 100 ? C.yellow : C.red
+        return (
+          <Modal title="💰 Savings Allocation Planner" onClose={() => setShowSavingsPlanner(false)} width={560}>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+              Split your <strong style={{ color: C.textS }}>monthly savings</strong> across your financial goals — emergency fund, retirement, and personal projects. This is separate from your budget allocation and also can't exceed 100%.
+            </div>
+            <Field label="Monthly savings to allocate">
+              <input type="number" value={savingsAmt} onChange={e => setSavingsAmt(e.target.value)} placeholder="e.g. 500" style={inputStyle} />
+            </Field>
+            {active.length === 0 ? (
+              <Empty icon="🎯" title="No active goals" sub="Add a goal first (e.g. Emergency Fund, Publish Book, Launch App)" />
+            ) : (
+              <div style={{ marginBottom: 14 }}>
+                {active.map(g => {
+                  const pct = savingsPcts[g.id] != null ? savingsPcts[g.id] : 0
+                  const rec = recommendedSavingsPct(g)
+                  const derived = amt > 0 ? Math.round(amt * pct / 100) : 0
+                  return (
+                    <div key={g.id} style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{g.name}<span style={{ fontSize: 10, color: C.muted, marginLeft: 6 }}>{g.type}</span></span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 11, color: C.muted }}>(rec: {rec}%)</span>
+                          <span className="num" style={{ fontSize: 13, fontWeight: 700, color: C.accent, minWidth: 36, textAlign: 'right' }}>{pct}%</span>
+                          {amt > 0 && <span className="num" style={{ fontSize: 11, color: C.mutedL, minWidth: 70, textAlign: 'right' }}>{fmt(derived, g.currency)}</span>}
+                        </div>
+                      </div>
+                      <input type="range" min={0} max={100} value={pct}
+                        onChange={e => setSavingsPcts(p => ({ ...p, [g.id]: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: C.gold }} />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {active.length > 0 && (
+              <>
+                <div style={{ background: C.card2, borderRadius: 10, padding: '12px 16px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>Total Allocated</span>
+                    <span className="num" style={{ fontSize: 22, fontWeight: 900, color: totalColor }}>{totalR}%</span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: C.border, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(totalR, 100)}%`, background: totalColor, borderRadius: 4, transition: 'width 0.2s' }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: totalColor, marginTop: 5, fontWeight: 600 }}>
+                    {totalR === 100 ? '✓ Fully allocated' : totalR < 100 ? `${(100 - totalR).toFixed(1)}% unallocated` : `${(totalR - 100).toFixed(1)}% over 100% — reduce before applying`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Btn variant="ghost" onClick={() => setShowSavingsPlanner(false)} style={{ flex: 1 }}>Cancel</Btn>
+                  <Btn onClick={applySavingsPlanner} disabled={totalR > 100 || amt <= 0} style={{ flex: 1 }}>Apply this month</Btn>
+                </div>
+              </>
+            )}
+          </Modal>
+        )
+      })()}
 
       {showAdd && (
         <Modal title={editing ? 'Edit Goal' : 'Add Goal'} onClose={() => { setShowAdd(false); setEditing(null) }} width={520}>
@@ -5324,6 +5441,18 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
     .reduce((s, t) => s + (t.amount || 0), 0)
   const monthlyIncome = isWorking ? wkMonthlyIncome : hmMoneyAvailable
 
+  // Salary income for the CURRENT budget month only — the basis for the budget
+  // Allocation Planner (Type 1). A delayed salary tagged "for" this month counts
+  // toward the month it's for, not the month it landed. This is salary ONLY (not
+  // remittances/other income, and never savings).
+  const isSalaryFor = (t, ym) => t.type === 'income'
+    && (t.category || '').toLowerCase() === 'salary'
+    && (t.salaryForMonth ? t.salaryForMonth === ym : (t.date || '').slice(0, 7) === ym)
+  const accSetForAlloc = isWorking ? wkAccIds : hmAccIds
+  const monthlySalary = transactions
+    .filter(t => isSalaryFor(t, budgetMonth) && (t.accountId ? accSetForAlloc.has(t.accountId) : true))
+    .reduce((s, t) => s + (t.amount || 0), 0)
+
   // Opening balance context for budget month
   const activeAccIds = isWorking ? wkAccIds : hmAccIds
   const txOpeningBal = accounts.filter(a => activeAccIds.has(a.id))
@@ -5392,14 +5521,15 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
     const init = {}
     budgets.forEach(b => { init[b.id] = b.allocPct != null ? b.allocPct : getRecommendedPct(b.name) })
     setAllocPcts(init)
-    setAllocIncome(monthlyIncome > 0 ? String(Math.round(monthlyIncome)) : '')
+    // Income basis is the current-month SALARY from transactions (not editable).
+    setAllocIncome(monthlySalary > 0 ? String(Math.round(monthlySalary)) : '')
     setShowAllocPlanner(true)
   }
 
   const applyAllocations = () => {
-    const inc = parseFloat(allocIncome) || 0
+    const inc = monthlySalary || 0 // always the current-month salary, never manual
     const total = Object.values(allocPcts).reduce((s, v) => s + v, 0)
-    if (total > 100) return
+    if (total > 100) return // hard 100% cap
     setBudgets(p => p.map(b => ({
       ...b,
       allocPct: allocPcts[b.id] != null ? allocPcts[b.id] : b.allocPct,
@@ -5795,18 +5925,28 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
         </Modal>
       )}
 
-      {/* Allocation Planner modal */}
+      {/* Allocation Planner modal (Type 1: salary → budget categories) */}
       {showAllocPlanner && (() => {
-        const inc = parseFloat(allocIncome) || 0
+        const inc = monthlySalary || 0 // current-month salary only, fixed
         const total = Object.values(allocPcts).reduce((s, v) => s + v, 0)
         const totalRounded = Math.round(total * 10) / 10
         const totalColor = totalRounded === 100 ? C.green : (totalRounded >= 90 && totalRounded <= 110) ? C.yellow : C.red
         return (
-          <Modal title="📊 Allocation Planner" onClose={() => setShowAllocPlanner(false)} width={560}>
-            <Field label={`Monthly Income (${currency})`}>
-              <input type="number" value={allocIncome} onChange={e => setAllocIncome(e.target.value)}
-                placeholder="Auto-detected from income transactions" style={inputStyle} />
+          <Modal title="📊 Budget Allocation Planner" onClose={() => setShowAllocPlanner(false)} width={560}>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+              Split your <strong style={{ color: C.textS }}>{monthLabel} salary</strong> across spending categories. Percentages can't exceed 100%.
+            </div>
+            <Field label={`${monthLabel} Salary (${currency}) — from your transactions`}>
+              <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.card2, cursor: 'default' }}>
+                <span className="num" style={{ fontWeight: 700, color: inc > 0 ? C.green : C.muted }}>{inc > 0 ? fmt(inc, currency) : 'No salary recorded for this month'}</span>
+                {inc > 0 && <span style={{ fontSize: 10, color: C.muted }}>🔒 from salary income</span>}
+              </div>
             </Field>
+            {inc <= 0 && (
+              <div style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}44`, borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 11, color: C.yellow }}>
+                Add this month's salary in Transactions to allocate by amount. You can still set percentages now.
+              </div>
+            )}
             <div style={{ marginBottom: 14 }}>
               {budgets.map(b => {
                 const pct = allocPcts[b.id] != null ? allocPcts[b.id] : 0
