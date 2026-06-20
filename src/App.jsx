@@ -4122,6 +4122,8 @@ Rules:
 - category: pick the best match from this list — Rent, Groceries, Dining, Transport, Utilities, Household, Healthcare, Education, Personal Care, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, Salary, Other Income, Rental Income, Dividends, ATM Withdrawal, Transfer, Other
 - Giving/Donation: money given to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms). Use this for all charitable and religious giving.
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
+- Groceries vs Shopping: "Groceries" = food and consumable household needs from supermarkets/hypermarkets (Lulu, Carrefour, Oncost, Sultan Center, Co-op/Jam3eya, TSC, Grand Hyper, DMart, Reliance Fresh). "Shopping" = durable/discretionary goods — clothing, electronics, home appliances, furniture, interiors (Xcite, Best Al Yousifi, Sharaf DG, Jarir, IKEA, Home Centre, H&M, Zara, Amazon, Noon).
+- Fuel stations in Kuwait (Alfa, Oula, KNPC, Q8) and India (Indian Oil, BPCL, HP) → Transport.
 - type: "expense" for invoices/bills/purchases, "income" for salary slips or incoming payment notices
 - For CSV/Excel files: read column headers carefully to identify the amount column; numbers may have comma thousand-separators — always parse them as plain decimals
 Return ONLY the JSON object — no text before { or after }\``
@@ -5200,16 +5202,19 @@ function Budget({ transactions, accounts, wkBudgets, setWkBudgets, hmBudgets, se
   // Fuzzy category matching — handles "Apartment Rent" → "Rent", etc.
   const CAT_VARIATIONS = {
     'rent': ['rent', 'apartment rent', 'house rent', 'flat rent', 'housing', 'accommodation'],
-    'groceries': ['groceries', 'grocery', 'supermarket', 'sultan center', 'lulu', 'carrefour'],
+    // Groceries = food / consumable household needs (you use up and rebuy).
+    'groceries': ['groceries', 'grocery', 'supermarket', 'hypermarket', 'sultan center', 'lulu', 'carrefour', 'oncost', 'on cost', 'tsc', 'co-op', 'coop', 'jam3eya', 'baqala', 'grand hyper', 'spar', 'geant', 'big mart', 'dmart', 'reliance fresh', 'more supermarket'],
     'food': ['food', 'groceries', 'grocery', 'dining', 'restaurant', 'eating out'],
     'dining': ['dining', 'restaurant', 'eating out', 'cafe', 'coffee', 'food court'],
     // Transport = getting around locally: fuel, ride-hailing, commuting, parking.
-    'transport': ['transport', 'transportation', 'petrol', 'fuel', 'gas station', 'diesel', 'uber', 'careem', 'taxi', 'commute', 'parking', 'metro', 'bus', 'car service'],
+    'transport': ['transport', 'transportation', 'petrol', 'fuel', 'gas station', 'diesel', 'uber', 'careem', 'taxi', 'commute', 'parking', 'metro', 'bus', 'car service', 'alfa', 'aldana fuel', 'kuwait national petroleum', 'oula', 'q8 fuel', 'adnoc', 'enoc', 'eppco', 'indian oil', 'bharat petroleum', 'hp petrol', 'shell'],
     // Travel = trips out of the country: flights, hotels, holidays. Kept separate.
     'travel': ['travel', 'flight', 'flights', 'airline', 'airfare', 'hotel', 'holiday', 'vacation', 'trip', 'tourism', 'visa'],
     'utilities': ['utilities', 'utility', 'electricity', 'water', 'mew', 'internet', 'electric', 'gas', 'broadband'],
     'healthcare': ['healthcare', 'health', 'medical', 'doctor', 'hospital', 'pharmacy', 'clinic', 'dentist'],
-    'shopping': ['shopping', 'clothes', 'clothing', 'retail', 'mall'],
+    // Shopping = durable / discretionary goods: clothing, electronics, home
+    // appliances, furniture, interiors (NOT consumable groceries).
+    'shopping': ['shopping', 'clothes', 'clothing', 'apparel', 'fashion', 'retail', 'mall', 'electronics', 'appliance', 'appliances', 'furniture', 'interior', 'interiors', 'home centre', 'home center', 'ikea', 'xcite', 'eureka', 'best al yousifi', 'sharaf dg', 'jarir', 'amazon', 'noon', 'h&m', 'zara', 'centrepoint', 'lulu fashion'],
     // Entertainment = outings/leisure: cinema, movies, events. NOT subscriptions.
     'entertainment': ['entertainment', 'cinema', 'movies', 'movie', 'leisure', 'concert', 'event', 'gaming', 'theme park'],
     // Subscription = recurring services: streaming, apps, memberships. Kept separate.
@@ -6835,7 +6840,9 @@ Rules:
 - category must be one of: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
 - Giving/Donation: money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
 - Transport vs Travel: "Transport" = local getting-around (fuel/petrol/diesel, gas stations, Uber/Careem, taxi, parking, metro/bus). "Travel" = trips OUT of the country (flights, airlines, hotels, holidays, visas). ALL fuel/petrol → Transport, never Travel.
-- Kuwait hints: KWD amounts, Sultan Center, Lulu, Talabat, Careem, Zain, MEW, salary on 1st or last day
+- Groceries vs Shopping: "Groceries" = food/consumables from supermarkets (Lulu, Carrefour, Oncost, Sultan Center, Co-op/Jam3eya, TSC, Grand Hyper, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, home appliances, furniture, interiors (Xcite, Best Al Yousifi, Sharaf DG, Jarir, IKEA, Home Centre, H&M, Zara, Amazon, Noon).
+- Fuel stations Alfa, Oula, KNPC, Q8 (Kuwait), Indian Oil/BPCL/HP (India) → Transport (NOT Groceries).
+- Kuwait hints: KWD amounts, Sultan Center, Lulu, Oncost, Talabat, Careem, Zain, MEW, Alfa/Oula petrol, salary on 1st or last day
 - India hints: INR amounts, UPI (GPay PhonePe Paytm), NEFT/RTGS, Amazon, Swiggy, Zomato
 - creditLimit: credit limit as a plain number if shown (e.g. "Credit Limit: KWD 2,000" → 2000); null if not found or not a credit card statement
 - apr: annual interest/finance charge rate as a plain decimal percent (e.g. "APR 3.75%" → 3.75, "Finance charge rate: 2.99% per month" → 35.88 annualised); null if not found
@@ -7070,6 +7077,7 @@ Rules:
 Categories: Salary, Groceries, Dining, Transport, Utilities, Healthcare, Shopping, Entertainment, Giving/Donation, Remittance, Loan EMI, Credit Card Bill, Insurance, Investment, Savings, Travel, Subscription, Fees & Charges, ATM Withdrawal, Transfer, Other
 IMPORTANT category rule: "Transport" = local getting-around — fuel/petrol/diesel, gas stations, ride-hailing (Uber/Careem), taxi, parking, metro/bus. "Travel" = trips OUT of the country — flights, airlines, hotels, holidays, visas. Put ALL fuel/petrol expenses under Transport, never Travel.
 "Giving/Donation" = money to a church, temple, mosque/masjid, gurudwara or other religious centre, or any charity/donation (tithe, offering, zakat, sadaqah, seva, alms).
+"Groceries" = food/consumables from supermarkets (Lulu, Carrefour, Oncost, Sultan Center, Co-op/Jam3eya, TSC, DMart). "Shopping" = durable/discretionary goods — clothing, electronics, appliances, furniture, interiors (Xcite, Sharaf DG, Jarir, IKEA, Home Centre, H&M, Amazon, Noon). Fuel stations (Alfa, Oula, KNPC, Q8, Indian Oil, HP) → Transport, NOT Groceries.
 Transactions: ${JSON.stringify(batch)}
 Return: [{"date":"same","description":"same","amount":same,"type":"same","category":"from list","confidence":"high/medium/low"}]`
       try {
