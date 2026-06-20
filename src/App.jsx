@@ -187,6 +187,23 @@ const TX_CATEGORY_GROUPS = {
   'Other':             ['ATM Withdrawal', 'Transfer', 'Other'],
 }
 const TX_CATS = Object.values(TX_CATEGORY_GROUPS).flat()
+
+// ─── Central spending rule ────────────────────────────────────────────────────
+// Single source of truth for "does this transaction count as real spending?".
+// Used by every total (Transactions summary, budgets, dashboard, remittance
+// tracker) so they always agree.
+//   - Credit Card Bill payments: NOT spending (the purchases were already counted).
+//   - Transfer to your OWN account (transferTo starts 'own:'): NOT spending (internal move).
+//   - Transfer to someone ELSE (transferTo 'external', or an unmarked Transfer):
+//     IS spending — real money sent out.
+//   - Any other expense: IS spending.
+const isOwnTransfer = t => (t.category === 'Transfer' || t.type === 'transfer') && String(t.transferTo || '').startsWith('own:')
+const countsAsExpense = t => {
+  if (t.type !== 'expense' && t.type !== 'transfer') return false
+  if (t.category === 'Credit Card Bill') return false
+  if (isOwnTransfer(t)) return false
+  return true
+}
 const CURRENCY_ISO2 = {
   KWD:'kw', INR:'in', AED:'ae', SAR:'sa', QAR:'qa', OMR:'om', BHD:'bh',
   USD:'us', GBP:'gb', EUR:'eu', SGD:'sg', AUD:'au', CAD:'ca',
@@ -803,9 +820,11 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
   const allHmTx = [...hmMonTx, ...hmMonTxFallback]
 
   // Transfers that are NOT true expenses — remittances move money between accounts,
-  // credit card payments settle already-counted purchases. Exclude both from expense totals.
-  const TRANSFER_CATS = ['Remittance', 'Credit Card Bill', 'Transfer']
-  const isTrueExpense = t => (t.type === 'expense' || t.type === 'remittance') && !TRANSFER_CATS.includes(t.category)
+  // credit card payments settle already-counted purchases, and transfers between
+  // your OWN accounts are internal moves — exclude those. But a transfer to
+  // SOMEONE ELSE is real spending and IS counted (via countsAsExpense). We also
+  // exclude Remittance here (tracked separately as money sent home, not a home spend).
+  const isTrueExpense = t => countsAsExpense(t) && t.category !== 'Remittance'
 
   const wkMonIn     = allWkTx.filter(isCredit).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const wkMonEx     = allWkTx.filter(isTrueExpense).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
@@ -2086,7 +2105,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     setSalaryMonthEdit(null)
   }
 
-  const blank = { type: 'expense', date: today(), description: '', category: 'Groceries', amount: '', currency: 'AED', amountINR: '', accountId: '', ccPayAccountId: '', salaryForMonth: '' }
+  const blank = { type: 'expense', date: today(), description: '', category: 'Groceries', amount: '', currency: 'AED', amountINR: '', accountId: '', ccPayAccountId: '', salaryForMonth: '', transferTo: '' }
   const [form, setForm] = useState(blank)
   const f = k => e => {
     const val = e.target.value
@@ -2275,7 +2294,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const wkTx  = filtered.filter(t => getAcctCountry(t) === 'foreign')
   const hmTx  = filtered.filter(t => getAcctCountry(t) === 'home')
   const wkIn  = wkTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)
-  const wkEx  = wkTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
+  const wkEx  = wkTx.filter(countsAsExpense).reduce((s, t) => s + (t.amount || 0), 0)
   // "Direct" home income = real earned/received income, NOT moved money. A
   // remittance (or a bank "Transfer" credit, which is how exchange-company money
   // usually lands in the home account) is the SAME money already tracked as a
@@ -2286,7 +2305,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const isRemittanceTx = t => t.type === 'remittance'
     || ['remittance', 'transfer'].includes((t.category || '').toLowerCase())
   const hmIn  = hmTx.filter(t => t.type === 'income' && !isRemittanceTx(t)).reduce((s, t) => s + (t.amount || 0), 0)
-  const hmEx  = hmTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
+  const hmEx  = hmTx.filter(countsAsExpense).reduce((s, t) => s + (t.amount || 0), 0)
   const hmRemitsTotal = (remittances || []).reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
   const hmAvailable = hmIn + hmRemitsTotal
   const combinedIncomeINR  = toINR(wkIn, foreignCurrency) + hmAvailable
@@ -2774,6 +2793,26 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
             <Sel label="Which credit card was paid?" value={form.ccPayAccountId} onChange={f('ccPayAccountId')}
               options={[{ value: '', label: 'Select credit card…' }, ...creditCards.map(a => ({ value: a.id, label: `${a.name} (${fmt(a.balance, a.currency)} owed)` }))]} />
           )}
+          {/* Transfer destination — own account (internal move, not an expense) vs
+              someone else's account (a real expense). */}
+          {form.category === 'Transfer' && (
+            <Field label="Transfer destination">
+              <select value={form.transferTo} onChange={f('transferTo')} style={inputStyle}>
+                <option value="">— select —</option>
+                <optgroup label="To my own account (internal — not an expense)">
+                  {accounts.filter(a => a.id !== form.accountId).map(a => <option key={a.id} value={`own:${a.id}`}>{a.name} ({a.currency})</option>)}
+                </optgroup>
+                <option value="external">To someone else's account (counts as expense)</option>
+              </select>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 5, lineHeight: 1.5 }}>
+                {form.transferTo === 'external'
+                  ? '💸 Counts as an expense — money sent to another person/party.'
+                  : form.transferTo?.startsWith('own:')
+                    ? '🔁 Internal move between your own accounts — not counted as spending.'
+                    : 'Choose where this transfer went so it’s counted correctly.'}
+              </div>
+            </Field>
+          )}
 
           {showSaveTmpl ? (
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -3072,12 +3111,12 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
                     const mRemits = safeRemits.filter(r => (r.date || '').startsWith(m))
                     const mSent = mRemits.reduce((s, r) => s + (r.amount || 0), 0)
                     const mReceived = mRemits.reduce((s, r) => s + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
-                    const EXCL_CATS = ['Remittance', 'Credit Card Bill', 'Transfer']
                     // A home expense is one in a home account — or, if no account is
-                    // assigned, one in the home currency. Without this fallback,
-                    // home expenses with no accountId were dropped (under-counting).
+                    // assigned, one in the home currency. Use the central spending
+                    // rule (CC-Bill + own-transfers excluded; external transfers count)
+                    // and exclude Remittance (money sent home, not a home spend).
                     const isHomeTx = t => t.accountId ? hmAccIds.has(t.accountId) : t.currency === homeCurrency
-                    const mHmEx = (transactions || []).filter(t => t.type === 'expense' && !EXCL_CATS.includes(t.category) && (t.date || '').startsWith(m) && isHomeTx(t)).reduce((s, t) => s + (t.amount || 0), 0)
+                    const mHmEx = (transactions || []).filter(t => countsAsExpense(t) && t.category !== 'Remittance' && (t.date || '').startsWith(m) && isHomeTx(t)).reduce((s, t) => s + (t.amount || 0), 0)
                     const afterEx = mReceived - mHmEx
                     const surplus = afterEx >= 0
                     return (
@@ -5416,7 +5455,7 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
   const hmMoneyAvailable = hmDirectIncomeBudget + hmRemitsBudget
 
   // Transactions for selected month
-  const monthTx = transactions.filter(t => t.type === 'expense' && (t.date || '').startsWith(budgetMonth))
+  const monthTx = transactions.filter(t => countsAsExpense(t) && (t.date || '').startsWith(budgetMonth))
 
   // Route transactions: by accountId if set, else by currency
   const wkTx = monthTx.filter(t => t.accountId ? wkAccIds.has(t.accountId) : t.currency !== 'INR')
