@@ -8300,12 +8300,27 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
 }
 
 // ─── What-If Simulator ────────────────────────────────────────────────────────
-function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSavedScenarios }) {
+function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSavedScenarios, foreignCurrency = 'KWD', homeCurrency = 'INR' }) {
   const mon = new Date().toISOString().slice(0, 7)
-  const monTx = transactions.filter(t => (t.date || '').startsWith(mon))
-  const monIn = monTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amountINR || t.amount || 0), 0)
-  const monEx = monTx.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amountINR || t.amount || 0), 0)
+
+  // Country scope: 'combined' (all, in INR), 'working' (foreign currency), or
+  // 'home' (home currency). Lets the user model scenarios per country.
+  const [scope, setScope] = useState('combined')
+  const acctCountry = id => accounts.find(a => a.id === id)?.country
+  const scopeCur = scope === 'working' ? foreignCurrency : homeCurrency // 'combined' shown in home/INR
+  // Amount in the active scope's currency: native for working/home, INR-equiv for combined.
+  const scopeAmt = t => scope === 'combined' ? (t.amountINR || t.amount || 0) : (t.amount || 0)
+  const inScope = t => {
+    if (scope === 'combined') return true
+    const c = t.accountId ? acctCountry(t.accountId) : (t.currency === homeCurrency ? 'home' : 'foreign')
+    return scope === 'working' ? c === 'foreign' : c === 'home'
+  }
+
+  const monTx = transactions.filter(t => (t.date || '').startsWith(mon) && inScope(t))
+  const monIn = monTx.filter(t => t.type === 'income').reduce((s, t) => s + scopeAmt(t), 0)
+  const monEx = monTx.filter(t => t.type === 'expense').reduce((s, t) => s + scopeAmt(t), 0)
   const currentSavings = monIn - monEx
+  const sf = n => fmt(n, scopeCur) // format helper in the scope currency
 
   const [incomeChange, setIncomeChange] = useState(0)
   const [loanId, setLoanId] = useState(loans[0]?.id || '')
@@ -8376,12 +8391,27 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
 
   return (
     <div style={pg}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div><h2 style={pgTitle}>What-If Simulator</h2><div style={{ fontSize: 13, color: C.muted }}>Model scenarios and see their impact on your wealth</div></div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn variant="ghost" onClick={shareScenario}>{copied ? '✓ Copied!' : '📋 Share'}</Btn>
           <Btn onClick={() => setShowSaveModal(true)}>💾 Save Scenario</Btn>
         </div>
+      </div>
+
+      {/* Country scope toggle — model scenarios for Working, Home, or Combined */}
+      <div style={{ display: 'inline-flex', gap: 4, background: C.card2, borderRadius: 10, padding: 4, marginBottom: 18 }}>
+        {[
+          { id: 'working',  label: `🌍 Working (${foreignCurrency})` },
+          { id: 'home',     label: `🏠 Home (${homeCurrency})` },
+          { id: 'combined', label: '🌐 Combined (₹)' },
+        ].map(s => (
+          <button key={s.id} onClick={() => setScope(s.id)}
+            style={{ padding: '7px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              background: scope === s.id ? C.accent : 'transparent', color: scope === s.id ? '#fff' : C.muted }}>
+            {s.label}
+          </button>
+        ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-3, repeat(3,1fr))', gap: 14, marginBottom: 18 }}>
@@ -8390,17 +8420,17 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted, marginBottom: 6 }}>
               <span>Change: <strong style={{ color: incomeChange >= 0 ? C.green : C.red }}>{incomeChange > 0 ? '+' : ''}{incomeChange}%</strong></span>
-              <span>{fmt(Math.round(newIncome))}/mo</span>
+              <span>{sf(Math.round(newIncome))}/mo</span>
             </div>
             <input type="range" min={-50} max={100} step={5} value={incomeChange} onChange={e => setIncomeChange(Number(e.target.value))} style={{ width: '100%' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}><span>-50%</span><span>+100%</span></div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 6, marginBottom: 12 }}>
             {[
-              { label: 'New Income', value: fmt(Math.round(newIncome)), color: C.text },
-              { label: 'New Savings/mo', value: fmt(Math.round(newSavings)), color: newSavings >= 0 ? C.green : C.red },
-              { label: '12-mo Impact', value: (wealthDelta12 >= 0 ? '+' : '') + fmt(Math.round(wealthDelta12)), color: wealthDelta12 >= 0 ? C.green : C.red },
-              { label: '5-yr Impact', value: (wealthDelta60 >= 0 ? '+' : '') + fmt(Math.round(wealthDelta60)), color: wealthDelta60 >= 0 ? C.green : C.red },
+              { label: 'New Income', value: sf(Math.round(newIncome)), color: C.text },
+              { label: 'New Savings/mo', value: sf(Math.round(newSavings)), color: newSavings >= 0 ? C.green : C.red },
+              { label: '12-mo Impact', value: (wealthDelta12 >= 0 ? '+' : '') + sf(Math.round(wealthDelta12)), color: wealthDelta12 >= 0 ? C.green : C.red },
+              { label: '5-yr Impact', value: (wealthDelta60 >= 0 ? '+' : '') + sf(Math.round(wealthDelta60)), color: wealthDelta60 >= 0 ? C.green : C.red },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: C.card2, borderRadius: 8, padding: 8 }}>
                 <div style={{ fontSize: 10, color: C.muted }}>{label}</div>
@@ -9753,7 +9783,7 @@ export default function App() {
           {activeTab === 'trends' && <Trends transactions={transactions} accounts={accounts} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} toINR={toINR} />}
           {activeTab === 'tax' && <TaxEstimator transactions={transactions} investments={investments} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} exchangeRate={exchangeRate} toINR={toINR} />}
           {activeTab === 'family' && <FamilyComponent familyMembers={familyMembers} setFamilyMembers={setFamilyMembers} remittances={remittances} foreignCurrency={foreignCurrency} />}
-          {activeTab === 'simulator' && <WhatIfSimulator loans={loans} transactions={transactions} accounts={accounts} savedScenarios={savedScenarios} setSavedScenarios={setSavedScenarios} />}
+          {activeTab === 'simulator' && <WhatIfSimulator loans={loans} transactions={transactions} accounts={accounts} savedScenarios={savedScenarios} setSavedScenarios={setSavedScenarios} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} />}
           {activeTab === 'advisor' && <Estelle aiMessages={aiMessages} aiInput={aiInput} setAiInput={setAiInput} aiLoading={aiLoading} sendAI={sendAI} financialContext={buildEstelleContext()} />}
           {activeTab === 'settings' && <Settings {...shared} {...setters} setSetupComplete={setSetupComplete} homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency} foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency} primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency} exchangeRate={exchangeRate} setExchangeRate={setExchangeRate} smartRules={smartRules} setSmartRules={setSmartRules} />}
         </main>
