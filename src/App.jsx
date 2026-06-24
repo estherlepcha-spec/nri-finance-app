@@ -5435,7 +5435,7 @@ function Estelle({ aiMessages, aiInput, setAiInput, aiLoading, sendAI, financial
 }
 
 // ─── Budget ───────────────────────────────────────────────────────────────────
-function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, budgetMonth, setBudgetMonth, foreignCurrency, homeCurrency, setActiveTab, remittances, loans, smartRules = {}, setSmartRules }) {
+function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, budgetMonth, setBudgetMonth, foreignCurrency, homeCurrency, setActiveTab, remittances, loans, bills = [], smartRules = {}, setSmartRules }) {
   const [countryTab, setCountryTab] = useState('working')
   const [showAdd, setShowAdd] = useState(false)
   const [editItem, setEditItem] = useState(null)
@@ -5552,9 +5552,59 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
   const activeAmt = isWorking ? (t => t.amount || 0) : (t => t.amountINR || t.amount || 0)
   const getSpent  = name => getSpentFrom(activeTx, activeAmt, name)
 
-  // Summary totals
+  // ── Future-month forecast ───────────────────────────────────────────────────
+  // When viewing a month with no actual spending yet (a future month), show the
+  // EXPECTED spend per category so the user can prepare. Forecast =
+  //   • recurring Bills for this country+category (their amount), PLUS
+  //   • monthly Loan EMIs (for the Loan EMI category), PLUS
+  //   • a 3-month average of actual spend for variable categories.
+  const isFutureMonth = budgetMonth > new Date().toISOString().slice(0, 7)
+  const country = isWorking ? 'foreign' : 'home'
+
+  // Recurring bills committed for this country, by category.
+  const billsForCat = name => (bills || [])
+    .filter(b => (b.country || 'foreign') === country && b.category && b.category.toLowerCase() === name.toLowerCase())
+    .reduce((s, b) => s + (b.amount || 0), 0)
+
+  // Monthly loan EMI total for this country (used for the Loan EMI category).
+  const loanEmiForCountry = (loans || [])
+    .filter(l => (l.country || 'foreign') === country)
+    .reduce((s, l) => s + (l.emi || 0), 0)
+
+  // Average actual spend for a category over the last 3 completed months.
+  const avgSpend3mo = name => {
+    const now = new Date()
+    let total = 0, months = 0
+    for (let i = 1; i <= 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const monExp = transactions.filter(t => countsAsExpense(t) && (t.date || '').startsWith(ym)
+        && (t.accountId ? (isWorking ? wkAccIds : hmAccIds).has(t.accountId) : (isWorking ? t.currency !== 'INR' : t.currency === 'INR')))
+      const spent = getSpentFrom(monExp, activeAmt, name)
+      if (spent > 0) { total += spent; months++ }
+    }
+    return months > 0 ? Math.round(total / months) : 0
+  }
+
+  // Projected spend for a category next month: fixed commitments + variable avg.
+  const getProjected = name => {
+    const fixed = billsForCat(name) + (name.toLowerCase() === 'loan emi' ? loanEmiForCountry : 0)
+    const avg = avgSpend3mo(name)
+    // For categories with a fixed commitment use it (plus any variable history on
+    // top is unusual — take the max so we don't under-budget); else use the avg.
+    return fixed > 0 ? Math.max(fixed, avg) : avg
+  }
+  // What a category "uses" in this view: actual spend, or the projection in a
+  // future month with no actuals yet.
+  const getEffectiveSpent = name => {
+    if (!isFutureMonth) return getSpent(name)
+    const actual = getSpent(name)
+    return actual > 0 ? actual : getProjected(name)
+  }
+
+  // Summary totals (use projected spend in a future month)
   const totalBudget  = budgets.reduce((s, b) => s + (b.limit || 0), 0)
-  const totalSpent   = budgets.reduce((s, b) => s + getSpent(b.name), 0)
+  const totalSpent   = budgets.reduce((s, b) => s + getEffectiveSpent(b.name), 0)
   const totalLeft    = totalBudget - totalSpent
   const pctUsed      = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
   const overCount    = budgets.filter(b => getSpent(b.name) > b.limit && b.limit > 0).length
@@ -5762,9 +5812,9 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <button onClick={() => shiftMonth(-1)} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, width: 34, height: 34, color: C.text, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
         <div style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: 600, color: C.text }}>{monthLabel}</div>
-        <button onClick={() => !isCurrentMonth && shiftMonth(1)}
-          disabled={isCurrentMonth}
-          style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, width: 34, height: 34, color: isCurrentMonth ? C.muted : C.text, cursor: isCurrentMonth ? 'default' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isCurrentMonth ? 0.4 : 1 }}>›</button>
+        <button onClick={() => shiftMonth(1)}
+          title="View next month — shows projected spending from your commitments"
+          style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, width: 34, height: 34, color: C.text, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
         {!isCurrentMonth && (
           <button onClick={() => setBudgetMonth(new Date().toISOString().slice(0, 7))}
             style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, cursor: 'pointer', fontSize: 11 }}>
@@ -5778,7 +5828,9 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
         </button>
       </div>
       <div style={{ textAlign: 'center', fontSize: 11, color: C.accent, fontWeight: 600, marginBottom: 14, background: C.accent + '11', borderRadius: 8, padding: '4px 0' }}>
-        Viewing {monthLabel} transactions only
+        {isFutureMonth
+          ? `🔮 Projected ${monthLabel} — expected spend from your bills, EMIs & recent averages`
+          : `Viewing ${monthLabel} transactions only`}
       </div>
 
       {/* Country Tabs */}
@@ -5918,7 +5970,9 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
         {budgets.length === 0
           ? <Empty icon="📊" title="No budget categories" sub="Add categories to start tracking" />
           : budgets.map(b => {
-            const s = getSpent(b.name)
+            const actualSpent = getSpent(b.name)
+            const isProjected = isFutureMonth && actualSpent === 0
+            const s = isProjected ? getProjected(b.name) : actualSpent
             const catTxs = activeTx.filter(t => matchCategory(t.category, b.name))
               .sort((x, y) => (y.date || '').localeCompare(x.date || ''))
             const txCount = catTxs.length
@@ -5939,6 +5993,7 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
                     {txCount > 0 && <span style={{ fontSize: 10, color: C.muted, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>}
                     <span style={{ fontSize: 13, fontWeight: 600, color: over ? C.red : C.text, letterSpacing: '-0.01em' }}>{b.name}</span>
                     <span style={{ fontSize: 10, background: spentPctColor + '22', color: spentPctColor, borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>{rawPct.toFixed(0)}%</span>
+                    {isProjected && s > 0 && <span style={{ fontSize: 10, background: C.accent + '22', color: C.accentL, borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>🔮 projected</span>}
                     {over && <Badge color={C.red}>⚠️ Over Budget</Badge>}
                     {nearLimit && <span style={{ fontSize: 10, color: C.yellow, fontWeight: 600 }}>⚠️ Near Limit</span>}
                     {b.allocPct != null && monthlyIncome > 0 && (
@@ -9779,7 +9834,7 @@ export default function App() {
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
           {activeTab === 'goals' && <Goals {...shared} {...setters} />}
           {activeTab === 'loans' && <Loans {...shared} {...setters} />}
-          {activeTab === 'budget' && <Budget transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} setActiveTab={setActiveTab} remittances={remittances} loans={loans} smartRules={smartRules} setSmartRules={setSmartRules} />}
+          {activeTab === 'budget' && <Budget transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} setActiveTab={setActiveTab} remittances={remittances} loans={loans} bills={bills} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'trends' && <Trends transactions={transactions} accounts={accounts} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} toINR={toINR} />}
           {activeTab === 'tax' && <TaxEstimator transactions={transactions} investments={investments} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} exchangeRate={exchangeRate} toINR={toINR} />}
           {activeTab === 'family' && <FamilyComponent familyMembers={familyMembers} setFamilyMembers={setFamilyMembers} remittances={remittances} foreignCurrency={foreignCurrency} />}
