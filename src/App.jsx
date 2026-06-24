@@ -3307,9 +3307,26 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
   const findMatch = useCallback(b => {
     if (!b.amount) return null
     const bn = (b.name || '').trim().toLowerCase()
+    // The bill's billing month — the month it's DUE/for. A payment only marks
+    // the bill paid if it falls in that month (so May's STC payment doesn't mark
+    // June's bill). For monthly bills with a due date we use the due month; with
+    // tolerance of a few days into the prior/next month for early/late payment.
+    const billMonth = (b.dueDate || '').slice(0, 7)
+    const dueTime = b.dueDate ? Date.parse(b.dueDate) : NaN
+    const inBillingWindow = t => {
+      if (!billMonth) return true // no due date set → can't month-check, fall back to vendor/amount
+      const tm = (t.date || '').slice(0, 7)
+      if (tm === billMonth) return true
+      // allow a small grace window (±7 days) around the due date for early/late pay
+      if (!isNaN(dueTime) && t.date) {
+        return Math.abs(Date.parse(t.date) - dueTime) <= 7 * 86400000
+      }
+      return false
+    }
     return transactions.find(t => {
       if (t.type !== 'expense') return false
       if ((t.currency || 'INR') !== (b.currency || 'INR')) return false
+      if (!inBillingWindow(t)) return false // must be paid in the bill's month
       // amount within 1% or 1 unit, whichever is larger (covers rounding/fees)
       const tol = Math.max(1, b.amount * 0.01)
       if (Math.abs((t.amount || 0) - b.amount) > tol) return false
