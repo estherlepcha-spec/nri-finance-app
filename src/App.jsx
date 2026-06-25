@@ -5452,6 +5452,11 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
   const [showSavingsDist, setShowSavingsDist] = useState(false)
   const [savingsDistPcts, setSavingsDistPcts] = useState({})
   const [expandedCat, setExpandedCat] = useState(null) // budget id whose transactions are shown
+  // User overrides for projected amounts, keyed "month|country|category".
+  // Lets the user fine-tune a future-month projection (next month's spend may
+  // differ from the recent average). Persisted so it survives reloads.
+  const [projOverrides, setProjOverrides] = useState(() => load('nri_projOverrides', {}))
+  const [projEdit, setProjEdit] = useState(null) // budget id being edited
 
   // Month navigation
   const [yr, mo] = budgetMonth.split('-').map(Number)
@@ -5596,13 +5601,29 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
     return months > 0 ? Math.round(total / months) : 0
   }
 
-  // Projected spend for a category next month: fixed commitments + variable avg.
-  const getProjected = name => {
+  // Auto projected spend (no override): fixed commitments + variable avg.
+  const autoProjected = name => {
     const fixed = billsForCat(name) + (name.toLowerCase() === 'loan emi' ? loanEmiForCountry : 0)
     const avg = avgSpend3mo(name)
     // For categories with a fixed commitment use it (plus any variable history on
     // top is unusual — take the max so we don't under-budget); else use the avg.
     return fixed > 0 ? Math.max(fixed, avg) : avg
+  }
+  const projKey = name => `${budgetMonth}|${country}|${name.toLowerCase()}`
+  // Projected spend for the category — user override if set, else the auto estimate.
+  const getProjected = name => {
+    const ov = projOverrides[projKey(name)]
+    return ov != null ? ov : autoProjected(name)
+  }
+  const setProjOverride = (name, val) => {
+    const key = projKey(name)
+    setProjOverrides(p => {
+      const u = { ...p }
+      if (val == null || val === '') delete u[key]   // clear → back to auto
+      else u[key] = Math.max(0, Math.round(Number(val) || 0))
+      persist('nri_projOverrides', u)
+      return u
+    })
   }
   // What a category "uses" in this view: actual spend, or the projection in a
   // future month with no actuals yet.
@@ -6003,7 +6024,7 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
                     {txCount > 0 && <span style={{ fontSize: 10, color: C.muted, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>}
                     <span style={{ fontSize: 13, fontWeight: 600, color: over ? C.red : C.text, letterSpacing: '-0.01em' }}>{b.name}</span>
                     <span style={{ fontSize: 10, background: spentPctColor + '22', color: spentPctColor, borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>{rawPct.toFixed(0)}%</span>
-                    {isProjected && s > 0 && <span style={{ fontSize: 10, background: C.accent + '22', color: C.accentL, borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>🔮 projected</span>}
+                    {isProjected && s > 0 && <span style={{ fontSize: 10, background: C.accent + '22', color: C.accentL, borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>🔮 {projOverrides[projKey(b.name)] != null ? 'adjusted' : 'projected'}</span>}
                     {over && <Badge color={C.red}>⚠️ Over Budget</Badge>}
                     {nearLimit && <span style={{ fontSize: 10, color: C.yellow, fontWeight: 600 }}>⚠️ Near Limit</span>}
                     {b.allocPct != null && monthlyIncome > 0 && (
@@ -6011,9 +6032,20 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="num" style={{ fontSize: 12, color: over ? C.redL : C.mutedL, fontWeight: 600 }}>
-                      {fmt(s, currency)} <span style={{ color: C.muted, fontWeight: 400 }}>/ {fmt(b.limit, currency)}</span>
-                    </span>
+                    {isProjected && projEdit === b.id ? (
+                      // Inline edit of the projected amount (next month may differ from avg).
+                      <input type="number" autoFocus defaultValue={s} min={0}
+                        onClick={e => e.stopPropagation()}
+                        onBlur={e => { setProjOverride(b.name, e.target.value); setProjEdit(null) }}
+                        onKeyDown={e => { if (e.key === 'Enter') { setProjOverride(b.name, e.target.value); setProjEdit(null) } }}
+                        style={{ width: 90, fontSize: 12, padding: '2px 6px', borderRadius: 6, border: `1px solid ${C.accent}66`, background: C.card2, color: C.text }} />
+                    ) : (
+                      <span className="num" onClick={isProjected ? (e => { e.stopPropagation(); setProjEdit(b.id) }) : undefined}
+                        title={isProjected ? 'Click to adjust the projected amount' : ''}
+                        style={{ fontSize: 12, color: over ? C.redL : C.mutedL, fontWeight: 600, cursor: isProjected ? 'pointer' : 'default', borderBottom: isProjected ? `1px dashed ${C.accent}88` : 'none' }}>
+                        {fmt(s, currency)} <span style={{ color: C.muted, fontWeight: 400 }}>/ {fmt(b.limit, currency)}</span>
+                      </span>
+                    )}
                     <IconBtn onClick={e => { e.stopPropagation(); startEdit(b) }}>✏️</IconBtn>
                     <IconBtn onClick={e => { e.stopPropagation(); delCat(b.id) }} danger>🗑️</IconBtn>
                   </div>
