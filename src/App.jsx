@@ -5185,20 +5185,25 @@ function Family({ familyMembers, setFamilyMembers, remittances, foreignCurrency 
 // Static (no float/nod/glow/blink animations) launcher for the Estelle chat.
 // Placed bottom-LEFT so it never collides with the scroll arrows (bottom-right)
 // or covers the sidebar account info / main content.
-function FloatingEstelle({ onOpen }) {
+function FloatingEstelle({ onOpen, onHide }) {
   return (
-    <button onClick={onOpen} title="Chat with Estelle" aria-label="Chat with Estelle"
-      className="estelle-launcher"
-      style={{
-        position: 'fixed', bottom: 20, right: 20, zIndex: 60,
-        width: 56, height: 56, borderRadius: '50%', padding: 0,
-        border: '3px solid #c9a961', background: '#c9a961', cursor: 'pointer',
-        overflow: 'hidden', boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-      <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
-        onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:26px;font-weight:900;color:#0c1929">E</span>' }} />
-    </button>
+    <div className="estelle-launcher" style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 60, width: 56, height: 56 }}>
+      <button onClick={onOpen} title="Chat with Estelle" aria-label="Chat with Estelle"
+        style={{
+          width: 56, height: 56, borderRadius: '50%', padding: 0,
+          border: '3px solid #c9a961', background: '#c9a961', cursor: 'pointer',
+          overflow: 'hidden', boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+        <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
+          onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:26px;font-weight:900;color:#0c1929">E</span>' }} />
+      </button>
+      {/* Hide button — tucks Estelle away; reopen from the sidebar "Estelle" item. */}
+      {onHide && (
+        <button onClick={onHide} title="Hide Estelle (reopen from the sidebar)" aria-label="Hide Estelle"
+          style={{ position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: '50%', border: `1px solid ${C.border}`, background: C.card2, color: C.mutedL, cursor: 'pointer', fontSize: 11, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.4)' }}>×</button>
+      )}
+    </div>
   )
 }
 
@@ -9161,6 +9166,10 @@ export default function App() {
 
   const [showAccountMenu, setShowAccountMenu] = useState(false)
   const [showRates, setShowRates] = useState(false) // collapsed by default so nav items stay visible
+  // Floating Estelle can be hidden; preference persists. When hidden she's still
+  // reachable from the sidebar "Estelle" nav item.
+  const [estelleHidden, setEstelleHidden] = useState(() => load('nri_estelleHidden', false))
+  useEffect(() => { persist('nri_estelleHidden', estelleHidden) }, [estelleHidden])
   const mainScrollRef = useRef(null)
 
   // Keep the camera-reload restore snapshot in sync with the import modal.
@@ -10090,8 +10099,8 @@ export default function App() {
         </>
       )}
 
-      {/* Floating Estelle Doll */}
-      <FloatingEstelle onOpen={() => setActiveTab('advisor')} />
+      {/* Floating Estelle Doll — hideable; reachable from the sidebar when hidden */}
+      {!estelleHidden && <FloatingEstelle onOpen={() => setActiveTab('advisor')} onHide={() => setEstelleHidden(true)} />}
 
       {showImport && (
         <BankStatementImport
