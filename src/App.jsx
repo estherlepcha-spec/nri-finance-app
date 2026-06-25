@@ -8447,7 +8447,14 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
 
   const saveScenario = () => {
     if (!scenarioName.trim()) return
-    setSavedScenarios(p => [...p, { id: uid(), name: scenarioName, date: today(), incomeChange, extraEMI, loanName: selLoan?.name || '', investType, extraInvest, horizon, combinedImpact: Math.round(combinedImpact) }])
+    setSavedScenarios(p => [...p, {
+      id: uid(), name: scenarioName, date: today(), scope,
+      incomeChange, extraEMI, loanName: selLoan?.name || '', investType, extraInvest, horizon,
+      // Snapshot the computed outcomes so comparison doesn't depend on live state.
+      newSavings: Math.round(newSavings), savingsDelta: Math.round(savingsDelta),
+      monthsSaved, interestSaved: Math.round(interestSaved),
+      investCorpus: Math.round(fv), combinedImpact: Math.round(combinedImpact),
+    }])
     setShowSaveModal(false); setScenarioName('')
   }
 
@@ -8621,22 +8628,72 @@ function WhatIfSimulator({ loans, transactions, accounts, savedScenarios, setSav
         </div>
       </Card>
 
-      {savedScenarios.length > 0 && (
-        <Card title="Saved Scenarios">
-          {savedScenarios.map(s => (
-            <div key={s.id} style={{ ...rowSep, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{s.date} · Income {s.incomeChange > 0 ? '+' : ''}{s.incomeChange}% · SIP {fmt(s.extraInvest)}/mo</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: s.combinedImpact >= 0 ? C.green : C.red }}>{s.combinedImpact >= 0 ? '+' : ''}{fmt(s.combinedImpact)}</span>
-                <IconBtn onClick={() => setSavedScenarios(p => p.filter(x => x.id !== s.id))}>🗑️</IconBtn>
-              </div>
+      {savedScenarios.length > 0 && (() => {
+        // "Current" column = the live simulator settings, shown alongside saved
+        // scenarios so the user can compare options against what they're modelling now.
+        const current = {
+          id: '__current', name: 'Current (unsaved)', incomeChange, extraEMI,
+          investType, extraInvest, horizon, newSavings: Math.round(newSavings),
+          monthsSaved, interestSaved: Math.round(interestSaved),
+          investCorpus: Math.round(fv), combinedImpact: Math.round(combinedImpact),
+        }
+        const cols = [current, ...savedScenarios]
+        // Best scenario by combined impact (for highlighting the winner).
+        const bestImpact = Math.max(...cols.map(c => c.combinedImpact || 0))
+        const rows = [
+          { label: 'Income change', get: c => `${c.incomeChange > 0 ? '+' : ''}${c.incomeChange || 0}%` },
+          { label: 'New savings/mo', get: c => fmt(c.newSavings || 0), good: true },
+          { label: 'Extra EMI/mo', get: c => fmt(c.extraEMI || 0) },
+          { label: 'Loan months saved', get: c => `${c.monthsSaved || 0} mo` },
+          { label: 'Interest saved', get: c => fmt(c.interestSaved || 0), good: true },
+          { label: `SIP ${' '}`, get: c => `${fmt(c.extraInvest || 0)}/mo · ${c.horizon || 0}yr` },
+          { label: 'Invest corpus', get: c => fmt(c.investCorpus || 0), good: true },
+        ]
+        return (
+          <Card title="📊 Compare Scenarios">
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Your current settings vs saved scenarios — the highest wealth impact is highlighted.</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 420 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '6px 8px', color: C.muted, fontWeight: 600, position: 'sticky', left: 0, background: C.card }}></th>
+                    {cols.map(c => (
+                      <th key={c.id} style={{ padding: '6px 8px', textAlign: 'right', color: c.id === '__current' ? C.accentL : C.text, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                          {c.name}
+                          {c.id !== '__current' && <IconBtn onClick={() => setSavedScenarios(p => p.filter(x => x.id !== c.id))}>🗑️</IconBtn>}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.label} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <td style={{ padding: '6px 8px', color: C.muted, whiteSpace: 'nowrap', position: 'sticky', left: 0, background: C.card }}>{r.label}</td>
+                      {cols.map(c => (
+                        <td key={c.id} className="num" style={{ padding: '6px 8px', textAlign: 'right', color: r.good ? C.green : C.textS, fontWeight: r.good ? 700 : 500, whiteSpace: 'nowrap' }}>{r.get(c)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                  {/* Combined impact row — winner highlighted */}
+                  <tr style={{ borderTop: `2px solid ${C.border}` }}>
+                    <td style={{ padding: '8px', fontWeight: 800, color: C.gold, position: 'sticky', left: 0, background: C.card }}>Combined impact</td>
+                    {cols.map(c => {
+                      const isBest = (c.combinedImpact || 0) === bestImpact && bestImpact > 0
+                      return (
+                        <td key={c.id} className="num" style={{ padding: '8px', textAlign: 'right', fontWeight: 900, color: isBest ? C.gold : (c.combinedImpact >= 0 ? C.green : C.red), background: isBest ? C.gold + '18' : 'transparent', borderRadius: isBest ? 6 : 0 }}>
+                          {c.combinedImpact >= 0 ? '+' : ''}{fmt(c.combinedImpact || 0)}{isBest ? ' 🏆' : ''}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          ))}
-        </Card>
-      )}
+          </Card>
+        )
+      })()}
 
       {showSaveModal && (
         <Modal title="Save Scenario" onClose={() => setShowSaveModal(false)} width={400}>
