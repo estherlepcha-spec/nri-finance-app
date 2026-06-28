@@ -1,6 +1,9 @@
 // Real-time sync via the Vite dev server's /api/sync endpoint.
 // Uses Server-Sent Events for push, fetch POST for writes.
 
+const SYNC_SHARED_TOKEN = import.meta.env.VITE_SYNC_SHARED_TOKEN || ''
+const SYNC_QUERY = SYNC_SHARED_TOKEN ? `?token=${encodeURIComponent(SYNC_SHARED_TOKEN)}` : ''
+
 const DEVICE_ID = (() => {
   let id = localStorage.getItem('nri_deviceId')
   if (!id) { id = Math.random().toString(36).slice(2, 10); localStorage.setItem('nri_deviceId', id) }
@@ -36,10 +39,14 @@ export async function init(onStatus, onRemote) {
 
   // Verify the sync endpoint exists before committing
   try {
-    const r = await fetch(`${base()}/api/sync`, { signal: AbortSignal.timeout(2000) })
+    const r = await fetch(`${base()}/api/sync${SYNC_QUERY}`, {
+      signal: AbortSignal.timeout(2000),
+      headers: SYNC_SHARED_TOKEN ? { Authorization: `Bearer ${SYNC_SHARED_TOKEN}` } : {},
+    })
     if (!r.ok) { onStatus('unavailable'); return }
     _available = true
-  } catch {
+  } catch (err) {
+    console.warn('Sync endpoint unavailable', err)
     onStatus('unavailable'); return
   }
 
@@ -49,7 +56,7 @@ export async function init(onStatus, onRemote) {
 function connect() {
   _es?.close()
   try {
-    _es = new EventSource(`${base()}/api/sync`)
+    _es = new EventSource(`${base()}/api/sync${SYNC_QUERY}`)
 
     _es.onopen = () => _onStatus?.('synced')
 
@@ -67,7 +74,9 @@ function connect() {
             _onStatus?.('synced')
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn('Sync message parse failed', err)
+      }
     }
 
     _es.onerror = () => {
@@ -75,7 +84,8 @@ function connect() {
       _onStatus?.('offline')
       setTimeout(connect, RECONNECT_DELAY)
     }
-  } catch {
+  } catch (err) {
+    console.warn('Sync connection failed', err)
     _onStatus?.('offline')
     setTimeout(connect, RECONNECT_DELAY)
   }
@@ -102,7 +112,9 @@ function applyFiltered(data, isInit = false) {
           const parsed = JSON.parse(local)
           if (!isEmpty(parsed)) return // skip — keep local data
         }
-      } catch {}
+      } catch (err) {
+        console.warn('Failed to read local sync cache', err)
+      }
     }
     filtered[k] = serverVal
   })
@@ -122,13 +134,17 @@ async function flush() {
   const batch = { ..._writeQueue }
   _writeQueue = {}
   try {
-    await fetch(`${base()}/api/sync`, {
+    await fetch(`${base()}/api/sync${SYNC_QUERY}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(SYNC_SHARED_TOKEN ? { Authorization: `Bearer ${SYNC_SHARED_TOKEN}` } : {}),
+      },
       body: JSON.stringify({ deviceId: DEVICE_ID, updates: batch }),
     })
     _onStatus?.('synced')
-  } catch {
+  } catch (err) {
+    console.warn('Sync push failed', err)
     _onStatus?.('offline')
   }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { CURRENCY_SYMBOLS, CURRENCY_ISO2 } from './constants.js'
 
 // ─── ID & Date Helpers ────────────────────────────────────────────────────────

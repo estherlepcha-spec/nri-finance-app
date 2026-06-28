@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
+import process from 'node:process'
 
 const DATA_FILE = resolve(process.cwd(), 'sync-data.json')
 
@@ -9,7 +10,7 @@ function getData() {
 }
 
 function saveData(d) {
-  try { writeFileSync(DATA_FILE, JSON.stringify(d)) } catch {}
+  try { writeFileSync(DATA_FILE, JSON.stringify(d)) } catch (err) { console.warn('Failed to save sync data', err) }
 }
 
 export function syncServerPlugin() {
@@ -26,13 +27,30 @@ export function syncServerPlugin() {
     name: 'nri-sync-server',
     configureServer(server) {
       server.middlewares.use('/api/sync', (req, res) => {
-        res.setHeader('Access-Control-Allow-Origin', '*')
+        const origin = req.headers.origin
+        const isAllowedOrigin = origin && /^https?:\/\//.test(origin)
+        if (isAllowedOrigin) {
+          res.setHeader('Access-Control-Allow-Origin', origin)
+          res.setHeader('Vary', 'Origin')
+        }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         res.setHeader('Cache-Control', 'no-store')
 
         if (req.method === 'OPTIONS') {
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
           res.writeHead(200); res.end(); return
+        }
+
+        const url = new URL(req.url || '/', 'http://localhost')
+        const authHeader = req.headers.authorization || ''
+        const token = process.env.SYNC_SHARED_TOKEN || ''
+        const requiresAuth = Boolean(token) || process.env.NODE_ENV === 'production'
+        const queryToken = url.searchParams.get('token') || ''
+        const isAuthorized = !requiresAuth || authHeader.startsWith('Bearer ') && authHeader.slice(7) === token || queryToken === token
+        if (requiresAuth && !isAuthorized) {
+          res.writeHead(401)
+          res.end(JSON.stringify({ ok: false, error: 'Unauthorized' }))
+          return
         }
 
         // SSE: real-time push to all connected devices
@@ -57,6 +75,12 @@ export function syncServerPlugin() {
 
         // REST POST: push updates from a device
         if (req.method === 'POST') {
+          const isAuthorized = !requiresAuth || (authHeader.startsWith('Bearer ') && authHeader.slice(7) === token)
+          if (!isAuthorized) {
+            res.writeHead(401)
+            res.end(JSON.stringify({ ok: false, error: 'Unauthorized' }))
+            return
+          }
           let body = ''
           req.on('data', c => { body += c })
           req.on('end', () => {

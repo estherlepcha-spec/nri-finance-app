@@ -26,6 +26,20 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+const rateLimits = new Map<string, number[]>()
+const MAX_BODY_BYTES = 1_000_000
+const MAX_REQUESTS_PER_WINDOW = 10
+const WINDOW_MS = 5 * 60 * 1000
+
+function isRateLimited(userId: string) {
+  const now = Date.now()
+  const history = rateLimits.get(userId) || []
+  const recent = history.filter(ts => now - ts < WINDOW_MS)
+  recent.push(now)
+  rateLimits.set(userId, recent)
+  return recent.length > MAX_REQUESTS_PER_WINDOW
+}
+
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -47,6 +61,19 @@ Deno.serve(async (req) => {
       })
     }
 
+    if (isRateLimited(user.id)) {
+      return new Response(JSON.stringify({ error: { message: 'Rate limit exceeded' } }), {
+        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const contentLength = req.headers.get('content-length')
+    if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: { message: 'Payload too large' } }), {
+        status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // 2. Forward the request body to Anthropic with the server-side key.
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
     if (!apiKey) {
@@ -56,6 +83,11 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.text() // pass through verbatim (messages, model, max_tokens, etc.)
+    if (new TextEncoder().encode(body).length > MAX_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: { message: 'Payload too large' } }), {
+        status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const anthropicRes = await fetch(ANTHROPIC_URL, {
       method: 'POST',

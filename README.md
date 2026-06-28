@@ -14,3 +14,11 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## Billing feature flag
+
+This app uses `VITE_ENABLE_BILLING=true` to enable the Stripe subscription gate for AI and document-import features.
+
+- When billing is disabled, all features remain available in free mode.
+- When billing is enabled, the app still allows manual finance tracking for free.
+- Only Estelle AI and invoice/statement import workflows are gated behind Pro access.

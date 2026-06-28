@@ -15,7 +15,7 @@ declare
   my_id uuid;
 begin
   select id into my_id from auth.users
-    where email = 'REPLACE_WITH_YOUR_GOOGLE_EMAIL'   -- ← edit this
+    where email = 'estherlepcha@gmail.com'   -- your Google account
     limit 1;
 
   if my_id is null then

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from 'xlsx'
 import './App.css'
+import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit } from './utils/calculations.js'
 import { getProPriceDisplay } from './pricing.js'
 
 // ─── Extracted modules ────────────────────────────────────────────────────────
@@ -46,53 +47,7 @@ const today = () => new Date().toISOString().split('T')[0]
 const maxDate = arr => arr.filter(Boolean).sort().pop() || null
 const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null
 
-// ─── Balance Calculation Helpers ──────────────────────────────────────────────
-// These are pure functions — they take accounts/transactions arrays as params.
-// setupBalance is the account balance at setupDate (immutable after creation).
-// All transaction effects since setupDate are layered on top to derive any point-in-time balance.
-
-const calcTxDelta = (t, isCC) => {
-  const amt = Math.abs(t.amount || 0)
-  // CC: income (payment) decreases balance, expense (purchase) increases balance
-  // Regular: income increases balance, expense decreases balance
-  return isCC ? (t.type === 'income' ? -amt : amt) : (t.type === 'income' ? amt : -amt)
-}
-
-const getAccountBalanceAtDate = (accs, txs, accountId, date) => {
-  const acc = accs.find(a => a.id === accountId)
-  if (!acc) return 0
-  const setupBal = acc.setupBalance ?? 0
-  const isCC = acc.type === 'Credit Card'
-  return txs
-    .filter(t => t.accountId === accountId && t.date && t.date <= date)
-    .reduce((bal, t) => bal + calcTxDelta(t, isCC), setupBal)
-}
-
-const getOpeningBalance = (accs, txs, accountId, month) => {
-  const [yr, mo] = month.split('-').map(Number)
-  // Last day of previous month
-  const prevDate = new Date(yr, mo - 1, 0).toISOString().split('T')[0]
-  return getAccountBalanceAtDate(accs, txs, accountId, prevDate)
-}
-
-const getClosingBalance = (accs, txs, accountId, month) => {
-  const [yr, mo] = month.split('-').map(Number)
-  // Last day of month
-  const lastDate = new Date(yr, mo, 0).toISOString().split('T')[0]
-  return getAccountBalanceAtDate(accs, txs, accountId, lastDate)
-}
-
-// Recompute every account's live balance from setupBalance + all transactions.
-// Call this after any transaction add/edit/delete to keep balance in sync.
-const recomputeAllBalances = (accs, txs) =>
-  accs.map(acc => {
-    if (acc.setupBalance === undefined) return acc
-    const isCC = acc.type === 'Credit Card'
-    const balance = txs
-      .filter(t => t.accountId === acc.id)
-      .reduce((bal, t) => bal + calcTxDelta(t, isCC), acc.setupBalance)
-    return { ...acc, balance }
-  })
+// Balance helpers are imported from src/utils/calculations.js.
 
 const HOME_CURRENCIES    = ['INR', 'PKR', 'BDT', 'LKR', 'PHP', 'NPR']
 const FOREIGN_CURRENCIES = ['KWD', 'AED', 'SAR', 'QAR', 'OMR', 'BHD', 'USD', 'GBP', 'EUR']
@@ -238,6 +193,22 @@ function Flag({ currency, size = 16, style: extraStyle }) {
       style={{ verticalAlign: 'middle', flexShrink: 0, objectFit: 'cover', borderRadius: 2, display: 'inline-block', ...extraStyle }}
       onError={e => { e.currentTarget.style.display = 'none' }}
     />
+  )
+}
+function ProBadge({ show, tiny = false }) {
+  if (!show) return null
+  return (
+    <span title="Pro feature requires an active subscription" style={{
+      background: C.gold + '22',
+      color: C.gold,
+      borderRadius: 999,
+      padding: tiny ? '1px 5px' : '2px 6px',
+      fontSize: tiny ? 8 : 10,
+      fontWeight: 700,
+      whiteSpace: 'nowrap',
+    }}>
+      Pro
+    </span>
   )
 }
 const ALLOCATION_BUCKETS = {
@@ -869,7 +840,7 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
   const totalAssetsINR = [...wkAssetAccs, ...hmAssetAccs].reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
     + investments.reduce((s, i) => s + toINR(i.currentValue || 0, i.currency), 0)
   const totalLiabINR = [...wkCCAccs, ...hmCCAccs].reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
-    + loans.reduce((s, l) => s + (l.outstanding || 0), 0)
+    + loans.reduce((s, l) => s + toINR(l.outstanding || 0, l.currency), 0)
   const computedNetWorth = totalAssetsINR - totalLiabINR
 
   const wkNetForeign = toForeign(
@@ -1066,8 +1037,9 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
                 + Add {monName} Salary
               </button>
             )}
-            <button onClick={() => onOpenImport()} style={{ background: C.accent + '18', color: C.accent, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+            <button onClick={() => onOpenImport()} style={{ background: C.accent + '18', color: C.accent, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, display:'inline-flex', alignItems:'center', gap:6 }}>
               Import Statement
+              <ProBadge show={showPremiumBadge} />
             </button>
           </div>
         </div>
@@ -1788,10 +1760,11 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
         )}
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8 }}>
           <button onClick={() => onOpenImport && onOpenImport(a.id)}
-            style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 0', fontSize: 11, fontWeight: 600, color: C.mutedL, cursor: 'pointer' }}
+            style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 0', fontSize: 11, fontWeight: 600, color: C.mutedL, cursor: 'pointer', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6 }}
             onMouseOver={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accentL }}
             onMouseOut={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.mutedL }}>
             📄 Upload or Scan Document
+            <ProBadge show={showPremiumBadge} />
           </button>
           <button onClick={() => setAuditAcct(a)}
             style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 600, color: C.mutedL, cursor: 'pointer' }}
@@ -1809,31 +1782,21 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
   const AuditModal = () => {
     if (!auditAcct) return null
     const a = auditAcct
-    const isHome = a.country === 'home'
-    const allTxs = transactions.filter(t => t.accountId === a.id).sort((x, y) => (x.date||'').localeCompare(y.date||''))
-    const totalIncome  = allTxs.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount||0), 0)
-    const totalExpense = allTxs.filter(t => t.type !== 'income').reduce((s, t) => s + Math.abs(t.amount||0), 0)
-    const calcBalance  = (a.setupBalance || 0) + totalIncome - totalExpense
-
-    // Remittances received into this home account (not yet as transactions)
-    const acctRemits = isHome ? (remittances || []).filter(r => r.toCurrency === a.currency || (!r.toCurrency && a.currency === homeCurrency)) : []
-    const totalRemitsReceived = acctRemits.reduce((s, r) => s + (r.received || (r.amount||0) * (r.rate||0)), 0)
-    // Which remittances already have a matching income tx?
-    const linkedRemits = acctRemits.filter(r => {
-      const received = r.received || (r.amount||0) * (r.rate||0)
-      // Match if within 1% or ₹50 — handles rounding/FX differences and exchange company naming variations
-      const tolerance = Math.max(50, received * 0.01)
-      const month = (r.date||'').slice(0,7)
-      return allTxs.some(t =>
-        // Accept income OR remittance type transactions (exchange company imports may come in as remittance)
-        (t.type === 'income' || t.type === 'remittance') &&
-        Math.abs(t.amount - received) <= tolerance &&
-        (t.date||'').startsWith(month)
-      )
-    })
-    const unlinkedRemits = acctRemits.filter(r => !linkedRemits.includes(r))
-    const unlinkedTotal = unlinkedRemits.reduce((s, r) => s + (r.received || (r.amount||0) * (r.rate||0)), 0)
-    const expectedBalance = calcBalance + unlinkedTotal
+    const {
+      txDeltas,
+      totalIncreases,
+      totalDecreases,
+      calcBalance,
+      increaseLabel,
+      decreaseLabel,
+      increaseCount,
+      decreaseCount,
+      acctRemits,
+      linkedRemits,
+      unlinkedRemits,
+      unlinkedTotal,
+      expectedBalance,
+    } = calculateBalanceAudit(a, transactions, remittances, homeCurrency)
 
     const row = (label, value, color, bold) => (
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${C.border}22`, fontSize: 13 }}>
@@ -1864,8 +1827,8 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
         <div style={{ background: C.card2, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Balance Breakdown</div>
           {row('Setup / Opening Balance', fmt(a.setupBalance || 0, a.currency))}
-          {row('+ Income Transactions (' + allTxs.filter(t=>t.type==='income').length + ')', '+' + fmt(totalIncome, a.currency), C.green)}
-          {row('− Expense Transactions (' + allTxs.filter(t=>t.type!=='income').length + ')', '−' + fmt(totalExpense, a.currency), C.red)}
+          {row(`+ ${increaseLabel} (${increaseCount})`, '+' + fmt(totalIncreases, a.currency), C.green)}
+          {row(`− ${decreaseLabel} (${decreaseCount})`, '−' + fmt(totalDecreases, a.currency), C.red)}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
             <span style={{ fontWeight: 700, color: C.text }}>= App Balance (current)</span>
             <span className="num" style={{ fontWeight: 900, color: C.accent, fontSize: 15 }}>{fmt(a.balance, a.currency)}</span>
@@ -2414,7 +2377,10 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
       <div className="tx-page-header">
         <h2 style={pgTitle}>Transactions</h2>
         <div className="tx-page-header-actions">
-          <Btn onClick={() => onOpenImport(null, 'invoice')} variant="ghost" style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Upload or Scan Document</span></Btn>
+          <Btn onClick={() => onOpenImport(null, 'invoice')} variant="ghost" style={{ fontSize:12, padding:'6px 11px', display:'inline-flex', alignItems:'center', gap:6 }}>
+            📄 <span className="btn-label-hide">Upload or Scan Document</span>
+            <ProBadge show={showPremiumBadge} />
+          </Btn>
           {acctFilter && <Btn variant="ghost" onClick={() => setShowStatement(true)} style={{ fontSize:12, padding:'6px 11px' }}>📄 <span className="btn-label-hide">Monthly Statement</span></Btn>}
           <Btn variant="ghost" style={{ fontSize:12, padding:'6px 11px', color: C.yellow }} onClick={() => {
             const normD = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'')
@@ -5316,7 +5282,7 @@ function Estelle({ aiMessages, aiInput, setAiInput, aiLoading, sendAI, financial
                     )}
                     {loans?.length > 0 && (
                       <div style={{ fontSize: 12, color: C.textS, marginBottom: 5 }}>
-                        🏠 Loans: <strong style={{ color: C.textS }}>{loans.length} active</strong> · total EMI {loans.reduce((s, l) => s + (l.emi || 0), 0).toFixed(0)} {loans[0]?.currency || ''}/mo
+                        🏠 Loans: <strong style={{ color: C.textS }}>{loans.length} active</strong> · total EMI {loans.reduce((s, l) => s + toINR(l.emi || 0, l.currency), 0).toFixed(0)} {homeCurrency}/mo
                       </div>
                     )}
                     {goals?.length > 0 && (
@@ -5590,7 +5556,7 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
   // Monthly loan EMI total for this country (used for the Loan EMI category).
   const loanEmiForCountry = (loans || [])
     .filter(l => (l.country || 'foreign') === country)
-    .reduce((s, l) => s + (l.emi || 0), 0)
+    .reduce((s, l) => s + toINR(l.emi || 0, l.currency), 0)
 
   // Average actual spend for a category over the last 3 completed months.
   const avgSpend3mo = name => {
@@ -7392,7 +7358,7 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) { const [d,m,y]=dateStr.split('/'); return `${y}-${m}-${d}` }
     if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) { const [d,m,y]=dateStr.split('-'); return `${y}-${m}-${d}` }
     if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) { const [d,m,y]=dateStr.split('/'); return `20${y}-${m}-${d}` }
-    try { const dt=new Date(dateStr); if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0] } catch {}
+    try { const dt=new Date(dateStr); if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0] } catch (err) { console.warn('Date parsing failed', err) }
     return today()
   }
   const extractField = (text, fieldName) => {
@@ -8978,6 +8944,7 @@ function PaywallScreen({ sub, onSignOut }) {
               {price.exact ? price.checkoutNote : `${price.monthlyLabel} local estimate. ${price.checkoutNote}`}
             </div>
           </div>
+
           <div style={{ background: C.card2, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
             {perks.map(p => (
               <div key={p} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, color: C.textS, padding: '4px 0' }}>
@@ -9007,6 +8974,57 @@ function PaywallScreen({ sub, onSignOut }) {
   )
 }
 
+function PremiumFeatureGate({ feature, sub, onClose, onSubscribe }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const expired = sub && (sub.status === 'past_due' || sub.status === 'canceled' || sub.status === 'unpaid')
+  const title = expired ? 'Your Pro access has ended' : 'Pro feature locked'
+  const description = expired
+    ? 'Your subscription is no longer active. Renew to regain access to this premium feature.'
+    : `This feature requires a Pro subscription. Subscribe to unlock ${feature}. Manual finance tracking remains free.`
+
+  const handleSubscribe = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      await onSubscribe()
+    } catch (e) {
+      setError(e?.message || 'Could not start subscription checkout.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: `radial-gradient(1200px 800px at 28% 18%, #0d1b2e 0%, ${C.bg} 60%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 460 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.45)' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 6 }}>{title}</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, lineHeight: 1.5 }}>{description}</div>
+          <div style={{ background: C.card2, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
+            <div style={{ fontSize: 13, color: C.textS, lineHeight: 1.7 }}>
+              <div>✅ Full manual finance tracking stays available for free.</div>
+              <div>✅ Pro unlocks AI-driven features like Estelle, receipt scanning, and smart statement imports.</div>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ background: C.red + '15', border: `1px solid ${C.red}44`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.redL }}>{error}</div>
+          )}
+
+          <button onClick={handleSubscribe} disabled={loading}
+            style={{ width: '100%', padding: '13px', borderRadius: 10, border: 'none', background: C.accent, color: '#fff', cursor: loading ? 'wait' : 'pointer', fontSize: 15, fontWeight: 700, opacity: loading ? 0.7 : 1 }}>
+            {loading ? '⏳ Opening secure checkout…' : expired ? 'Renew Pro access' : 'Upgrade to Pro'}
+          </button>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 14 }}>
+            <button onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: 10, border: `1px solid ${C.borderL}`, background: C.card2, color: C.text, cursor: 'pointer', fontSize: 13 }}>Back to app</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -9020,6 +9038,13 @@ export default function App() {
   // sub === undefined → still loading; null → never subscribed; object → has row.
   const [sub, setSub] = useState(undefined)
   const [subEntitled, setSubEntitled] = useState(false)
+  const [showPremiumGate, setShowPremiumGate] = useState(false)
+  const [premiumGateFeature, setPremiumGateFeature] = useState('Estelle and AI import tools')
+  // Billing is only active when VITE_ENABLE_BILLING is set.
+  // premiumAllowed is true for paid users or when billing is disabled.
+  const billingEnabled = import.meta.env.VITE_ENABLE_BILLING === 'true'
+  const premiumAllowed = !billingEnabled || subEntitled
+  const showPremiumBadge = billingEnabled && !premiumAllowed
 
   // Setup (home/working country) is per-account. It's only "complete" when the
   // user explicitly finished the wizard (nri_setupComplete === true), which
@@ -9450,18 +9475,13 @@ export default function App() {
   }, [foreignCurrency, rates])
 
   // ── toINR: convert any amount+currency to INR using live rates ───────────────
-  const toINR = (amount, currency) => {
-    if (!amount || !currency || currency === 'INR') return amount || 0
-    if (rates.INR && rates[currency]) return (amount * rates.INR) / rates[currency]
-    if (currency === foreignCurrency) return amount * exchangeRate
-    return amount
-  }
+  const toINR = (amount, currency) => convertAmountToINR(amount, currency, rates, currency === foreignCurrency ? exchangeRate : 0)
 
   // ── computed ─────────────────────────────────────────────────────────────────
   const totalINR = accounts.filter(a => a.currency === 'INR').reduce((s, a) => s + (a.balance || 0), 0)
   const totalForeign = accounts.filter(a => a.currency !== 'INR').reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
   const totalInvested = investments.reduce((s, i) => s + toINR(i.currentValue || 0, i.currency), 0)
-  const totalLoanBalance = loans.reduce((s, l) => s + (l.outstanding || 0), 0)
+  const totalLoanBalance = loans.reduce((s, l) => s + toINR(l.outstanding || 0, l.currency), 0)
   // Net worth = assets − liabilities, everything converted to INR. Mirror the
   // Dashboard's computation so the sidebar and dashboard always agree:
   // assets = non-credit/non-loan accounts + investments; liabilities = credit
@@ -9475,7 +9495,7 @@ export default function App() {
       .reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0)
     + totalLoanBalance
   const netWorth = nwAssetsINR - nwLiabINR
-  const monthlyEMI = loans.reduce((s, l) => s + (l.emi || 0), 0)
+  const monthlyEMI = loans.reduce((s, l) => s + toINR(l.emi || 0, l.currency), 0)
 
   // ── Estelle financial context builder ────────────────────────────────────────
   const buildEstelleContext = () => {
@@ -9498,7 +9518,7 @@ export default function App() {
       return { name: b.name, limit: b.limit, spent: Math.round(spent * 100) / 100, remaining: Math.round((b.limit - spent) * 100) / 100, pct: b.limit > 0 ? Math.round(spent / b.limit * 100) : 0 }
     })
     const totalAssetsINR = accounts.filter(a => a.type !== 'Credit Card' && a.type !== 'Loan Account').reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0) + investments.reduce((s, i) => s + toINR(i.currentValue || 0, i.currency), 0)
-    const totalLiabINR = accounts.filter(a => a.type === 'Credit Card').reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0) + loans.reduce((s, l) => s + (l.outstanding || 0), 0)
+    const totalLiabINR = accounts.filter(a => a.type === 'Credit Card').reduce((s, a) => s + toINR(a.balance || 0, a.currency), 0) + loans.reduce((s, l) => s + toINR(l.outstanding || 0, l.currency), 0)
     return {
       currentMonth: aiMonName,
       currencies: { home: homeCurrency, working: foreignCurrency, exchangeRate: `1 ${foreignCurrency} = ${exchangeRate} ${homeCurrency}` },
@@ -9609,13 +9629,16 @@ export default function App() {
   // active when VITE_ENABLE_BILLING is 'true', so the app isn't locked until
   // Stripe is fully set up. When enabled: show splash while loading, then the
   // paywall if the user has no active trial/subscription.
-  if (import.meta.env.VITE_ENABLE_BILLING === 'true') {
-    if (sub === undefined) {
-      return <AuthSplash />
-    }
-    if (!subEntitled) {
-      return <PaywallScreen sub={sub} onSignOut={() => import('./auth.js').then(({ signOut }) => signOut())} />
-    }
+  if (billingEnabled && sub === undefined) {
+    return <AuthSplash />
+  }
+  if (billingEnabled && !subEntitled) {
+    return (
+      <PaywallScreen
+        sub={sub}
+        onSignOut={() => import('./auth.js').then(({ signOut }) => signOut().catch(() => {}))}
+      />
+    )
   }
 
   if (!setupComplete) {
@@ -9631,7 +9654,16 @@ export default function App() {
 
   }
 
-  const openImport = (accountId = null, mode = 'statement') => { setImportAccountId(accountId || null); setImportMode(mode); setShowImport(true) }
+  const openImport = (accountId = null, mode = 'statement') => {
+    if (billingEnabled && !subEntitled) {
+      setPremiumGateFeature(mode === 'invoice' ? 'invoice scanning and AI import' : 'bank statement import')
+      setShowPremiumGate(true)
+      return
+    }
+    setImportAccountId(accountId || null)
+    setImportMode(mode)
+    setShowImport(true)
+  }
   const handleImport = (txs, aiResult, _account, summary) => {
     const base = summary?.replaceNotes
       ? transactions.filter(t => !(t.notes === summary.replaceNotes && t.accountId === summary.replaceAccountId))
@@ -9849,7 +9881,10 @@ export default function App() {
                         </div>
                       : <span style={{ fontSize: 14, opacity: isActive ? 1 : 0.55, flexShrink: 0 }}>{t.icon}</span>
                     }
-                    <span className="sidebar-text" style={{ marginLeft: 9, overflow: 'hidden' }}>{t.label}</span>
+                    <span className="sidebar-text" style={{ marginLeft: 9, overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {t.label}
+                      <ProBadge show={t.id === 'advisor' && showPremiumBadge} tiny />
+                    </span>
                   </button>
                 )
               })}
@@ -9961,7 +9996,15 @@ export default function App() {
           {activeTab === 'tax' && <TaxEstimator transactions={transactions} investments={investments} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} exchangeRate={exchangeRate} toINR={toINR} />}
           {activeTab === 'family' && <FamilyComponent familyMembers={familyMembers} setFamilyMembers={setFamilyMembers} remittances={remittances} foreignCurrency={foreignCurrency} />}
           {activeTab === 'simulator' && <WhatIfSimulator loans={loans} transactions={transactions} accounts={accounts} savedScenarios={savedScenarios} setSavedScenarios={setSavedScenarios} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} />}
-          {activeTab === 'advisor' && <Estelle aiMessages={aiMessages} aiInput={aiInput} setAiInput={setAiInput} aiLoading={aiLoading} sendAI={sendAI} financialContext={buildEstelleContext()} />}
+          {activeTab === 'advisor' && (premiumAllowed
+            ? <Estelle aiMessages={aiMessages} aiInput={aiInput} setAiInput={setAiInput} aiLoading={aiLoading} sendAI={sendAI} financialContext={buildEstelleContext()} />
+            : <PremiumFeatureGate
+                feature={premiumGateFeature}
+                sub={sub}
+                onClose={() => setActiveTab('dashboard')}
+                onSubscribe={async () => { const { startCheckout } = await import('./subscription.js'); await startCheckout() }}
+              />
+          )}
           {activeTab === 'settings' && <Settings {...shared} {...setters} setSetupComplete={setSetupComplete} homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency} foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency} primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency} exchangeRate={exchangeRate} setExchangeRate={setExchangeRate} smartRules={smartRules} setSmartRules={setSmartRules} />}
         </main>
 
@@ -9993,7 +10036,10 @@ export default function App() {
           <span style={{ width: 20, height: 20, borderRadius: '50%', overflow: 'hidden', border: `1.5px solid ${activeTab === 'advisor' ? C.accentL : '#c9a961'}`, display: 'block' }}>
             <img src="/estelle-avatar.jpg" alt="Estelle" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%' }} />
           </span>
-          <span style={{ fontSize: 9, fontWeight: 600 }}>Estelle</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 600 }}>
+            Estelle
+            <ProBadge show={showPremiumBadge} tiny />
+          </span>
         </button>
         <button onClick={() => setMoreOpen(true)} style={{
           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -10136,6 +10182,14 @@ export default function App() {
             setShowImport(false)
             setActiveTab('transactions')
           }}
+        />
+      )}
+      {showPremiumGate && (
+        <PremiumFeatureGate
+          feature={premiumGateFeature}
+          sub={sub}
+          onClose={() => setShowPremiumGate(false)}
+          onSubscribe={async () => { const { startCheckout } = await import('./subscription.js'); await startCheckout() }}
         />
       )}
     </div>

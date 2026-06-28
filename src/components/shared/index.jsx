@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { C } from '../../utils/constants.js'
 import { CURRENCY_GROUPS, CURRENCY_FULL_NAMES, TX_CATEGORY_GROUPS } from '../../utils/constants.js'
 
@@ -166,15 +167,17 @@ export function DonutChart({ segments, size = 72, thickness = 11, label }) {
   const total = segments.reduce((s, sg) => s + (sg.value || 0), 0)
   if (!total) return <div style={{ width: size, height: size, borderRadius: '50%', background: C.card2, border: `${thickness}px solid ${C.card3}` }} />
   const cx = size / 2, cy = size / 2, r = (size - thickness) / 2
-  let angle = -Math.PI / 2
-  const arcs = segments.filter(s => s.value > 0).map(seg => {
+  const arcs = segments.filter(s => s.value > 0).reduce((acc, seg) => {
     const sweep = (seg.value / total) * 2 * Math.PI
-    const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle)
-    angle += sweep
-    const x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle)
+    const startAngle = acc.angle
+    const endAngle = startAngle + sweep
+    const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle)
+    const x2 = cx + r * Math.cos(endAngle), y2 = cy + r * Math.sin(endAngle)
     const large = sweep > Math.PI ? 1 : 0
-    return { d: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`, color: seg.color }
-  })
+    acc.angle = endAngle
+    acc.paths.push({ d: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`, color: seg.color })
+    return acc
+  }, { angle: -Math.PI / 2, paths: [] }).paths
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ display: 'block' }}>

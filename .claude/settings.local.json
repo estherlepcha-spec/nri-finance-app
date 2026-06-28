@@ -17,7 +17,8 @@
       "Bash(winget install *)",
       "PowerShell(gh auth status 2>&1)",
       "PowerShell(winget install --id GitHub.cli)",
-      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; gh --version)"
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\GitHub CLI\"; gh --version)",
+      "Bash(grep -o 'VITE_SUPABASE_URL=.\\\\{0,30\\\\}' .env)"
     ]
   }
 }
