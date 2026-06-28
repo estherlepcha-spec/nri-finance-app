@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from 'xlsx'
 import './App.css'
+import { getProPriceDisplay } from './pricing.js'
 
 // ─── Extracted modules ────────────────────────────────────────────────────────
 import SetupWizardComponent from './components/SetupWizard/index.jsx'
@@ -8170,6 +8171,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 function SubscriptionCard() {
   const [sub, setSub] = useState(undefined)
   const [busy, setBusy] = useState(false)
+  const price = getProPriceDisplay()
   useEffect(() => {
     import('./subscription.js').then(async ({ getSubscription }) => setSub(await getSubscription() ?? null))
   }, [])
@@ -8186,7 +8188,7 @@ function SubscriptionCard() {
   const ends = sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' }) : null
   const col = sub?.status === 'active' || sub?.status === 'trialing' ? C.green : C.muted
   return (
-    <Card title="Subscription" style={{ marginBottom: 16 }}>
+    <Card title={`Subscription - ${price.monthlyLabel}`} style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ends ? 6 : 0 }}>
         <span style={{ fontSize: 13, color: C.muted }}>Status</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: col }}>{label}</span>
@@ -8929,12 +8931,13 @@ function AuthScreen() {
 function PaywallScreen({ sub, onSignOut }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const price = getProPriceDisplay()
 
   const subscribe = async () => {
     setLoading(true); setError('')
     try {
       const { startCheckout } = await import('./subscription.js')
-      await startCheckout() // redirects to Stripe
+      await startCheckout(price.priceKey) // redirects to Stripe
     } catch (e) { setError(e.message || 'Could not start checkout.'); setLoading(false) }
   }
 
@@ -8966,6 +8969,15 @@ function PaywallScreen({ sub, onSignOut }) {
               : 'Try everything free for 14 days. Cancel anytime before it ends and you won’t be charged.'}
           </div>
 
+          <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+              <span style={{ fontSize: 13, color: C.muted }}>Pro plan</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: C.text }}>{price.monthlyLabel}</span>
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
+              {price.exact ? price.checkoutNote : `${price.monthlyLabel} local estimate. ${price.checkoutNote}`}
+            </div>
+          </div>
           <div style={{ background: C.card2, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
             {perks.map(p => (
               <div key={p} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, color: C.textS, padding: '4px 0' }}>

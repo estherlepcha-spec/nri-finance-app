@@ -8,7 +8,7 @@ import { supabase } from './supabase.js'
 
 const FN = (name) => `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`
 
-async function authedPost(name) {
+async function authedPost(name, body) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Please sign in first.')
   const res = await fetch(FN(name), {
@@ -18,6 +18,7 @@ async function authedPost(name) {
       'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
       'Content-Type': 'application/json',
     },
+    body: body ? JSON.stringify(body) : undefined,
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`)
@@ -44,8 +45,8 @@ export function isEntitled(sub) {
 }
 
 // Start Stripe Checkout (14-day trial). Redirects the browser to Stripe.
-export async function startCheckout() {
-  const { url } = await authedPost('create-checkout')
+export async function startCheckout(priceKey = 'pro_usd_monthly') {
+  const { url } = await authedPost('create-checkout', { priceKey })
   window.location.href = url
 }
 

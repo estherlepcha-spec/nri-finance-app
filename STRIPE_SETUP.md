@@ -14,8 +14,9 @@ Architecture: 1 table + 3 Edge Functions + a frontend gate.
 
 ## Step 1 — Create a Stripe account + product
 1. Sign up at <https://stripe.com> → stay in **Test mode** (toggle, top-right).
-2. **Products → Add product**: name it (e.g. "NRI Finance — Monthly"), set a
-   recurring **monthly** price. Save.
+2. **Products → Add product**: name it (e.g. "NRI Finance — Pro Monthly"), set a
+   recurring **monthly** price. Save. Start with a USD price, and optionally add
+   regional prices such as INR when you are ready to bill locally.
 3. Copy the **Price ID** (`price_...`).
 4. **Developers → API keys**: copy the **Secret key** (`sk_test_...`).
 
@@ -27,9 +28,16 @@ Supabase → SQL editor → paste & run
 ```bash
 npx supabase secrets set STRIPE_SECRET_KEY=sk_test_...
 npx supabase secrets set STRIPE_PRICE_ID=price_...
+npx supabase secrets set STRIPE_PRICE_ID_USD_MONTHLY=price_...
+# Optional, only if you create an INR Stripe price:
+npx supabase secrets set STRIPE_PRICE_ID_INR_MONTHLY=price_...
 npx supabase secrets set APP_URL=https://nri-finance-app.vercel.app
 # STRIPE_WEBHOOK_SECRET is set in Step 5 after you create the webhook.
 ```
+
+`STRIPE_PRICE_ID` remains the fallback. The app can display regional pricing in
+the paywall; exact local billing requires a matching Stripe price ID. Unsupported
+regions show an approximate local equivalent and charge the USD price.
 
 ## Step 4 — Deploy the functions
 ```bash
