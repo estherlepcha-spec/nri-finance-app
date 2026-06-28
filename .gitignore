@@ -28,3 +28,14 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Supabase CLI local state
+supabase/.temp/
+
+# Local tooling / generated artifacts (not part of the app)
+scripts/VoiceAssistant.Server.0.1.0/
+scripts/generate_developer_manual.py
+scripts/generate_user_manual.py
+voice-assistant.json
+tests/
+*.docx
