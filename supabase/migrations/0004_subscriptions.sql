@@ -35,7 +35,12 @@ create index if not exists subscriptions_stripe_customer_idx
 -- Treats trialing + active as entitled. (past_due/canceled are not.)
 -- The frontend can just read the subscriptions row and apply the same rule;
 -- this view is here for SQL-side checks if needed.
-create or replace view public.my_entitlement as
+--
+-- security_invoker: run the view with the QUERYING user's permissions (PG15+),
+-- so it enforces the subscriptions RLS policy instead of the creator's rights.
+-- Without this, a view defaults to SECURITY DEFINER and bypasses RLS.
+create or replace view public.my_entitlement
+  with (security_invoker = true) as
   select
     user_id,
     status,
