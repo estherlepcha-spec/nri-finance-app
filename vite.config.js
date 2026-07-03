@@ -7,9 +7,8 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: false,
-    host: '127.0.0.1',
+    host: 'localhost',
     open: false,
-    allowedHosts: false,
     headers: {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       'Pragma': 'no-cache',
