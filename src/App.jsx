@@ -18,13 +18,13 @@ const load = (key, fallback) => {
     // Return fallback if stored null/undefined but caller expects an array or object
     if (parsed == null && fallback != null) return fallback
     return parsed
-  } catch { return fallback }
+  } catch { /* ignore storage read errors */ return fallback }
 }
 // Sync layer — uses Supabase for cloud persistence + localStorage as cache
 let _syncPush = null
 const _remoteKeys = new Set()
 const persist = (key, val) => {
-  try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
+  try { localStorage.setItem(key, JSON.stringify(val)) } catch { /* ignore storage write errors */ }
   if (!_remoteKeys.has(key)) _syncPush?.(key, val)
 }
 // Debounced Supabase push
@@ -80,9 +80,7 @@ const fmtConv = (n, cur = 'INR') => {
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const GCC_CURRENCIES = ['AED', 'SAR', 'KWD', 'QAR', 'BHD', 'OMR']
 const ARAB_CURRENCIES = ['AED', 'SAR', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'EGP', 'IQD', 'LBP', 'LYD', 'MAD', 'TND', 'DZD', 'YER', 'MRU', 'DJF']
-const GCC_NAMES = { AED: 'UAE Dirham', SAR: 'Saudi Riyal', KWD: 'Kuwaiti Dinar', QAR: 'Qatari Riyal', BHD: 'Bahraini Dinar', OMR: 'Omani Rial' }
 const CURRENCY_FULL_NAMES = {
   INR: 'Indian Rupee',
   // GCC
@@ -621,111 +619,17 @@ function DonutChart({ segments, size = 72, thickness = 11, label }) {
   )
 }
 
-function MiniBarChart({ data, color = C.accent, height = 36 }) {
-  const max = Math.max(...data.map(d => d.value || 0), 1)
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height }}>
-      {data.map((d, i) => (
-        <div key={i} title={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-          <div style={{ width: '100%', height: Math.max((d.value / max) * height, d.value > 0 ? 3 : 0), background: color, borderRadius: '3px 3px 0 0', opacity: i === data.length - 1 ? 1 : 0.5 }} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 const pg = { padding: 'var(--pg, 24px 28px)', overflowY: 'auto', overflowX: 'hidden', height: '100%', width: '100%', boxSizing: 'border-box' }
 const pgTitle = { fontSize: 'var(--title-fs, 24px)', fontWeight: 800, color: C.text, marginBottom: 4, letterSpacing: '-0.03em' }
 const grid2 = { display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 12 }
 const rowSep = { padding: '12px 0', borderBottom: `1px solid ${C.border}` }
 const linkBtn = { background: 'none', border: 'none', color: C.accentL, fontSize: 12, cursor: 'pointer', fontWeight: 600, letterSpacing: '-0.01em' }
 
-// ─── Setup Wizard ─────────────────────────────────────────────────────────────
-function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCurrency, primaryCurrency, setPrimaryCurrency, exchangeRate, setExchangeRate, onComplete }) {
-  const [step, setStep] = useState(0)
-  const steps = [
-    {
-      title: "Welcome to NRI's & Expat's Personal Finance Manager",
-      sub: "Let's configure your currencies",
-      body: (
-        <>
-          <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
-            As an NRI you manage money across countries. Tell us your currencies to get started.
-          </p>
-          <CurrencySel label="Home currency (India)" value={homeCurrency} onChange={e => setHomeCurrency(e.target.value)} />
-          <CurrencySel label="Foreign currency (country of residence)" value={foreignCurrency} onChange={e => setForeignCurrency(e.target.value)} exclude={['INR']} />
-          <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
-        </>
-      ),
-    },
-    {
-      title: 'Set Exchange Rate',
-      sub: 'Enter today\'s rate — update anytime in Settings',
-      body: (
-        <>
-          <Field label={`1 ${foreignCurrency} = ? ${homeCurrency}`}>
-            <input type="number" step="0.01" min="0" value={exchangeRate}
-              onChange={e => setExchangeRate(parseFloat(e.target.value) || 0)}
-              style={{ ...inputStyle, fontSize: 20, fontWeight: 700 }} />
-          </Field>
-          <p style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>For USD→INR, this is typically 83–85.</p>
-        </>
-      ),
-    },
-    {
-      title: "You're all set!",
-      sub: 'Start tracking your NRI finances',
-      body: (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-          <div style={{ background: C.card2, borderRadius: 10, padding: 16, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 13, color: C.text, display:'flex', alignItems:'center', gap:6 }}><Flag currency={homeCurrency} size={14} />Home: <strong>{homeCurrency}</strong></div>
-            <div style={{ fontSize: 13, color: C.text, display:'flex', alignItems:'center', gap:6 }}><Flag currency={foreignCurrency} size={14} />Foreign: <strong>{foreignCurrency}</strong></div>
-            <div style={{ fontSize: 13, color: C.text }}>💱 Rate: <strong>1 {foreignCurrency} = {exchangeRate} {homeCurrency}</strong></div>
-          </div>
-        </div>
-      ),
-    },
-  ]
-
-  const cur = steps[step]
-  return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 460 }}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div role="img" aria-label="logo" style={{ width: 72, height: 72, flexShrink: 0, borderRadius: 16, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 3px 14px rgba(255,136,0,0.55))' }} />
-            <div style={{ fontSize: 20, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', lineHeight: 1.2 }}>NRI's & Expat's<br /><span style={{ fontSize: 14, fontWeight: 600, color: C.mutedL }}>Personal Finance Manager</span></div>
-          </div>
-          <div style={{ color: C.muted, fontSize: 13 }}>Manage your money across borders — wherever you live and work</div>
-          <div style={{ color: C.mutedL, fontSize: 11, marginTop: 6 }}>For Indians • Pakistanis • Filipinos • Bangladeshis • Sri Lankans • Nepalese • and all expats working abroad</div>
-        </div>
-        <div style={{ background: C.card, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 32, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 26 }}>
-            {steps.map((_, i) => (
-              <div key={i} style={{ flex: 1, height: 3, borderRadius: 100, background: i <= step ? C.accent : C.border, transition: 'background 0.3s' }} />
-            ))}
-          </div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 6, letterSpacing: '-0.03em' }}>{cur.title}</h2>
-          <p style={{ color: C.muted, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>{cur.sub}</p>
-          {cur.body}
-          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-            {step > 0 && <Btn variant="ghost" onClick={() => setStep(s => s - 1)} style={{ flex: 1 }}>← Back</Btn>}
-            <Btn onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : onComplete()} style={{ flex: 1 }}>
-              {step < steps.length - 1 ? 'Continue →' : '🚀 Get Started'}
-            </Btn>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 function Dashboard({ accounts, transactions, investments, goals, loans, bills, remittances,
-  exchangeRate, foreignCurrency, homeCurrency, netWorth, totalINR, totalForeign,
+  exchangeRate, foreignCurrency, homeCurrency,
   totalLoanBalance, monthlyEMI, wkBudgets, hmBudgets, budgetMonth, setBudgetMonth, toINR, setActiveTab,
-  onOpenImport, lastImport, onAddSalary }) {
+  onOpenImport, lastImport, onAddSalary, showPremiumBadge }) {
 
   const [dashboardMonth, setDashboardMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
@@ -814,8 +718,6 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
   const hmMonIn    = allHmTx.filter(t => isCredit(t) && !isRemittanceCredit(t)).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const hmMonEx    = allHmTx.filter(isTrueExpense).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
   const hmMonSaved = hmMonIn - hmMonEx
-  const hmSavRate  = sanitizeRate(hmMonIn > 0 ? (hmMonSaved / hmMonIn) * 100 : null, hmMonIn)
-
   // Home savings including remittances received this month
   const hmRemitsReceived = (remittances || []).filter(r => (r.date || '').startsWith(mon))
     .reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
@@ -867,12 +769,6 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
     const mEx = tx.filter(t => (t.type === 'expense' || t.type === 'remittance') && workAccIds.has(t.accountId)).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
     return sum + (mIn - mEx)
   }, 0) / 6
-  const avg6hm = months6.reduce((sum, m) => {
-    const tx = transactions.filter(t => (t.date || '').startsWith(m))
-    return sum + tx.filter(t => isCredit(t)  && homeAccIds.has(t.accountId)).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
-               - tx.filter(t => t.type === 'expense' && homeAccIds.has(t.accountId)).reduce((s, t) => s + Math.abs(t.amount || 0), 0)
-  }, 0) / 6
-
   // Remittance-adjusted home savings for last month and 6-month avg
   const lastMonRemitsRec = (remittances || []).filter(r => (r.date || '').startsWith(lastMon))
     .reduce((sum, r) => sum + (r.received || ((r.amount || 0) * (r.rate || 0))), 0)
@@ -954,14 +850,6 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
 
   const srClr = r => r == null ? C.muted  : r >= 20 ? C.green  : r >= 10 ? C.yellow  : C.red
   const srLbl = r => r == null ? 'No salary recorded' : r >= 20 ? '🟢 On Track' : r >= 10 ? '🟡 Review' : '🔴 Low'
-
-  const panelRow = (label, value, sub) => (
-    <div>
-      <div style={{ fontSize: 11, color: C.muted, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>{value}</div>
-      {sub && <div style={{ fontSize: 10, color: C.muted }}>{sub}</div>}
-    </div>
-  )
 
   // Point 1: income debug log
   useEffect(() => {
@@ -1197,7 +1085,7 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
             inCount: hmMonTx.filter(t => t.type === 'income').length + (hmRemitsReceived > 0 ? 1 : 0), exCount: hmMonTx.filter(t => t.type === 'expense').length,
             currency: homeCurrency, accts: homeAccounts, netPos: hmNetPos, remitsRec: hmRemitsReceived, directIncome: hmMonIn,
             openBal: hmOpeningBal, closeBal: hmClosingBal, latestTxDate: hmLatestTxDate },
-        ].map(({ flag, title, fullTitle, color, monIn, monEx, monSaved, savRate, inCount, exCount, currency, accts, netPos, remitsRec = 0, directIncome = 0, openBal, closeBal, latestTxDate }) => (
+        ].map(({ flag, title, fullTitle, color, monIn, monEx, savRate, inCount, exCount, currency, accts, netPos, remitsRec = 0, directIncome = 0, openBal, closeBal, latestTxDate }) => (
           <div key={title} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${color}, ${color}44)` }} />
             <div style={{ borderBottom: `1px solid ${C.border}`, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1590,7 +1478,106 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
 }
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
-function Accounts({ accounts, setAccounts, transactions, setTransactions, remittances, foreignCurrency, homeCurrency, exchangeRate, toINR, onOpenImport }) {
+function AuditModal({ auditAcct, setAuditAcct, transactions, remittances, homeCurrency, setTransactions, setAccounts }) {
+  if (!auditAcct) return null
+  const a = auditAcct
+  const {
+    totalIncreases,
+    totalDecreases,
+    increaseLabel,
+    decreaseLabel,
+    increaseCount,
+    decreaseCount,
+    acctRemits,
+    linkedRemits,
+    unlinkedRemits,
+    unlinkedTotal,
+    expectedBalance,
+  } = calculateBalanceAudit(a, transactions, remittances, homeCurrency)
+
+  const row = (label, value, color, bold) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${C.border}22`, fontSize: 13 }}>
+      <span style={{ color: C.muted }}>{label}</span>
+      <span className="num" style={{ color: color || C.text, fontWeight: bold ? 700 : 500 }}>{value}</span>
+    </div>
+  )
+
+  const syncRemittances = () => {
+    const newTxs = unlinkedRemits.map(r => ({
+      id: uid(), date: r.date || today(),
+      description: `Remittance received${r.provider ? ` (${r.provider})` : ''}${r.recipient ? ` — ${r.recipient}` : ''}`,
+      category: 'Remittance', type: 'income',
+      amount: r.received || (r.amount||0) * (r.rate||0),
+      currency: a.currency, accountId: a.id,
+      notes: `Auto-linked from remittance record${r.notes ? ': ' + r.notes : ''}`,
+    }))
+    const updated = [...newTxs, ...transactions]
+    setTransactions(updated)
+    setAccounts(prev => recomputeAllBalances(prev, updated))
+    setAuditAcct(null)
+  }
+
+  return (
+    <Modal title={`📊 Balance Audit — ${a.name}`} onClose={() => setAuditAcct(null)} width={480}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>How the app calculates your balance vs what it should be.</div>
+
+      <div style={{ background: C.card2, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Balance Breakdown</div>
+        {row('Setup / Opening Balance', fmt(a.setupBalance || 0, a.currency))}
+        {row(`+ ${increaseLabel} (${increaseCount})`, '+' + fmt(totalIncreases, a.currency), C.green)}
+        {row(`− ${decreaseLabel} (${decreaseCount})`, '−' + fmt(totalDecreases, a.currency), C.red)}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
+          <span style={{ fontWeight: 700, color: C.text }}>= App Balance (current)</span>
+          <span className="num" style={{ fontWeight: 900, color: C.accent, fontSize: 15 }}>{fmt(a.balance, a.currency)}</span>
+        </div>
+      </div>
+
+      {a.country === 'home' && acctRemits.length > 0 && (
+        <div style={{ background: C.card2, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Remittances to this Account</div>
+          {acctRemits.map((r, i) => {
+            const received = r.received || (r.amount||0) * (r.rate||0)
+            const isLinked = linkedRemits.includes(r)
+            return (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${C.border}22`, fontSize: 12 }}>
+                <div>
+                  <span style={{ color: C.muted }}>{r.date} {r.provider ? `· ${r.provider}` : ''}</span>
+                  <span style={{ marginLeft: 8, fontSize: 10, color: isLinked ? C.green : C.yellow, fontWeight: 700 }}>{isLinked ? '✅ in transactions' : '⚠️ not in transactions'}</span>
+                </div>
+                <span className="num" style={{ color: isLinked ? C.green : C.yellow, fontWeight: 600 }}>+{fmt(received, a.currency)}</span>
+              </div>
+            )
+          })}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
+            <span style={{ color: C.muted }}>Unlinked remittances</span>
+            <span className="num" style={{ color: C.yellow, fontWeight: 700 }}>+{fmt(unlinkedTotal, a.currency)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
+            <span style={{ fontWeight: 700, color: C.text }}>= Expected Balance</span>
+            <span className="num" style={{ fontWeight: 900, color: C.green, fontSize: 15 }}>{fmt(expectedBalance, a.currency)}</span>
+          </div>
+        </div>
+      )}
+
+      {unlinkedRemits.length > 0 && (
+        <div style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}44`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.mutedL }}>
+          ⚠️ <strong style={{ color: C.yellow }}>{unlinkedRemits.length} remittance{unlinkedRemits.length > 1 ? 's' : ''} ({fmt(unlinkedTotal, a.currency)})</strong> are not recorded as income transactions in this account. This is why your balance appears lower than expected.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Btn variant="ghost" onClick={() => setAuditAcct(null)} style={{ flex: 1 }}>Close</Btn>
+        {unlinkedRemits.length > 0 && (
+          <Btn onClick={syncRemittances} style={{ flex: 1, background: `linear-gradient(135deg, ${C.green}, #059669)` }}>
+            ✅ Sync {unlinkedRemits.length} Remittance{unlinkedRemits.length > 1 ? 's' : ''} to Account
+          </Btn>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+function Accounts({ accounts, setAccounts, transactions, setTransactions, remittances, foreignCurrency, homeCurrency, toINR, onOpenImport, showPremiumBadge }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const blank = { name: '', type: 'Savings Account', country: 'foreign', currency: foreignCurrency, balance: '', bank: '', accountNumber: '', creditLimit: '', dueDay: '', minPayment: '', apr: '' }
@@ -1628,9 +1615,6 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
 
   const del = id => { if (confirm('Delete this account?')) setAccounts(p => p.filter(a => a.id !== id)) }
   const edit = a => { setForm({ ...blank, ...a, balance: String(a.balance), creditLimit: String(a.creditLimit || ''), minPayment: String(a.minPayment || ''), apr: String(a.apr || ''), dueDay: String(a.dueDay || '') }); setEditing(a); setShowAdd(true) }
-
-  const total = accounts.filter(a => a.type !== 'Credit Card').reduce((s, a) => s + toINR(a.balance, a.currency), 0)
-  const totalDebt = accounts.filter(a => a.type === 'Credit Card').reduce((s, a) => s + toINR(a.balance, a.currency), 0)
 
   // Per-country breakdown (assets, credit-card debt, net worth) expressed in
   // that country's own currency. Each account is summed in its native currency
@@ -1778,108 +1762,6 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
     )
   }
 
-  // ── Balance Audit Modal ──────────────────────────────────────────────────────
-  const AuditModal = () => {
-    if (!auditAcct) return null
-    const a = auditAcct
-    const {
-      txDeltas,
-      totalIncreases,
-      totalDecreases,
-      calcBalance,
-      increaseLabel,
-      decreaseLabel,
-      increaseCount,
-      decreaseCount,
-      acctRemits,
-      linkedRemits,
-      unlinkedRemits,
-      unlinkedTotal,
-      expectedBalance,
-    } = calculateBalanceAudit(a, transactions, remittances, homeCurrency)
-
-    const row = (label, value, color, bold) => (
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${C.border}22`, fontSize: 13 }}>
-        <span style={{ color: C.muted }}>{label}</span>
-        <span className="num" style={{ color: color || C.text, fontWeight: bold ? 700 : 500 }}>{value}</span>
-      </div>
-    )
-
-    const syncRemittances = () => {
-      const newTxs = unlinkedRemits.map(r => ({
-        id: uid(), date: r.date || today(),
-        description: `Remittance received${r.provider ? ` (${r.provider})` : ''}${r.recipient ? ` — ${r.recipient}` : ''}`,
-        category: 'Remittance', type: 'income',
-        amount: r.received || (r.amount||0) * (r.rate||0),
-        currency: a.currency, accountId: a.id,
-        notes: `Auto-linked from remittance record${r.notes ? ': ' + r.notes : ''}`,
-      }))
-      const updated = [...newTxs, ...transactions]
-      setTransactions(updated)
-      setAccounts(prev => recomputeAllBalances(prev, updated))
-      setAuditAcct(null)
-    }
-
-    return (
-      <Modal title={`📊 Balance Audit — ${a.name}`} onClose={() => setAuditAcct(null)} width={480}>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>How the app calculates your balance vs what it should be.</div>
-
-        <div style={{ background: C.card2, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Balance Breakdown</div>
-          {row('Setup / Opening Balance', fmt(a.setupBalance || 0, a.currency))}
-          {row(`+ ${increaseLabel} (${increaseCount})`, '+' + fmt(totalIncreases, a.currency), C.green)}
-          {row(`− ${decreaseLabel} (${decreaseCount})`, '−' + fmt(totalDecreases, a.currency), C.red)}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
-            <span style={{ fontWeight: 700, color: C.text }}>= App Balance (current)</span>
-            <span className="num" style={{ fontWeight: 900, color: C.accent, fontSize: 15 }}>{fmt(a.balance, a.currency)}</span>
-          </div>
-        </div>
-
-        {isHome && acctRemits.length > 0 && (
-          <div style={{ background: C.card2, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Remittances to this Account</div>
-            {acctRemits.map((r, i) => {
-              const received = r.received || (r.amount||0) * (r.rate||0)
-              const isLinked = linkedRemits.includes(r)
-              return (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${C.border}22`, fontSize: 12 }}>
-                  <div>
-                    <span style={{ color: C.muted }}>{r.date} {r.provider ? `· ${r.provider}` : ''}</span>
-                    <span style={{ marginLeft: 8, fontSize: 10, color: isLinked ? C.green : C.yellow, fontWeight: 700 }}>{isLinked ? '✅ in transactions' : '⚠️ not in transactions'}</span>
-                  </div>
-                  <span className="num" style={{ color: isLinked ? C.green : C.yellow, fontWeight: 600 }}>+{fmt(received, a.currency)}</span>
-                </div>
-              )
-            })}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, borderTop: `1px solid ${C.border}`, marginTop: 4 }}>
-              <span style={{ color: C.muted }}>Unlinked remittances</span>
-              <span className="num" style={{ color: C.yellow, fontWeight: 700 }}>+{fmt(unlinkedTotal, a.currency)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 }}>
-              <span style={{ fontWeight: 700, color: C.text }}>= Expected Balance</span>
-              <span className="num" style={{ fontWeight: 900, color: C.green, fontSize: 15 }}>{fmt(expectedBalance, a.currency)}</span>
-            </div>
-          </div>
-        )}
-
-        {unlinkedRemits.length > 0 && (
-          <div style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}44`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: C.mutedL }}>
-            ⚠️ <strong style={{ color: C.yellow }}>{unlinkedRemits.length} remittance{unlinkedRemits.length > 1 ? 's' : ''} ({fmt(unlinkedTotal, a.currency)})</strong> are not recorded as income transactions in this account. This is why your balance appears lower than expected.
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Btn variant="ghost" onClick={() => setAuditAcct(null)} style={{ flex: 1 }}>Close</Btn>
-          {unlinkedRemits.length > 0 && (
-            <Btn onClick={syncRemittances} style={{ flex: 1, background: `linear-gradient(135deg, ${C.green}, #059669)` }}>
-              ✅ Sync {unlinkedRemits.length} Remittance{unlinkedRemits.length > 1 ? 's' : ''} to Account
-            </Btn>
-          )}
-        </div>
-      </Modal>
-    )
-  }
-
   return (
     <div style={pg}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -1993,7 +1875,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
         )
       })()}
 
-      {auditAcct && <AuditModal />}
+      {auditAcct && <AuditModal auditAcct={auditAcct} setAuditAcct={setAuditAcct} transactions={transactions} remittances={remittances} homeCurrency={homeCurrency} setTransactions={setTransactions} setAccounts={setAccounts} />}
 
       {showAdd && (
         <Modal title={editing ? 'Edit Account' : 'Add Account'} onClose={() => { setShowAdd(false); setEditing(null) }}>
@@ -2045,7 +1927,92 @@ const CAT_COLORS = {
   'ATM Withdrawal': '#94a3b8', Transfer: '#64748b', Other: '#64748b',
 }
 
-function Transactions({ transactions, setTransactions, accounts, setAccounts, foreignCurrency, homeCurrency, templates, setTemplates, toINR, onOpenImport, remittances, invoicePrefill, onClearInvoicePrefill, smartRules = {}, setSmartRules }) {
+function TransactionDeleteModal({ transactions, accounts, selectedForDelete, setSelectedForDelete, setShowDeleteModal, setTransactions, setAccounts }) {
+  const [mode, setMode] = useState('select')
+  const toggleSelect = id => setSelectedForDelete(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const selectAll = () => setSelectedForDelete(new Set(transactions.map(t => t.id)))
+  const clearAll = () => setSelectedForDelete(new Set())
+
+  const doDelete = ids => {
+    const remaining = transactions.filter(t => !ids.has(t.id))
+    setTransactions(remaining)
+    setAccounts(prev => recomputeAllBalances(prev, remaining))
+    setShowDeleteModal(false)
+    setSelectedForDelete(new Set())
+  }
+
+  return (
+    <Modal title="🗑️ Delete Transactions" onClose={() => setShowDeleteModal(false)} width={700}>
+      <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+        <Btn variant={mode==='select'?'primary':'ghost'} size="sm" onClick={() => setMode('select')}>Select Manually</Btn>
+        <Btn variant={mode==='confirm-all'?'danger':'ghost'} size="sm" onClick={() => setMode('confirm-all')}>Delete All</Btn>
+      </div>
+
+      {mode === 'confirm-all' && (
+        <div style={{ background:C.red+'12', border:`1px solid ${C.red}44`, borderRadius:10, padding:'16px', textAlign:'center' }}>
+          <div style={{ fontSize:15, fontWeight:700, color:C.red, marginBottom:8 }}>⚠️ Delete ALL {transactions.length} transactions?</div>
+          <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>This cannot be undone. All account balances will be reset to their setup balance.</div>
+          <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
+            <Btn variant="ghost" onClick={() => setMode('select')}>Cancel</Btn>
+            <Btn variant="danger" onClick={() => doDelete(new Set(transactions.map(t => t.id)))}>Yes, Delete All</Btn>
+          </div>
+        </div>
+      )}
+
+      {mode === 'select' && (
+        <>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+            <span style={{ fontSize:12, color:C.muted }}>{selectedForDelete.size} selected</span>
+            <button onClick={selectAll} style={{ background:'none', border:'none', color:C.accent, fontSize:12, cursor:'pointer', fontWeight:600 }}>Select All</button>
+            <button onClick={clearAll} style={{ background:'none', border:'none', color:C.muted, fontSize:12, cursor:'pointer' }}>Clear</button>
+            <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
+              {[
+                { label:'This Month', fn: () => { const m=new Date().toISOString().slice(0,7); setSelectedForDelete(new Set(transactions.filter(t=>(t.date||'').startsWith(m)).map(t=>t.id))) } },
+                { label:'Duplicates', fn: () => { const normD=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); const seen=new Set(); const dups=new Set(); transactions.forEach(t=>{ const k=`${t.accountId}|${t.date}|${Math.abs(t.amount||0).toFixed(2)}|${normD(t.description).slice(0,15)}`; seen.has(k)?dups.add(t.id):seen.add(k) }); setSelectedForDelete(dups) } },
+              ].map(({label,fn}) => (
+                <button key={label} onClick={fn} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:6, padding:'3px 10px', fontSize:11, color:C.mutedL, cursor:'pointer', fontWeight:600 }}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ border:`1px solid ${C.border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'28px 86px 1fr 110px 90px', gap:4, padding:'7px 10px', background:C.card2, fontSize:11, color:C.muted, fontWeight:600 }}>
+              <div/><div>Date</div><div>Description</div><div>Account</div><div style={{textAlign:'right'}}>Amount</div>
+            </div>
+            <div style={{ maxHeight:360, overflowY:'auto' }}>
+              {transactions.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t => {
+                const acct = accounts.find(a=>a.id===t.accountId)
+                const checked = selectedForDelete.has(t.id)
+                return (
+                  <div key={t.id} onClick={() => toggleSelect(t.id)} style={{ display:'grid', gridTemplateColumns:'28px 86px 1fr 110px 90px', gap:4, padding:'6px 10px', borderBottom:`1px solid ${C.border}22`, alignItems:'center', cursor:'pointer', background:checked?C.red+'12':'transparent' }}>
+                    <input type="checkbox" checked={checked} readOnly />
+                    <div style={{ fontSize:11, color:C.muted }}>{t.date}</div>
+                    <div style={{ fontSize:12, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
+                    <div style={{ fontSize:11, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{acct?.name||'—'}</div>
+                    <div style={{ fontSize:12, fontWeight:700, textAlign:'right', color:t.type==='income'?C.green:C.red }}>
+                      {t.type==='income'?'+':'-'}{fmt(Math.abs(t.amount||0), acct?.currency)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <Btn variant="ghost" onClick={() => setShowDeleteModal(false)} style={{ flex:1 }}>Cancel</Btn>
+            <Btn variant="danger" disabled={selectedForDelete.size===0} onClick={() => doDelete(selectedForDelete)} style={{ flex:1 }}>
+              🗑️ Delete {selectedForDelete.size} Transaction{selectedForDelete.size!==1?'s':''}
+            </Btn>
+          </div>
+        </>
+      )}
+    </Modal>
+  )
+}
+
+function Transactions({ transactions, setTransactions, accounts, setAccounts, foreignCurrency, homeCurrency, templates, setTemplates, toINR, onOpenImport, remittances, invoicePrefill, onClearInvoicePrefill, smartRules = {}, setSmartRules, showPremiumBadge }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -2082,7 +2049,19 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
       const acct = accounts.find(a => a.id === val)
       setForm(p => ({ ...p, accountId: val, currency: acct ? acct.currency : p.currency }))
     } else {
-      setForm(p => ({ ...p, [k]: val }))
+      setForm(p => {
+        const next = { ...p, [k]: val }
+        if ((k === 'category' || k === 'type' || k === 'date') && next.category === 'Salary' && next.type === 'income' && !next.salaryForMonth) {
+          const txMonth = (next.date || today()).slice(0, 7)
+          const [y, m] = txMonth.split('-').map(Number)
+          const prev = new Date(y, m - 2)
+          const prevYm = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`
+          if (!salaryExistsFor(prevYm) && salaryExistsFor(txMonth) === false) {
+            next.salaryForMonth = prevYm
+          }
+        }
+        return next
+      })
     }
   }
 
@@ -2146,29 +2125,12 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     t.type === 'income' && (t.category || '').toLowerCase() === 'salary' &&
     ((t.salaryForMonth ? t.salaryForMonth === ym : (t.date || '').slice(0, 7) === ym)))
 
-  // Auto-suggest delayed salary: when adding a NEW Salary income and there is
-  // NO salary recorded for the PREVIOUS month, default "salary is for month" to
-  // that previous month (likely a delayed payout). The user can still change it.
-  useEffect(() => {
-    if (editing) return
-    if (form.category !== 'Salary' || form.type !== 'income') return
-    if (form.salaryForMonth) return // user already chose
-    const txMonth = (form.date || today()).slice(0, 7)
-    const [y, m] = txMonth.split('-').map(Number)
-    const prev = new Date(y, m - 2) // m is 1-based; m-2 = previous month index
-    const prevYm = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`
-    if (!salaryExistsFor(prevYm) && salaryExistsFor(txMonth) === false) {
-      setForm(p => ({ ...p, salaryForMonth: prevYm }))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.category, form.type, form.date])
-
   const saveTemplate = () => {
     if (!tmplName.trim()) return
     setTemplates(p => [...p, { ...form, name: tmplName.trim(), id: uid() }])
     setTmplName(''); setShowSaveTmpl(false)
   }
-  const useTemplate = t => {
+  const applyTemplate = t => {
     setForm({ ...blank, type: t.type, description: t.description, category: t.category, amount: t.amount, currency: t.currency, amountINR: t.amountINR, accountId: t.accountId, date: today() })
     setShowAdd(true)
   }
@@ -2199,7 +2161,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const invoicePrefillRef = useRef(invoicePrefill)
   useEffect(() => { invoicePrefillRef.current = invoicePrefill }, [invoicePrefill])
 
-  const tryApplyPrefill = (source) => {
+  const tryApplyPrefill = () => {
     const data = invoicePrefillRef.current || (() => {
       try { const s = localStorage.getItem('nri_invoicePrefill'); return s ? JSON.parse(s) : null } catch { return null }
     })()
@@ -2211,14 +2173,14 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 
   // On mount — catches case where invoicePrefill was set before Transactions mounted
   useEffect(() => {
-    const t = setTimeout(() => tryApplyPrefill('mount'), 150)
+    const t = setTimeout(() => tryApplyPrefill(), 150)
     return () => clearTimeout(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // On prop change — catches case where Transactions was already mounted
   useEffect(() => {
     if (!invoicePrefill) return
-    const t = setTimeout(() => tryApplyPrefill('prop-change'), 50)
+    const t = setTimeout(() => tryApplyPrefill(), 50)
     return () => clearTimeout(t)
   }, [invoicePrefill]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2255,11 +2217,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   )
   const activeFilters = [filter !== 'all', catFilter !== 'all', acctFilter !== '', dateRange !== 'all', search !== ''].filter(Boolean).length
 
-  const getAcctCur     = t => { const a = accounts.find(x => x.id === t.accountId); return a ? a.currency : t.currency }
   const getAcctCountry = t => { const a = accounts.find(x => x.id === t.accountId); return a ? a.country  : 'foreign' }
-  const totalIn = filtered.filter(t => t.type === 'income').reduce((s, t) => s + toINR(t.amount || 0, getAcctCur(t)), 0)
-  const totalEx = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + toINR(t.amount || 0, getAcctCur(t)), 0)
-
   const wkTx  = filtered.filter(t => getAcctCountry(t) === 'foreign')
   const hmTx  = filtered.filter(t => getAcctCountry(t) === 'home')
   const wkIn  = wkTx.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)
@@ -2284,93 +2242,6 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   const selAcctObj = acctFilter ? accounts.find(a => a.id === acctFilter) : null
   const acctIn = filtered.filter(t => t.type === 'income').reduce((s, t) => s + (t.amount || 0), 0)
   const acctEx = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount || 0), 0)
-
-  // ── Delete Modal ────────────────────────────────────────────────────────────
-  const DeleteModal = () => {
-    const [mode, setMode] = useState('select') // 'select' | 'confirm-all'
-    const toggleSelect = id => setSelectedForDelete(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-    const selectAll = () => setSelectedForDelete(new Set(transactions.map(t => t.id)))
-    const clearAll = () => setSelectedForDelete(new Set())
-
-    const doDelete = ids => {
-      const remaining = transactions.filter(t => !ids.has(t.id))
-      setTransactions(remaining)
-      setAccounts(prev => recomputeAllBalances(prev, remaining))
-      setShowDeleteModal(false)
-      setSelectedForDelete(new Set())
-    }
-
-    return (
-      <Modal title="🗑️ Delete Transactions" onClose={() => setShowDeleteModal(false)} width={700}>
-        <div style={{ display:'flex', gap:10, marginBottom:14 }}>
-          <Btn variant={mode==='select'?'primary':'ghost'} size="sm" onClick={() => setMode('select')}>Select Manually</Btn>
-          <Btn variant={mode==='confirm-all'?'danger':'ghost'} size="sm" onClick={() => setMode('confirm-all')}>Delete All</Btn>
-        </div>
-
-        {mode === 'confirm-all' && (
-          <div style={{ background:C.red+'12', border:`1px solid ${C.red}44`, borderRadius:10, padding:'16px', textAlign:'center' }}>
-            <div style={{ fontSize:15, fontWeight:700, color:C.red, marginBottom:8 }}>⚠️ Delete ALL {transactions.length} transactions?</div>
-            <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>This cannot be undone. All account balances will be reset to their setup balance.</div>
-            <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
-              <Btn variant="ghost" onClick={() => setMode('select')}>Cancel</Btn>
-              <Btn variant="danger" onClick={() => doDelete(new Set(transactions.map(t => t.id)))}>Yes, Delete All</Btn>
-            </div>
-          </div>
-        )}
-
-        {mode === 'select' && (
-          <>
-            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-              <span style={{ fontSize:12, color:C.muted }}>{selectedForDelete.size} selected</span>
-              <button onClick={selectAll} style={{ background:'none', border:'none', color:C.accent, fontSize:12, cursor:'pointer', fontWeight:600 }}>Select All</button>
-              <button onClick={clearAll} style={{ background:'none', border:'none', color:C.muted, fontSize:12, cursor:'pointer' }}>Clear</button>
-              <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-                {/* Quick filters */}
-                {[
-                  { label:'This Month', fn: () => { const m=new Date().toISOString().slice(0,7); setSelectedForDelete(new Set(transactions.filter(t=>(t.date||'').startsWith(m)).map(t=>t.id))) } },
-                  { label:'Duplicates', fn: () => { const normD=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); const seen=new Set(); const dups=new Set(); transactions.forEach(t=>{ const k=`${t.accountId}|${t.date}|${Math.abs(t.amount||0).toFixed(2)}|${normD(t.description).slice(0,15)}`; seen.has(k)?dups.add(t.id):seen.add(k) }); setSelectedForDelete(dups) } },
-                ].map(({label,fn}) => (
-                  <button key={label} onClick={fn} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:6, padding:'3px 10px', fontSize:11, color:C.mutedL, cursor:'pointer', fontWeight:600 }}>{label}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{ border:`1px solid ${C.border}`, borderRadius:10, overflow:'hidden', marginBottom:14 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'28px 86px 1fr 110px 90px', gap:4, padding:'7px 10px', background:C.card2, fontSize:11, color:C.muted, fontWeight:600 }}>
-                <div/><div>Date</div><div>Description</div><div>Account</div><div style={{textAlign:'right'}}>Amount</div>
-              </div>
-              <div style={{ maxHeight:360, overflowY:'auto' }}>
-                {transactions.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t => {
-                  const acct = accounts.find(a=>a.id===t.accountId)
-                  const checked = selectedForDelete.has(t.id)
-                  return (
-                    <div key={t.id} onClick={() => toggleSelect(t.id)} style={{ display:'grid', gridTemplateColumns:'28px 86px 1fr 110px 90px', gap:4, padding:'6px 10px', borderBottom:`1px solid ${C.border}22`, alignItems:'center', cursor:'pointer', background:checked?C.red+'12':'transparent' }}>
-                      <input type="checkbox" checked={checked} readOnly />
-                      <div style={{ fontSize:11, color:C.muted }}>{t.date}</div>
-                      <div style={{ fontSize:12, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
-                      <div style={{ fontSize:11, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{acct?.name||'—'}</div>
-                      <div style={{ fontSize:12, fontWeight:700, textAlign:'right', color:t.type==='income'?C.green:C.red }}>
-                        {t.type==='income'?'+':'-'}{fmt(Math.abs(t.amount||0), acct?.currency)}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:10 }}>
-              <Btn variant="ghost" onClick={() => setShowDeleteModal(false)} style={{ flex:1 }}>Cancel</Btn>
-              <Btn variant="danger" disabled={selectedForDelete.size===0} onClick={() => doDelete(selectedForDelete)} style={{ flex:1 }}>
-                🗑️ Delete {selectedForDelete.size} Transaction{selectedForDelete.size!==1?'s':''}
-              </Btn>
-            </div>
-          </>
-        )}
-      </Modal>
-    )
-  }
 
   return (
     <div style={pg}>
@@ -2518,7 +2389,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {templates.map(t => (
               <div key={t.id} style={{ display: 'flex', alignItems: 'center', background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
-                <button onClick={() => useTemplate(t)} style={{ background: 'none', border: 'none', padding: '6px 10px', color: C.text, fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>⚡ {t.name} · {t.amount} {t.currency}</button>
+                <button onClick={() => applyTemplate(t)} style={{ background: 'none', border: 'none', padding: '6px 10px', color: C.text, fontSize: 12, cursor: 'pointer', fontWeight: 500 }}>⚡ {t.name} · {t.amount} {t.currency}</button>
                 <button onClick={() => delTemplate(t.id)} style={{ background: 'none', border: 'none', borderLeft: `1px solid ${C.border}`, padding: '6px 8px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>✕</button>
               </div>
             ))}
@@ -2881,7 +2752,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
         )
       })()}
 
-      {showDeleteModal && <DeleteModal />}
+      {showDeleteModal && <TransactionDeleteModal transactions={transactions} accounts={accounts} selectedForDelete={selectedForDelete} setSelectedForDelete={setSelectedForDelete} setShowDeleteModal={setShowDeleteModal} setTransactions={setTransactions} setAccounts={setAccounts} />}
 
       {/* Smart Assign Account — link transactions that have no account set */}
       {showAssign && (() => {
@@ -2960,7 +2831,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 }
 
 // ─── Remittances ──────────────────────────────────────────────────────────────
-function Remittances({ remittances, setRemittances, accounts, transactions, foreignCurrency, homeCurrency, exchangeRate, rates, toINR }) {
+function Remittances({ remittances, setRemittances, accounts, transactions, foreignCurrency, homeCurrency, exchangeRate, rates }) {
   const liveRate = (cur) => rates.INR && rates[cur] ? (rates.INR / rates[cur]).toFixed(4) : String(exchangeRate)
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -3316,7 +3187,7 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
       if (b.autoSuppressed) return b // user deliberately un-ticked — leave alone
       if (match && !b.paid) { changed = true; return { ...b, paid: true, autoPaid: true, autoPaidTxId: match.id } }
       // If a previously auto-marked bill lost its matching transaction, revert it.
-      if (b.autoPaid && !match) { changed = true; const { autoPaid, autoPaidTxId, ...rest } = b; return { ...rest, paid: false } }
+      if (b.autoPaid && !match) { changed = true; const rest = { ...b }; delete rest.autoPaid; delete rest.autoPaidTxId; return { ...rest, paid: false } }
       return b
     })
     if (changed) setBills(next)
@@ -3926,7 +3797,7 @@ function Investments({ investments, setInvestments, foreignCurrency, homeCurrenc
 }
 
 // ─── Goals ────────────────────────────────────────────────────────────────────
-function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remittances, transactions, toINR, foreignCurrency, homeCurrency }) {
+function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remittances, transactions, homeCurrency }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const [detailGoal, setDetailGoal] = useState(null)
@@ -4418,7 +4289,7 @@ Rules:
 Return ONLY the JSON object — no text before { or after }`
 
 // ─── Loans ────────────────────────────────────────────────────────────────────
-function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, transactions, setTransactions, accounts }) {
+function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBudgets, setHmBudgets, transactions, setTransactions, accounts }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const [calcLoan, setCalcLoan] = useState(null)
@@ -4437,6 +4308,161 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
   const blank = { name: '', type: 'Home Loan', lender: '', principal: '', outstanding: '', emi: '', rate: '', currency: 'INR', country: 'home', startDate: '', tenureMonths: '', remainingMonths: '', extraMonthly: '' }
   const [form, setForm] = useState(blank)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const renderLoanCard = l => {
+    const paidPct = l.principal > 0 ? ((l.principal - l.outstanding) / l.principal) * 100 : 0
+    const base = l.emi > 0 ? calcPayoff(l.outstanding, l.emi, l.rate) : null
+    const withEx = l.emi > 0 && l.extraMonthly > 0 ? calcPayoff(l.outstanding, l.emi, l.rate, l.extraMonthly) : null
+    const fmtPayoff = months => { if (!months) return null; const d = new Date(); d.setMonth(d.getMonth() + months); return d.toLocaleDateString('default', { month: 'short', year: 'numeric' }) }
+    const mSaved = base && withEx ? base.months - withEx.months : 0
+    const iSaved = base && withEx ? base.interest - withEx.interest : 0
+
+    const nextDue = getNextDueDate(l)
+    const nextDueLabel = nextDue.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' })
+    const emiHistory = getEMIHistory(l)
+    const last3Months = Array.from({ length: 3 }, (_, i) => {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (2 - i))
+      return d.toISOString().slice(0, 7)
+    })
+    const nextDueMonStr = nextDue.toISOString().slice(0, 7)
+    const paidThisMonth = emiHistory.some(t => (t.date || '').startsWith(nextDueMonStr))
+
+    return (
+      <Card lift accent={C.yellow}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <Badge color={C.yellow}>{l.type}</Badge>
+            {l.country === 'foreign' ? <Badge color={C.teal}>{foreignCurrency}</Badge> : <Badge color={C.purple}>INR</Badge>}
+          </div>
+          <div style={{ display: 'flex', gap: 2 }}>
+            <IconBtn onClick={() => editLoan(l)}>✏️</IconBtn>
+            <IconBtn onClick={() => del(l.id)}>🗑️</IconBtn>
+          </div>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2 }}>{l.name}</div>
+        {l.lender && <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{l.lender}</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 8, marginBottom: 10 }}>
+          <div style={{ background: `${C.red}0e`, border: `1px solid ${C.red}22`, borderRadius: 9, padding: 10 }}>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Outstanding</div>
+            <div className="num" style={{ fontSize: 14, fontWeight: 800, color: C.red }}>{fmt(l.outstanding, l.currency)}</div>
+          </div>
+          <div style={{ background: `${C.yellow}0e`, border: `1px solid ${C.yellow}22`, borderRadius: 9, padding: 10 }}>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>EMI/mo</div>
+            <div className="num" style={{ fontSize: 14, fontWeight: 800, color: C.yellow }}>{fmt(l.emi, l.currency)}</div>
+          </div>
+        </div>
+        {(l.rate > 0 || l.remainingMonths > 0) && (
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+            {l.rate > 0 && <span>⚡ {l.rate}% p.a.</span>}
+            {l.remainingMonths > 0 && <span style={{ marginLeft: 8 }}>🗓 {l.remainingMonths} months left</span>}
+          </div>
+        )}
+        {l.extraMonthly > 0 && (
+          <div style={{ fontSize: 12, color: C.green, background: `${C.green}0e`, borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
+            ➕ {fmt(l.extraMonthly, l.currency)}/mo extra · saves {mSaved > 0 ? `${mSaved} months & ${fmt(iSaved, l.currency)}` : '—'}
+          </div>
+        )}
+        {l.principal > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.muted, marginBottom: 4 }}>
+              <span>Repaid {paidPct.toFixed(0)}%</span>
+              <span>{fmt(l.principal - l.outstanding, l.currency)} / {fmt(l.principal, l.currency)}</span>
+            </div>
+            <ProgressBar value={l.principal - l.outstanding} max={l.principal} color={C.teal} />
+          </div>
+        )}
+        {base && (
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
+            📅 Payoff: <strong style={{ color: C.textS }}>{fmtPayoff(base.months)}</strong>
+            {withEx && fmtPayoff(withEx.months) !== fmtPayoff(base.months) && (
+              <> · With extra: <strong style={{ color: C.green }}>{fmtPayoff(withEx.months)}</strong></>
+            )}
+          </div>
+        )}
+
+        {l.emi > 0 && (
+          <div style={{ background: paidThisMonth ? `${C.green}0a` : `${C.yellow}0a`, border: `1px solid ${paidThisMonth ? C.green : C.yellow}33`, borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>Upcoming EMI</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
+                  <span className="num">{fmt(l.emi, l.currency)}</span>
+                  <span style={{ color: C.muted, fontWeight: 400 }}> · Due {nextDueLabel}</span>
+                </div>
+              </div>
+              {paidThisMonth
+                ? <span style={{ fontSize: 11, color: C.green, fontWeight: 700, whiteSpace: 'nowrap' }}>✅ Paid</span>
+                : <button onClick={() => markEMIPaid(l, nextDue)}
+                    style={{ background: C.green, border: 'none', borderRadius: 7, padding: '5px 10px', fontSize: 11, color: '#fff', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    ✅ Mark Paid
+                  </button>
+              }
+            </div>
+          </div>
+        )}
+
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 7 }}>EMI Payment History</div>
+          {last3Months.map(m => {
+            const paid = emiHistory.filter(t => (t.date || '').startsWith(m))
+            const total = paid.reduce((s, t) => s + (t.amount || 0), 0)
+            const mLabel = new Date(m + '-01').toLocaleDateString('default', { month: 'short', year: 'numeric' })
+            const dateStr = paid.length ? paid[0].date?.slice(8) + ' ' + mLabel.split(' ')[0] : null
+            return (
+              <div key={m} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <span style={{ fontSize: 11, color: C.muted, minWidth: 70 }}>{mLabel}</span>
+                {paid.length > 0
+                  ? <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✅ <span className="num">{fmt(total, l.currency)}</span><span style={{ color: C.muted, fontWeight: 400 }}> · {dateStr}</span></span>
+                  : <span style={{ fontSize: 11, color: C.mutedL }}>— not recorded</span>
+                }
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => { setCalcLoan(l); setExtraPay(l.extraMonthly ? String(l.extraMonthly) : '') }}
+            style={{ flex: 1, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 7, padding: 6, fontSize: 12, color: C.accent, cursor: 'pointer', fontWeight: 600 }}>
+            🧮 Calculator
+          </button>
+          <button onClick={() => { setShowSchedule(l); setScheduleExtra(l.extraMonthly ? String(l.extraMonthly) : '') }}
+            style={{ flex: 1, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 7, padding: 6, fontSize: 12, color: C.teal, cursor: 'pointer', fontWeight: 600 }}>
+            📊 Schedule
+          </button>
+        </div>
+      </Card>
+    )
+  }
+
+  const renderLoanSection = ({ title, flag, loanList, totalOut, totalEMIVal, currency, color }) => (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '12px 16px', background: C.card, border: `1px solid ${color}22`, borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 20 }}>{flag}</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{title}</div>
+            <div style={{ fontSize: 11, color: C.muted }}>{loanList.length} loan{loanList.length !== 1 ? 's' : ''}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 20 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: C.muted }}>Outstanding</div>
+            <div className="num" style={{ fontSize: 15, fontWeight: 700, color: C.red }}>{fmt(totalOut, currency)}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: C.muted }}>EMI/mo</div>
+            <div className="num" style={{ fontSize: 15, fontWeight: 700, color: C.yellow }}>{fmt(totalEMIVal, currency)}</div>
+          </div>
+        </div>
+      </div>
+      {loanList.length === 0
+        ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13, background: C.card2, borderRadius: 10, border: `1px dashed ${C.border}` }}>No loans in this category</div>
+        : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 14 }}>
+            {loanList.map(l => <div key={l.id}>{renderLoanCard(l)}</div>)}
+          </div>
+      }
+    </div>
+  )
 
   const wkLoans = loans.filter(l => l.country === 'foreign')
   const hmLoans = loans.filter(l => l.country === 'home')
@@ -4529,7 +4555,7 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
       const filtered = history.filter(h => h.fileName !== importFile.name)
       filtered.unshift({ type: 'loan', fileName: importFile.name, importedAt: new Date().toISOString() })
       localStorage.setItem('nri_importHistory', JSON.stringify(filtered.slice(0, 100)))
-    } catch {}
+    } catch { /* ignore history persistence failures */ }
   }
 
   const applyImportResult = () => {
@@ -4630,167 +4656,6 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
     ))
   }
 
-  const LoanCard = ({ l }) => {
-    const paidPct = l.principal > 0 ? ((l.principal - l.outstanding) / l.principal) * 100 : 0
-    const base = l.emi > 0 ? calcPayoff(l.outstanding, l.emi, l.rate) : null
-    const withEx = l.emi > 0 && l.extraMonthly > 0 ? calcPayoff(l.outstanding, l.emi, l.rate, l.extraMonthly) : null
-    const fmtPayoff = months => { if (!months) return null; const d = new Date(); d.setMonth(d.getMonth() + months); return d.toLocaleDateString('default', { month: 'short', year: 'numeric' }) }
-    const mSaved = base && withEx ? base.months - withEx.months : 0
-    const iSaved = base && withEx ? base.interest - withEx.interest : 0
-
-    // Next due date (needed for paidThisMonth check below)
-    const nextDue = getNextDueDate(l)
-    const nextDueLabel = nextDue.toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' })
-
-    // EMI history: last 3 calendar months
-    const emiHistory = getEMIHistory(l)
-    const last3Months = Array.from({ length: 3 }, (_, i) => {
-      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (2 - i))
-      return d.toISOString().slice(0, 7)
-    })
-    // Check if the upcoming EMI's month has already been paid
-    const nextDueMonStr = nextDue.toISOString().slice(0, 7)
-    const paidThisMonth = emiHistory.some(t => (t.date || '').startsWith(nextDueMonStr))
-
-    return (
-      <Card lift accent={C.yellow}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Badge color={C.yellow}>{l.type}</Badge>
-            {l.country === 'foreign' ? <Badge color={C.teal}>{foreignCurrency}</Badge> : <Badge color={C.purple}>INR</Badge>}
-          </div>
-          <div style={{ display: 'flex', gap: 2 }}>
-            <IconBtn onClick={() => editLoan(l)}>✏️</IconBtn>
-            <IconBtn onClick={() => del(l.id)}>🗑️</IconBtn>
-          </div>
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2 }}>{l.name}</div>
-        {l.lender && <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{l.lender}</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 8, marginBottom: 10 }}>
-          <div style={{ background: `${C.red}0e`, border: `1px solid ${C.red}22`, borderRadius: 9, padding: 10 }}>
-            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Outstanding</div>
-            <div className="num" style={{ fontSize: 14, fontWeight: 800, color: C.red }}>{fmt(l.outstanding, l.currency)}</div>
-          </div>
-          <div style={{ background: `${C.yellow}0e`, border: `1px solid ${C.yellow}22`, borderRadius: 9, padding: 10 }}>
-            <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>EMI/mo</div>
-            <div className="num" style={{ fontSize: 14, fontWeight: 800, color: C.yellow }}>{fmt(l.emi, l.currency)}</div>
-          </div>
-        </div>
-        {(l.rate > 0 || l.remainingMonths > 0) && (
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
-            {l.rate > 0 && <span>⚡ {l.rate}% p.a.</span>}
-            {l.remainingMonths > 0 && <span style={{ marginLeft: 8 }}>🗓 {l.remainingMonths} months left</span>}
-          </div>
-        )}
-        {l.extraMonthly > 0 && (
-          <div style={{ fontSize: 12, color: C.green, background: `${C.green}0e`, borderRadius: 6, padding: '4px 8px', marginBottom: 8 }}>
-            ➕ {fmt(l.extraMonthly, l.currency)}/mo extra · saves {mSaved > 0 ? `${mSaved} months & ${fmt(iSaved, l.currency)}` : '—'}
-          </div>
-        )}
-        {l.principal > 0 && (
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.muted, marginBottom: 4 }}>
-              <span>Repaid {paidPct.toFixed(0)}%</span>
-              <span>{fmt(l.principal - l.outstanding, l.currency)} / {fmt(l.principal, l.currency)}</span>
-            </div>
-            <ProgressBar value={l.principal - l.outstanding} max={l.principal} color={C.teal} />
-          </div>
-        )}
-        {base && (
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
-            📅 Payoff: <strong style={{ color: C.textS }}>{fmtPayoff(base.months)}</strong>
-            {withEx && fmtPayoff(withEx.months) !== fmtPayoff(base.months) && (
-              <> · With extra: <strong style={{ color: C.green }}>{fmtPayoff(withEx.months)}</strong></>
-            )}
-          </div>
-        )}
-
-        {/* Upcoming EMI */}
-        {l.emi > 0 && (
-          <div style={{ background: paidThisMonth ? `${C.green}0a` : `${C.yellow}0a`, border: `1px solid ${paidThisMonth ? C.green : C.yellow}33`, borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <div>
-                <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>Upcoming EMI</div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
-                  <span className="num">{fmt(l.emi, l.currency)}</span>
-                  <span style={{ color: C.muted, fontWeight: 400 }}> · Due {nextDueLabel}</span>
-                </div>
-              </div>
-              {paidThisMonth
-                ? <span style={{ fontSize: 11, color: C.green, fontWeight: 700, whiteSpace: 'nowrap' }}>✅ Paid</span>
-                : <button onClick={() => markEMIPaid(l, nextDue)}
-                    style={{ background: C.green, border: 'none', borderRadius: 7, padding: '5px 10px', fontSize: 11, color: '#fff', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    ✅ Mark Paid
-                  </button>
-              }
-            </div>
-          </div>
-        )}
-
-        {/* Last 3 months EMI history */}
-        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 7 }}>EMI Payment History</div>
-          {last3Months.map(m => {
-            const paid = emiHistory.filter(t => (t.date || '').startsWith(m))
-            const total = paid.reduce((s, t) => s + (t.amount || 0), 0)
-            const mLabel = new Date(m + '-01').toLocaleDateString('default', { month: 'short', year: 'numeric' })
-            const dateStr = paid.length ? paid[0].date?.slice(8) + ' ' + mLabel.split(' ')[0] : null
-            return (
-              <div key={m} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                <span style={{ fontSize: 11, color: C.muted, minWidth: 70 }}>{mLabel}</span>
-                {paid.length > 0
-                  ? <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✅ <span className="num">{fmt(total, l.currency)}</span><span style={{ color: C.muted, fontWeight: 400 }}> · {dateStr}</span></span>
-                  : <span style={{ fontSize: 11, color: C.mutedL }}>— not recorded</span>
-                }
-              </div>
-            )
-          })}
-        </div>
-
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => { setCalcLoan(l); setExtraPay(l.extraMonthly ? String(l.extraMonthly) : '') }}
-            style={{ flex: 1, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 7, padding: 6, fontSize: 12, color: C.accent, cursor: 'pointer', fontWeight: 600 }}>
-            🧮 Calculator
-          </button>
-          <button onClick={() => { setShowSchedule(l); setScheduleExtra(l.extraMonthly ? String(l.extraMonthly) : '') }}
-            style={{ flex: 1, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 7, padding: 6, fontSize: 12, color: C.teal, cursor: 'pointer', fontWeight: 600 }}>
-            📊 Schedule
-          </button>
-        </div>
-      </Card>
-    )
-  }
-
-  const LoanSection = ({ title, flag, loanList, totalOut, totalEMIVal, currency, color }) => (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '12px 16px', background: C.card, border: `1px solid ${color}22`, borderRadius: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 20 }}>{flag}</span>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{title}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>{loanList.length} loan{loanList.length !== 1 ? 's' : ''}</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 20 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: C.muted }}>Outstanding</div>
-            <div className="num" style={{ fontSize: 15, fontWeight: 700, color: C.red }}>{fmt(totalOut, currency)}</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: C.muted }}>EMI/mo</div>
-            <div className="num" style={{ fontSize: 15, fontWeight: 700, color: C.yellow }}>{fmt(totalEMIVal, currency)}</div>
-          </div>
-        </div>
-      </div>
-      {loanList.length === 0
-        ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13, background: C.card2, borderRadius: 10, border: `1px dashed ${C.border}` }}>No loans in this category</div>
-        : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 14 }}>
-            {loanList.map(l => <LoanCard key={l.id} l={l} />)}
-          </div>
-      }
-    </div>
-  )
-
   return (
     <div style={pg}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -4814,12 +4679,8 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
         <StatCard label="Home Country" value={fmt(hmLoans.reduce((s,l)=>s+(l.outstanding||0),0))} color={C.purple} sub={`${fmt(hmLoans.reduce((s,l)=>s+(l.emi||0),0))}/mo`} icon={<Flag currency={homeCurrency} size={20} />} />
       </div>
 
-      <LoanSection title="Working Country Loans" flag={<Flag currency={foreignCurrency} size={22} />} loanList={wkLoans}
-        totalOut={wkLoans.reduce((s,l)=>s+(l.outstanding||0),0)} totalEMIVal={wkLoans.reduce((s,l)=>s+(l.emi||0),0)}
-        currency={foreignCurrency} color={C.teal} />
-      <LoanSection title="Home Country Loans" flag={<Flag currency={homeCurrency} size={22} />} loanList={hmLoans}
-        totalOut={hmLoans.reduce((s,l)=>s+(l.outstanding||0),0)} totalEMIVal={hmLoans.reduce((s,l)=>s+(l.emi||0),0)}
-        currency={homeCurrency} color={C.purple} />
+      {renderLoanSection({ title: 'Working Country Loans', flag: <Flag currency={foreignCurrency} size={22} />, loanList: wkLoans, totalOut: wkLoans.reduce((s,l)=>s+(l.outstanding||0),0), totalEMIVal: wkLoans.reduce((s,l)=>s+(l.emi||0),0), currency: foreignCurrency, color: C.teal })}
+      {renderLoanSection({ title: 'Home Country Loans', flag: <Flag currency={homeCurrency} size={22} />, loanList: hmLoans, totalOut: hmLoans.reduce((s,l)=>s+(l.outstanding||0),0), totalEMIVal: hmLoans.reduce((s,l)=>s+(l.emi||0),0), currency: homeCurrency, color: C.purple })}
 
       {/* Amortisation Schedule Modal */}
       {showSchedule && (() => {
@@ -5072,6 +4933,7 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, wkBudget
 }
 
 // ─── Family ───────────────────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 function Family({ familyMembers, setFamilyMembers, remittances, foreignCurrency }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -5231,7 +5093,7 @@ function Estelle({ aiMessages, aiInput, setAiInput, aiLoading, sendAI, financial
     { icon: '🎲', text: 'Surprise me with a money tip!' },
   ]
 
-  const { workingCountry, homeCountry, goals, loans, upcomingBills, currentMonth } = financialContext || {}
+  const { workingCountry, goals, loans, upcomingBills, currentMonth } = financialContext || {}
 
   const GOLD = '#c9a961'
   const NAVY = '#0c1929'
@@ -5282,7 +5144,7 @@ function Estelle({ aiMessages, aiInput, setAiInput, aiLoading, sendAI, financial
                     )}
                     {loans?.length > 0 && (
                       <div style={{ fontSize: 12, color: C.textS, marginBottom: 5 }}>
-                        🏠 Loans: <strong style={{ color: C.textS }}>{loans.length} active</strong> · total EMI {loans.reduce((s, l) => s + toINR(l.emi || 0, l.currency), 0).toFixed(0)} {homeCurrency}/mo
+                        🏠 Loans: <strong style={{ color: C.textS }}>{loans.length} active</strong> · total EMI {loans.reduce((s, l) => s + (l.emi || 0), 0).toFixed(0)} {workingCountry?.currency || 'INR'}/mo
                       </div>
                     )}
                     {goals?.length > 0 && (
@@ -5413,14 +5275,13 @@ function Estelle({ aiMessages, aiInput, setAiInput, aiLoading, sendAI, financial
 }
 
 // ─── Budget ───────────────────────────────────────────────────────────────────
-function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, budgetMonth, setBudgetMonth, foreignCurrency, homeCurrency, setActiveTab, remittances, loans, bills = [], smartRules = {}, setSmartRules }) {
+function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudgets, hmBudgets, setHmBudgets, budgetMonth, setBudgetMonth, foreignCurrency, homeCurrency, remittances, loans, bills = [], setSmartRules, toINR }) {
   const [countryTab, setCountryTab] = useState('working')
   const [showAdd, setShowAdd] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [addForm, setAddForm] = useState({ name: '', limit: '' })
   const [showAllocPlanner, setShowAllocPlanner] = useState(false)
   const [allocPcts, setAllocPcts] = useState({})
-  const [allocIncome, setAllocIncome] = useState('')
   const [showSavingsDist, setShowSavingsDist] = useState(false)
   const [savingsDistPcts, setSavingsDistPcts] = useState({})
   const [expandedCat, setExpandedCat] = useState(null) // budget id whose transactions are shown
@@ -5732,8 +5593,6 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
     const init = {}
     budgets.forEach(b => { init[b.id] = b.allocPct != null ? b.allocPct : getRecommendedPct(b.name) })
     setAllocPcts(init)
-    // Income basis is the current-month SALARY from transactions (not editable).
-    setAllocIncome(monthlySalary > 0 ? String(Math.round(monthlySalary)) : '')
     setShowAllocPlanner(true)
   }
 
@@ -5980,7 +5839,6 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
               .sort((x, y) => (y.date || '').localeCompare(x.date || ''))
             const txCount = catTxs.length
             const isExpanded = expandedCat === b.id
-            const pct = b.limit > 0 ? Math.min((s / b.limit) * 100, 100) : 0
             const rawPct = b.limit > 0 ? (s / b.limit) * 100 : 0
             const over = s > b.limit && b.limit > 0
             const nearLimit = !over && rawPct >= 90
@@ -6268,6 +6126,122 @@ function Budget({ transactions, setTransactions, accounts, setAccounts, wkBudget
 }
 
 // ─── Spending Trends ──────────────────────────────────────────────────────────
+function Legend({ color, label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{ width: 10, height: 10, background: color, borderRadius: 2 }} />
+      <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
+    </div>
+  )
+}
+
+function TrendStat({ label, value, sub, color }) {
+  return (
+    <div style={{ background: C.card2, borderRadius: 10, padding: '12px 14px', flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{label}</div>
+      <div className="num" style={{ fontSize: 17, fontWeight: 800, color: color || C.text, letterSpacing: '-0.02em' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function GroupedBarChart({ data, series, height = 160, fmtFn }) {
+  const maxVal = Math.max(...data.flatMap(d => series.map(s => d[s.key] || 0)), 1)
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+      {data.map(d => (
+        <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height, width: '100%', justifyContent: 'center' }}>
+            {series.map(s => {
+              const val = d[s.key] || 0
+              const bH = Math.max((val / maxVal) * (height - 24), val > 0 ? 3 : 0)
+              return (
+                <div key={s.key} title={`${s.label}: ${fmtFn ? fmtFn(val) : val.toFixed(0)}`}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height }}>
+                  <div style={{ width: '100%', height: bH, background: s.color, borderRadius: '3px 3px 0 0', opacity: 0.88 }} />
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{d.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CategoryBreakdown({ monthlyData, catsKey, fmtFn, emptyMsg, catColors }) {
+  const allCats = [...new Set(monthlyData.flatMap(m => Object.keys(m[catsKey] || {})))]
+    .filter(c => monthlyData.some(m => (m[catsKey][c] || 0) > 0))
+    .sort((a, b) => monthlyData.reduce((s, m) => s + ((m[catsKey][b] || 0) - (m[catsKey][a] || 0)), 0))
+    .slice(0, 9)
+  if (!allCats.length) return <div style={{ fontSize: 12, color: C.muted, padding: '10px 0' }}>{emptyMsg || 'No data yet'}</div>
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+      {allCats.map(cat => {
+        const vals = monthlyData.map(m => m[catsKey][cat] || 0)
+        const maxV = Math.max(...vals, 1)
+        const tot6 = vals.reduce((s, v) => s + v, 0)
+        const color = catColors?.[cat] || C.accent
+        return (
+          <div key={cat} style={{ background: C.card2, borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 1 }}>{cat}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>6mo: {fmtFn(tot6)}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 36 }}>
+              {vals.map((v, i) => (
+                <div key={`${cat}-${i}`} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{ width: '100%', height: maxV > 0 ? Math.max((v / maxV) * 34, v > 0 ? 2 : 0) : 0, background: color, borderRadius: '2px 2px 0 0', opacity: 0.8 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+              {monthlyData.map(m => <span key={m.label} style={{ fontSize: 9, color: C.muted }}>{m.label}</span>)}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BucketGrid({ monthlyData, catsKey, buckets, fmtFn, bucketColors }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+      {Object.entries(buckets).map(([bucket, cats]) => {
+        const vals = monthlyData.map(m => cats.reduce((s, c) => s + ((m[catsKey] || {})[c] || 0), 0))
+        const maxV = Math.max(...vals, 1)
+        const tot6 = vals.reduce((s, v) => s + v, 0)
+        const color = bucketColors?.[bucket] || C.accent
+        return (
+          <div key={bucket} style={{ background: C.card2, borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 1 }}>{bucket}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>6mo: {fmtFn(tot6)}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 36 }}>
+              {vals.map((v, i) => (
+                <div key={`${bucket}-${i}`} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{ width: '100%', height: maxV > 0 ? Math.max((v / maxV) * 34, v > 0 ? 2 : 0) : 0, background: color, borderRadius: '2px 2px 0 0', opacity: 0.8 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+              {monthlyData.map(m => <span key={m.label} style={{ fontSize: 9, color: C.muted }}>{m.label}</span>)}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function TabButton({ id, label, currentView, onSelect }) {
+  return (
+    <button onClick={() => onSelect(id)} style={{
+      padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+      background: currentView === id ? C.accent : C.card2, color: currentView === id ? '#fff' : C.muted,
+    }}>{label}</button>
+  )
+}
+
 function Trends({ transactions, accounts, remittances, foreignCurrency, homeCurrency, toINR }) {
   const [view, setView] = useState('working')
 
@@ -6306,7 +6280,6 @@ function Trends({ transactions, accounts, remittances, foreignCurrency, homeCurr
     return { key, label, wkIncome, wkExpenses, wkSavings, wkRemit, hmDirectIncome, hmRemitsRec, hmTotalIn, hmExpenses, hmSavings, wkCats, hmCats }
   })
 
-  const CHART_H = 160
   const WK_CLR  = { income: '#4a9eff', expenses: '#b8645a', savings: '#c9a961', remittance: '#7a92b0' }
   const HM_CLR  = { received: '#68a691', directIncome: '#4a9eff', expenses: '#b8645a', savings: '#c9a961' }
   const CAT_CLR = {
@@ -6329,114 +6302,6 @@ function Trends({ transactions, accounts, remittances, foreignCurrency, homeCurr
   const hmAvgSav = nonZeroAvg(monthlyData.map(m => m.hmSavings))
 
   // ── Sub-components ──────────────────────────────────────────────────────────
-
-  const Legend = ({ color, label }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{ width: 10, height: 10, background: color, borderRadius: 2 }} />
-      <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
-    </div>
-  )
-
-  const TrendStat = ({ label, value, sub, color }) => (
-    <div style={{ background: C.card2, borderRadius: 10, padding: '12px 14px', flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{label}</div>
-      <div className="num" style={{ fontSize: 17, fontWeight: 800, color: color || C.text, letterSpacing: '-0.02em' }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{sub}</div>}
-    </div>
-  )
-
-  const GroupedBarChart = ({ data, series, height = CHART_H, fmtFn }) => {
-    const maxVal = Math.max(...data.flatMap(d => series.map(s => d[s.key] || 0)), 1)
-    return (
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-        {data.map(d => (
-          <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height, width: '100%', justifyContent: 'center' }}>
-              {series.map(s => {
-                const val = d[s.key] || 0
-                const bH  = Math.max((val / maxVal) * (height - 24), val > 0 ? 3 : 0)
-                return (
-                  <div key={s.key} title={`${s.label}: ${fmtFn ? fmtFn(val) : val.toFixed(0)}`}
-                    style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height }}>
-                    <div style={{ width: '100%', height: bH, background: s.color, borderRadius: '3px 3px 0 0', opacity: 0.88 }} />
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{d.label}</div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  const CategoryBreakdown = ({ catsKey, fmtFn, emptyMsg }) => {
-    const allCats = [...new Set(monthlyData.flatMap(m => Object.keys(m[catsKey] || {})))]
-      .filter(c => monthlyData.some(m => (m[catsKey][c] || 0) > 0))
-      .sort((a, b) => monthlyData.reduce((s, m) => s + ((m[catsKey][b] || 0) - (m[catsKey][a] || 0)), 0))
-      .slice(0, 9)
-    if (!allCats.length) return <div style={{ fontSize: 12, color: C.muted, padding: '10px 0' }}>{emptyMsg || 'No data yet'}</div>
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-        {allCats.map(cat => {
-          const vals  = monthlyData.map(m => m[catsKey][cat] || 0)
-          const maxV  = Math.max(...vals, 1)
-          const tot6  = vals.reduce((s, v) => s + v, 0)
-          const color = CAT_CLR[cat] || C.accent
-          return (
-            <div key={cat} style={{ background: C.card2, borderRadius: 10, padding: '10px 12px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 1 }}>{cat}</div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>6mo: {fmtFn(tot6)}</div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 36 }}>
-                {vals.map((v, i) => (
-                  <div key={i} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{ width: '100%', height: maxV > 0 ? Math.max((v / maxV) * 34, v > 0 ? 2 : 0) : 0, background: color, borderRadius: '2px 2px 0 0', opacity: 0.8 }} />
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                {monthlyData.map(m => <span key={m.label} style={{ fontSize: 9, color: C.muted }}>{m.label}</span>)}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const BucketGrid = ({ catsKey, buckets, fmtFn }) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
-      {Object.entries(buckets).map(([bucket, cats]) => {
-        const vals  = monthlyData.map(m => cats.reduce((s, c) => s + ((m[catsKey] || {})[c] || 0), 0))
-        const maxV  = Math.max(...vals, 1)
-        const tot6  = vals.reduce((s, v) => s + v, 0)
-        const color = BKT_CLR[bucket] || C.accent
-        return (
-          <div key={bucket} style={{ background: C.card2, borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 1 }}>{bucket}</div>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>6mo: {fmtFn(tot6)}</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 36 }}>
-              {vals.map((v, i) => (
-                <div key={i} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                  <div style={{ width: '100%', height: maxV > 0 ? Math.max((v / maxV) * 34, v > 0 ? 2 : 0) : 0, background: color, borderRadius: '2px 2px 0 0', opacity: 0.8 }} />
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-              {monthlyData.map(m => <span key={m.label} style={{ fontSize: 9, color: C.muted }}>{m.label}</span>)}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-
-  const tabBtn = (id, label) => (
-    <button onClick={() => setView(id)} style={{
-      padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-      background: view === id ? C.accent : C.card2, color: view === id ? '#fff' : C.muted,
-    }}>{label}</button>
-  )
 
   const WK_BUCKETS = {
     Essentials:        ['Rent', 'Groceries', 'Transport', 'Utilities', 'Healthcare', 'Household'],
@@ -6465,9 +6330,9 @@ function Trends({ transactions, accounts, remittances, foreignCurrency, homeCurr
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {tabBtn('working',  <><Flag currency={foreignCurrency} size={14} style={{ marginRight: 5, verticalAlign: 'middle' }} /> Working ({foreignCurrency})</>)}
-        {tabBtn('home',     <><Flag currency={homeCurrency} size={14} style={{ marginRight: 5, verticalAlign: 'middle' }} /> Home ({homeCurrency})</>)}
-        {tabBtn('combined', '🌐 Combined')}
+        <TabButton id="working" label={<><Flag currency={foreignCurrency} size={14} style={{ marginRight: 5, verticalAlign: 'middle' }} /> Working ({foreignCurrency})</>} currentView={view} onSelect={setView} />
+        <TabButton id="home" label={<><Flag currency={homeCurrency} size={14} style={{ marginRight: 5, verticalAlign: 'middle' }} /> Home ({homeCurrency})</>} currentView={view} onSelect={setView} />
+        <TabButton id="combined" label="🌐 Combined" currentView={view} onSelect={setView} />
       </div>
 
       {/* ── Working Country ─────────────────────────────────────────────────── */}
@@ -6506,11 +6371,11 @@ function Trends({ transactions, accounts, remittances, foreignCurrency, homeCurr
           )}
 
           <Card title={`Working Country — Expenses by Category (${foreignCurrency})`} style={{ marginBottom: 16 }}>
-            <CategoryBreakdown catsKey="wkCats" fmtFn={fmtWk} emptyMsg="No working country expense transactions yet" />
+            <CategoryBreakdown monthlyData={monthlyData} catsKey="wkCats" fmtFn={fmtWk} emptyMsg="No working country expense transactions yet" catColors={CAT_CLR} />
           </Card>
 
           <Card title="Working Country — Allocation Buckets">
-            <BucketGrid catsKey="wkCats" buckets={WK_BUCKETS} fmtFn={fmtWk} />
+            <BucketGrid monthlyData={monthlyData} catsKey="wkCats" buckets={WK_BUCKETS} fmtFn={fmtWk} bucketColors={BKT_CLR} />
           </Card>
         </>
       )}
@@ -6543,11 +6408,11 @@ function Trends({ transactions, accounts, remittances, foreignCurrency, homeCurr
           </Card>
 
           <Card title={`Home Country — Expenses by Category (${homeCurrency})`} style={{ marginBottom: 16 }}>
-            <CategoryBreakdown catsKey="hmCats" fmtFn={fmtHm} emptyMsg="No home country expense transactions yet" />
+            <CategoryBreakdown monthlyData={monthlyData} catsKey="hmCats" fmtFn={fmtHm} emptyMsg="No home country expense transactions yet" catColors={CAT_CLR} />
           </Card>
 
           <Card title="Home Country — Allocation Buckets">
-            <BucketGrid catsKey="hmCats" buckets={HM_BUCKETS} fmtFn={fmtHm} />
+            <BucketGrid monthlyData={monthlyData} catsKey="hmCats" buckets={HM_BUCKETS} fmtFn={fmtHm} bucketColors={BKT_CLR} />
           </Card>
         </>
       )}
@@ -6849,7 +6714,7 @@ function calcTax(country, vals) {
   return { rows: [], subtax: 0, surcharge: 0, surchargeLabel: '', credit: 0, finalTax: 0 }
 }
 
-function TaxEstimator({ transactions = [], investments = [], remittances = [], foreignCurrency, homeCurrency, exchangeRate, toINR }) {
+function TaxEstimator({ transactions = [], investments = [] }) {
   const curYear = new Date().getFullYear()
   const [taxCountry, setTaxCountry] = useState('IN')
   const [taxYear, setTaxYear] = useState(String(curYear))
@@ -7264,7 +7129,6 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
   const [uploadWarning, setUploadWarning] = useState(null)
   const [uploadProgress, setUploadProgress] = useState('')
   const [aiResult, setAiResult] = useState(null)
-  const [dupStatement, setDupStatement] = useState(null)
   const [fileAlreadyImported, setFileAlreadyImported] = useState(null)
   const [rows, setRows] = useState([])
   const [skipDups, setSkipDups] = useState(false)
@@ -7686,7 +7550,6 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         `${(h.bankName || '').toLowerCase()}|${h.statementMonth || ''}|${h.accountNumber || h.currency || ''}` === stmtKey
       )
       if (existingImport) {
-        setDupStatement(existingImport)
         setReplaceMode(true)
         setStep('preview')
       } else {
@@ -9161,10 +9024,15 @@ export default function App() {
   useEffect(() => {
     if (!load('nri_salaryBackfillDone', false)) return
     if (load('nri_salaryBackfillUndone', false)) return
+    const stripSalaryMonth = obj => {
+      const rest = { ...obj }
+      delete rest.salaryForMonth
+      return rest
+    }
     setTransactions(prev => {
       let changed = false
       const next = prev.map(t => {
-        if (t.salaryForMonth) { changed = true; const { salaryForMonth, ...rest } = t; return rest }
+        if (t.salaryForMonth) { changed = true; return stripSalaryMonth(t) }
         return t
       })
       return changed ? next : prev
@@ -9364,7 +9232,7 @@ export default function App() {
           // TODO(data-migration): decide whether the first user should also
           // claim the legacy user_id='default' rows. Left intentionally manual.
           SYNC_KEYS.forEach(k => {
-            try { const v = localStorage.getItem(k); if (v) saveToSupabase(k, JSON.parse(v)) } catch {}
+            try { const v = localStorage.getItem(k); if (v) saveToSupabase(k, JSON.parse(v)) } catch { /* ignore seed failures */ }
           })
         }
         setSyncStatus('synced')
@@ -9983,7 +9851,7 @@ export default function App() {
 
         {/* Page */}
         <main ref={mainScrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg, position: 'relative' }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
-          {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
+          {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} showPremiumBadge={showPremiumBadge} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
           {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
           {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
@@ -9991,7 +9859,7 @@ export default function App() {
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
           {activeTab === 'goals' && <Goals {...shared} {...setters} />}
           {activeTab === 'loans' && <Loans {...shared} {...setters} />}
-          {activeTab === 'budget' && <Budget transactions={transactions} setTransactions={setTransactions} accounts={accounts} setAccounts={setAccounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} setActiveTab={setActiveTab} remittances={remittances} loans={loans} bills={bills} smartRules={smartRules} setSmartRules={setSmartRules} />}
+          {activeTab === 'budget' && <Budget transactions={transactions} setTransactions={setTransactions} accounts={accounts} wkBudgets={wkBudgets} setWkBudgets={setWkBudgets} hmBudgets={hmBudgets} setHmBudgets={setHmBudgets} budgetMonth={budgetMonth} setBudgetMonth={setBudgetMonth} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} remittances={remittances} loans={loans} bills={bills} smartRules={smartRules} setSmartRules={setSmartRules} toINR={toINR} />}
           {activeTab === 'trends' && <Trends transactions={transactions} accounts={accounts} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} toINR={toINR} />}
           {activeTab === 'tax' && <TaxEstimator transactions={transactions} investments={investments} remittances={remittances} foreignCurrency={foreignCurrency} homeCurrency={homeCurrency} exchangeRate={exchangeRate} toINR={toINR} />}
           {activeTab === 'family' && <FamilyComponent familyMembers={familyMembers} setFamilyMembers={setFamilyMembers} remittances={remittances} foreignCurrency={foreignCurrency} />}

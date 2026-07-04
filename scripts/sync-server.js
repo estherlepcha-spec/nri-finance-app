@@ -9,7 +9,7 @@ function getData() {
 }
 
 function saveData(d) {
-  try { writeFileSync(DATA_FILE, JSON.stringify(d)) } catch {}
+  try { writeFileSync(DATA_FILE, JSON.stringify(d)) } catch { /* ignore write errors */ }
 }
 
 export function syncServerPlugin() {
