@@ -246,6 +246,15 @@ const DEFAULT_WK_BUDGETS = [
   { id: 'wk-giving',     name: 'Giving/Donation', limit: 20 },
   { id: 'wk-other',      name: 'Other',          limit: 30 },
 ]
+
+// Quotas that apply during the free 14-day trial (see requireUpgrade / onTrial).
+// Paid users are unrestricted. Modeled on freemium finance apps (Emma/PocketGuard):
+// let users feel the core value, gate the cost/differentiation centers.
+const TRIAL_LIMITS = {
+  accounts: 2,   // max accounts a trial user can create
+  aiUploads: 4,  // total AI receipt/statement scans across the trial
+}
+
 const DEFAULT_HM_BUDGETS = [
   { id: 'hm-homeloan',   name: 'Home Loan EMI',      limit: 35000 },
   { id: 'hm-electricity',name: 'Electricity',         limit: 5000 },
@@ -276,6 +285,43 @@ const DEFAULT_ACCOUNTS = [
   { id: 'acc-visa-cc',     name: 'Visa Credit Card',       country: 'foreign', type: 'Credit Card',    balance: 0, currency: 'KWD', setupBalance: 0, setupDate: today(), creditLimit: 1500 },
   { id: 'acc-sbi-sav',     name: 'SBI Savings Account',   country: 'home',    type: 'NRE',            balance: 0, currency: 'INR', setupBalance: 0, setupDate: today() },
 ]
+
+// Resolve which account an imported statement belongs to, in priority order:
+//   1) account-number last-4 match  2) bank/account name match  3) unique currency.
+// Returns the matched account or null (null ⇒ caller must force the user to pick,
+// so transactions are never imported unassigned). `result` is the AI extraction.
+function resolveImportAccount(accounts, result) {
+  if (!result) return null
+  // 1) Account number — most specific.
+  if (result.accountNumber) {
+    const last4 = String(result.accountNumber).slice(-4)
+    const byNum = accounts.find(a => a.accountNumber && String(a.accountNumber).slice(-4) === last4)
+    if (byNum) return byNum
+  }
+  // 2) Bank name — normalise both sides and check either contains the other's
+  // significant words (so "Burgan" statement → "Burgan Bank Savings" account).
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\b(bank|account|savings|current|the|of)\b/g, ' ').replace(/\s+/g, ' ').trim()
+  const stmtBank = norm(result.bankName)
+  if (stmtBank) {
+    const stmtWords = stmtBank.split(' ').filter(w => w.length >= 3)
+    const nameMatches = accounts.filter(a => {
+      const accName = norm(a.name)
+      if (!accName) return false
+      return accName.includes(stmtBank) || stmtBank.includes(accName) ||
+        stmtWords.some(w => accName.split(' ').includes(w))
+    })
+    // If the currency is known, prefer name matches that also match currency.
+    const refined = result.currency ? nameMatches.filter(a => a.currency === result.currency) : nameMatches
+    const pool = refined.length ? refined : nameMatches
+    if (pool.length === 1) return pool[0]
+  }
+  // 3) Unique currency — only when exactly one account uses it.
+  if (result.currency) {
+    const byCur = accounts.filter(a => a.currency === result.currency)
+    if (byCur.length === 1) return byCur[0]
+  }
+  return null
+}
 
 const DEFAULT_TRANSACTIONS = []
 
@@ -1517,6 +1563,18 @@ function AuditModal({ auditAcct, setAuditAcct, transactions, remittances, homeCu
     setAuditAcct(null)
   }
 
+  // Reset the opening (setup) balance to 0. Balance = opening + transactions, so
+  // after deleting all transactions the balance floors at the opening figure.
+  // This zeroes that anchor, then recomputes from remaining transactions.
+  const resetOpeningBalance = () => {
+    if (!confirm(`Reset the opening balance of "${a.name}" to 0?\n\nThe balance will become the sum of its transactions only (0 if there are none). This can't be undone.`)) return
+    setAccounts(prev => recomputeAllBalances(
+      prev.map(x => x.id === a.id ? { ...x, setupBalance: 0, setupDate: today() } : x),
+      transactions
+    ))
+    setAuditAcct(null)
+  }
+
   return (
     <Modal title={`📊 Balance Audit — ${a.name}`} onClose={() => setAuditAcct(null)} width={480}>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>How the app calculates your balance vs what it should be.</div>
@@ -1565,6 +1623,15 @@ function AuditModal({ auditAcct, setAuditAcct, transactions, remittances, homeCu
         </div>
       )}
 
+      {(a.setupBalance || 0) !== 0 && (
+        <div style={{ background: C.card2, borderRadius: 10, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: C.mutedL }}>
+          This account has an opening balance of <strong style={{ color: C.text }}>{fmt(a.setupBalance, a.currency)}</strong>. Deleting transactions won't bring the balance to 0 while this opening balance remains.
+          <div style={{ marginTop: 8 }}>
+            <Btn variant="ghost" onClick={resetOpeningBalance} style={{ borderColor: C.red, color: C.red }}>↺ Reset opening balance to 0</Btn>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10 }}>
         <Btn variant="ghost" onClick={() => setAuditAcct(null)} style={{ flex: 1 }}>Close</Btn>
         {unlinkedRemits.length > 0 && (
@@ -1577,7 +1644,12 @@ function AuditModal({ auditAcct, setAuditAcct, transactions, remittances, homeCu
   )
 }
 
-function Accounts({ accounts, setAccounts, transactions, setTransactions, remittances, foreignCurrency, homeCurrency, toINR, onOpenImport, showPremiumBadge }) {
+function Accounts({ accounts, setAccounts, transactions, setTransactions, remittances, foreignCurrency, homeCurrency, toINR, onOpenImport, showPremiumBadge, accountLimit = Infinity, onLimitReached }) {
+  const atAccountLimit = accounts.length >= accountLimit
+  const tryAddAccount = () => {
+    if (atAccountLimit) { onLimitReached?.(); return }
+    setForm(blank); setEditing(null); setShowAdd(true)
+  }
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
   const blank = { name: '', type: 'Savings Account', country: 'foreign', currency: foreignCurrency, balance: '', bank: '', accountNumber: '', creditLimit: '', dueDay: '', minPayment: '', apr: '' }
@@ -1605,16 +1677,25 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
       apr: parseFloat(form.apr) || 0,
       dueDay: parseInt(form.dueDay) || 0,
       id: editing?.id || uid(),
-      // setupBalance is immutable after first creation; preserve it on edit
-      setupBalance: editing?.setupBalance ?? parsedBal,
+      // Opening balance: on create it defaults to the current balance. On edit
+      // the user can adjust it directly (e.g. to represent statements they never
+      // uploaded) via the "Opening balance" field, which seeds form.setupBalance.
+      setupBalance: editing
+        ? (form.setupBalance === '' || form.setupBalance == null ? 0 : parseFloat(form.setupBalance) || 0)
+        : parsedBal,
       setupDate: editing?.setupDate ?? today(),
     }
-    setAccounts(p => editing ? p.map(a => a.id === editing.id ? item : a) : [...p, item])
+    setAccounts(p => {
+      const next = editing ? p.map(a => a.id === editing.id ? item : a) : [...p, item]
+      // Recompute so the shown balance = opening balance + transactions after an
+      // opening-balance edit (a no-op for new accounts with no transactions yet).
+      return editing ? recomputeAllBalances(next, transactions) : next
+    })
     setShowAdd(false); setEditing(null); setForm(blank)
   }
 
   const del = id => { if (confirm('Delete this account?')) setAccounts(p => p.filter(a => a.id !== id)) }
-  const edit = a => { setForm({ ...blank, ...a, balance: String(a.balance), creditLimit: String(a.creditLimit || ''), minPayment: String(a.minPayment || ''), apr: String(a.apr || ''), dueDay: String(a.dueDay || '') }); setEditing(a); setShowAdd(true) }
+  const edit = a => { setForm({ ...blank, ...a, balance: String(a.balance), setupBalance: String(a.setupBalance ?? 0), creditLimit: String(a.creditLimit || ''), minPayment: String(a.minPayment || ''), apr: String(a.apr || ''), dueDay: String(a.dueDay || '') }); setEditing(a); setShowAdd(true) }
 
   // Per-country breakdown (assets, credit-card debt, net worth) expressed in
   // that country's own currency. Each account is summed in its native currency
@@ -1766,7 +1847,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
     <div style={pg}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <h2 style={pgTitle}>Accounts</h2>
-        <Btn onClick={() => { setForm(blank); setEditing(null); setShowAdd(true) }}>+ Add Account</Btn>
+        <Btn onClick={tryAddAccount}>{atAccountLimit ? '🔒 Add Account' : '+ Add Account'}</Btn>
       </div>
 
       {/* Per-country net worth breakdown — each in its own currency */}
@@ -1893,6 +1974,14 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
           <Input label="Bank name (optional)" value={form.bank} onChange={f('bank')} placeholder="e.g. Emirates NBD" />
           <Input label="Account number (optional)" value={form.accountNumber} onChange={f('accountNumber')} placeholder="Last 4 digits shown" />
           <Input label={isCC ? 'Current balance owed' : 'Current balance'} type="number" value={form.balance} onChange={f('balance')} placeholder="0" />
+          {editing && (
+            <>
+              <Input label="Opening balance" type="number" value={form.setupBalance ?? ''} onChange={f('setupBalance')} placeholder="0" />
+              <div style={{ fontSize: 11, color: C.muted, marginTop: -6, marginBottom: 12, lineHeight: 1.5 }}>
+                Your starting balance before any recorded transactions. Set this to reflect statements you haven&rsquo;t uploaded. The current balance = opening balance + all transactions.
+              </div>
+            </>
+          )}
           {isCC && (
             <>
               <div style={{ height: 1, background: C.border, margin: '4px 0 14px' }} />
@@ -1940,6 +2029,9 @@ function TransactionDeleteModal({ transactions, accounts, selectedForDelete, set
   const doDelete = ids => {
     const remaining = transactions.filter(t => !ids.has(t.id))
     setTransactions(remaining)
+    // Opening (setup) balance is intentionally preserved — a user may set it to
+    // represent balance from statements they never uploaded. To zero it, use the
+    // "Reset opening balance" control in the account's Balance Audit (📊).
     setAccounts(prev => recomputeAllBalances(prev, remaining))
     setShowDeleteModal(false)
     setSelectedForDelete(new Set())
@@ -7306,7 +7398,7 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
     })
   }
 
-  const apiCall = async (msgContent, maxTokens = 8000) => {
+  const apiCall = async (msgContent, maxTokens = 16000) => {
     // Attach cache_control to the last text block so the prompt is cached
     const msgs = Array.isArray(msgContent)
       ? [{ role: 'user', content: msgContent.map((b, i, arr) => i === arr.length - 1 && b.type === 'text' ? { ...b, cache_control: { type: 'ephemeral' } } : b) }]
@@ -7330,7 +7422,7 @@ Rules:
     const pass1 = await apiCall([
       { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
       { type: 'text', text: PASS1_PROMPT },
-    ], 8000)
+    ], 16000)
     const basic = parseAIText(pass1.content?.[0]?.text || '')
 
     setUploadProgress(`Categorising ${basic.transactions.length} transactions…`)
@@ -7410,13 +7502,13 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         setUploadProgress('Reading CSV statement…')
         const text = await readAsText(file)
         setUploadProgress('Extracting transactions…')
-        const data = await apiCall(`This is a bank statement exported as CSV. Extract all transactions.\n\n${STATEMENT_EXTRACTION_PROMPT}\n\nStatement data:\n\n${text.substring(0, 30000)}`, 8000)
+        const data = await apiCall(`This is a bank statement exported as CSV. Extract all transactions.\n\n${STATEMENT_EXTRACTION_PROMPT}\n\nStatement data:\n\n${text.substring(0, 30000)}`, 16000)
         result = parseAIText(data.content?.[0]?.text || '')
       } else if (isExcel) {
         setUploadProgress('Reading Excel statement…')
         const text = await parseExcelToText(file)
         setUploadProgress('Extracting transactions…')
-        const data = await apiCall(`This is a bank statement exported as Excel. Extract all transactions.\n\n${STATEMENT_EXTRACTION_PROMPT}\n\nStatement data:\n\n${text.substring(0, 30000)}`, 8000)
+        const data = await apiCall(`This is a bank statement exported as Excel. Extract all transactions.\n\n${STATEMENT_EXTRACTION_PROMPT}\n\nStatement data:\n\n${text.substring(0, 30000)}`, 16000)
         result = parseAIText(data.content?.[0]?.text || '')
       } else if (isPDF) {
         setUploadProgress('Reading PDF statement…')
@@ -7429,7 +7521,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
           const data = await apiCall([
             { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
             { type: 'text', text: STATEMENT_EXTRACTION_PROMPT },
-          ], 8000)
+          ], 16000)
           result = parseAIText(data.content?.[0]?.text || '')
         }
       } else if (isImage) {
@@ -7440,7 +7532,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         const data = await apiCall([
           { type: 'image', source: { type: 'base64', media_type: mtype, data: b64 } },
           { type: 'text', text: STATEMENT_EXTRACTION_PROMPT },
-        ], 8000)
+        ], 16000)
         result = parseAIText(data.content?.[0]?.text || '')
       } else {
         throw new Error('Unsupported file type. Please upload a PDF, Excel (.xlsx/.xls), CSV, JPG, or PNG file.')
@@ -7448,22 +7540,13 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 
       setAiResult(result)
 
-      // Auto-detect account if none selected: match by account number, then by unique currency
+      // Auto-detect account if none selected: match by account number, then by
+      // bank name, then by unique currency. If still ambiguous, leave unresolved
+      // so the UI forces the user to pick (we never import unassigned).
       let resolvedAccountId = accountId
       if (!resolvedAccountId) {
-        const byAcctNum = result.accountNumber
-          ? accounts.find(a => a.accountNumber && String(a.accountNumber).slice(-4) === String(result.accountNumber).slice(-4))
-          : null
-        if (byAcctNum) {
-          resolvedAccountId = byAcctNum.id
-          setAccountId(byAcctNum.id)
-        } else if (result.currency) {
-          const currencyMatches = accounts.filter(a => a.currency === result.currency)
-          if (currencyMatches.length === 1) {
-            resolvedAccountId = currencyMatches[0].id
-            setAccountId(currencyMatches[0].id)
-          }
-        }
+        const match = resolveImportAccount(accounts, result)
+        if (match) { resolvedAccountId = match.id; setAccountId(match.id) }
       }
 
       // Robust duplicate detection: fuzzy match on date + amount (±0.5% or ±5) + partial description
@@ -7571,18 +7654,14 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
   }, {})
 
   const doImport = () => {
-    // Resolve the best account ID: explicit selection → account-number match → currency-unique match
-    const effectiveAccountId = accountId
-      || accounts.find(a =>
-          aiResult?.accountNumber && a.accountNumber &&
-          String(a.accountNumber).slice(-4) === String(aiResult.accountNumber).slice(-4)
-        )?.id
-      || (() => {
-          const cur = aiResult?.currency
-          if (!cur) return ''
-          const matching = accounts.filter(a => a.currency === cur)
-          return matching.length === 1 ? matching[0].id : ''
-        })()
+    // Resolve the best account ID: explicit selection → account-number match →
+    // bank-name match → currency-unique match.
+    const effectiveAccountId = accountId || resolveImportAccount(accounts, aiResult)?.id || ''
+    // Never import transactions with no account — force the user to pick one.
+    if (!effectiveAccountId) {
+      setError('Could not match this statement to an account. Please select the account above before importing.')
+      return
+    }
     const currency = aiResult?.currency || accounts.find(a => a.id === effectiveAccountId)?.currency || foreignCurrency
     const notesKey = `Imported: ${aiResult?.bankName || 'bank'} ${aiResult?.statementMonth || ''}`.trim()
     const txs = selectedRows.map(r => ({
@@ -7715,10 +7794,10 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
   }
 
   if (step === 'preview') {
-    const matchedAcct = account || accounts.find(a =>
-      aiResult?.accountNumber && a.accountNumber &&
-      String(a.accountNumber).slice(-4) === String(aiResult.accountNumber).slice(-4)
-    )
+    // Resolved account: explicit selection wins, else the smart resolver
+    // (account number → bank name → unique currency).
+    const matchedAcct = accounts.find(a => a.id === accountId) || account || resolveImportAccount(accounts, aiResult)
+    const needsAccountPick = !matchedAcct
     return (
       <Modal title="Review Imported Transactions" onClose={onClose} width={900}>
         <div style={{ background:C.card2, borderRadius:12, padding:'13px 16px', marginBottom:14, border:`1px solid ${C.border}` }}>
@@ -7729,6 +7808,16 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
               </div>
               {aiResult?.accountNumber && <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Account: ****{String(aiResult.accountNumber).slice(-4)} · Currency: {aiResult?.currency||cur}</div>}
               {matchedAcct && <div style={{ fontSize:12, color:C.green, marginTop:4 }}>✅ Matched: {matchedAcct.name}</div>}
+              {needsAccountPick && (
+                <div style={{ marginTop:8 }}>
+                  <div style={{ fontSize:12, color:C.yellow, fontWeight:600, marginBottom:5 }}>⚠️ Couldn't match an account — please select one:</div>
+                  <select value={accountId} onChange={e => setAccountId(e.target.value)}
+                    style={{ ...inputStyle, borderColor:C.yellow, maxWidth:320 }}>
+                    <option value="">Select account…</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+                  </select>
+                </div>
+              )}
             </div>
             <div style={{ display:'flex', gap:18 }}>
               {aiResult?.openingBalance!=null && <div style={{ textAlign:'right' }}><div style={{ fontSize:10, color:C.muted }}>Opening</div><div style={{ fontSize:13, fontWeight:700, color:C.text }}>{fmt(aiResult.openingBalance, aiResult.currency)}</div></div>}
@@ -7864,8 +7953,8 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
           </div>
         </div>
 
-        <Btn onClick={doImport} disabled={selectedRows.length===0} style={{ width:'100%', padding:'11px 0', fontSize:14 }}>
-          Import {selectedRows.length} transaction{selectedRows.length!==1?'s':''}{skippedCount>0?` (${skippedCount} skipped as duplicates)`:''}
+        <Btn onClick={doImport} disabled={selectedRows.length===0 || needsAccountPick} style={{ width:'100%', padding:'11px 0', fontSize:14 }}>
+          {needsAccountPick ? 'Select an account to import' : `Import ${selectedRows.length} transaction${selectedRows.length!==1?'s':''}${skippedCount>0?` (${skippedCount} skipped as duplicates)`:''}`}
         </Btn>
       </Modal>
     )
@@ -8033,7 +8122,7 @@ function SubscriptionCard() {
   )
 }
 
-function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCurrency, primaryCurrency, setPrimaryCurrency, exchangeRate, setExchangeRate, setSetupComplete, setAccounts, setTransactions, setBills, setRemittances, setInvestments, setGoals, setAllocations, setLoans, setFamilyMembers, setTemplates, setWkBudgets, setHmBudgets, setBudgetMonth, setGoalContribs, setSavedScenarios, accounts, transactions, bills, remittances, investments, goals, loans, familyMembers, templates, smartRules, setSmartRules }) {
+function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCurrency, primaryCurrency, setPrimaryCurrency, exchangeRate, setExchangeRate, setSetupComplete, setAccounts, setTransactions, setBills, setRemittances, setInvestments, setGoals, setAllocations, setLoans, setFamilyMembers, setTemplates, setWkBudgets, setHmBudgets, setBudgetMonth, setGoalContribs, setSavedScenarios, accounts, transactions, bills, remittances, investments, goals, loans, familyMembers, templates, smartRules, setSmartRules, onRequireUpgrade }) {
   const [showClearModal, setShowClearModal] = useState(false)
   const [clearText, setClearText] = useState('')
   const [showImportConfirm, setShowImportConfirm] = useState(false)
@@ -8068,6 +8157,7 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
   }
 
   const exportJSON = () => {
+    if (onRequireUpgrade?.('data export & backup')) return
     const data = { accounts, transactions, bills, remittances, investments, goals, loans, familyMembers, templates, exportedAt: new Date().toISOString() }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -8668,6 +8758,7 @@ function AuthScreen() {
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div role="img" aria-label="NRI's & Expat's" style={{ width: 84, height: 84, margin: '0 auto 16px', borderRadius: 20, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 4px 18px rgba(255,136,0,0.5))' }} />
           <div style={{ fontSize: 24, fontWeight: 900, color: C.text, letterSpacing: '-0.03em' }}>NRI's &amp; Expat's</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.mutedL, letterSpacing: '-0.01em', marginTop: 2 }}>Personal Finance Manager</div>
           <div style={{ fontSize: 11, color: C.gold, letterSpacing: '0.14em', textTransform: 'uppercase', fontStyle: 'italic', marginTop: 3 }}>Beyond Borders</div>
         </div>
 
@@ -8785,6 +8876,7 @@ function PaywallScreen({ sub, onSignOut }) {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div role="img" aria-label="logo" style={{ width: 72, height: 72, margin: '0 auto 14px', borderRadius: 18, backgroundImage: 'url(/app-logo-v5.png)', backgroundSize: '130%', backgroundPosition: '51% 33%', backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 4px 18px rgba(255,136,0,0.5))' }} />
           <div style={{ fontSize: 22, fontWeight: 900, color: C.text, letterSpacing: '-0.03em' }}>NRI's &amp; Expat's</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.mutedL, letterSpacing: '-0.01em', marginTop: 2 }}>Personal Finance Manager</div>
           <div style={{ fontSize: 11, color: C.gold, letterSpacing: '0.14em', textTransform: 'uppercase', fontStyle: 'italic', marginTop: 3 }}>Beyond Borders</div>
         </div>
 
@@ -8904,10 +8996,31 @@ export default function App() {
   const [showPremiumGate, setShowPremiumGate] = useState(false)
   const [premiumGateFeature, setPremiumGateFeature] = useState('Estelle and AI import tools')
   // Billing is only active when VITE_ENABLE_BILLING is set.
-  // premiumAllowed is true for paid users or when billing is disabled.
   const billingEnabled = import.meta.env.VITE_ENABLE_BILLING === 'true'
-  const premiumAllowed = !billingEnabled || subEntitled
+  // isPaid = a real active/trialing Stripe subscription (NOT the free 14-day
+  // window). Free-trial users are entitled to the app (subEntitled) but are
+  // capped, so limits key off isPaid, not subEntitled.
+  const [isPaid, setIsPaid] = useState(false)
+  const [trialDaysLeft, setTrialDaysLeft] = useState(0)
+  // Trial users: entitled to the app but without a paid subscription.
+  const onTrial = billingEnabled && subEntitled && !isPaid
+  // premiumAllowed is true for paid users or when billing is disabled.
+  const premiumAllowed = !billingEnabled || isPaid
   const showPremiumBadge = billingEnabled && !premiumAllowed
+
+  // Trial caps — quotas that apply only while onTrial (see TRIAL_LIMITS).
+  // AI uploads consumed is persisted per-user so it survives reloads.
+  const [aiUploadsUsed, setAiUploadsUsed] = useState(() => load('nri_aiUploadsUsed', 0))
+  useEffect(() => { persist('nri_aiUploadsUsed', aiUploadsUsed) }, [aiUploadsUsed])
+
+  // Central trial-gate: returns true and opens the paywall/upgrade modal when a
+  // premium-or-over-quota action is blocked. Returns false to let it proceed.
+  const requireUpgrade = (feature) => {
+    if (premiumAllowed) return false // paid or billing off — allow
+    setPremiumGateFeature(feature)
+    setShowPremiumGate(true)
+    return true
+  }
 
   // Setup (home/working country) is per-account. It's only "complete" when the
   // user explicitly finished the wizard (nri_setupComplete === true), which
@@ -9110,11 +9223,24 @@ export default function App() {
   useEffect(() => {
     if (!user) { setSub(undefined); setSubEntitled(false); return }
     let alive = true
-    const check = () => import('./subscription.js').then(async ({ getSubscription, isEntitled }) => {
+    const check = () => import('./subscription.js').then(async ({ getSubscription, isEntitled, inFreeTrial, freeTrialDaysLeft }) => {
       const s = await getSubscription()
       if (!alive) return
       setSub(s ?? null)
-      setSubEntitled(isEntitled(s))
+      // isPaid = a real active/trialing Stripe subscription (unrestricted).
+      setIsPaid(isEntitled(s))
+      setTrialDaysLeft(freeTrialDaysLeft(user.id))
+      // Entitled if they have an active/trialing Stripe sub, OR — for users who
+      // never started one and whose Stripe sub hasn't expired — while they're
+      // still inside their 14-day free window. Once the 14 days are up (or a
+      // Stripe trial has ended) they go straight to the paywall.
+      // Entitled if EITHER:
+      //  1) a real active/trialing Stripe subscription (paid), OR
+      //  2) still inside the 14-day free window.
+      // The free window stands on its own so a leftover/canceled test-mode row
+      // can't lock a new user out during their first 14 days. Once the window
+      // closes, only a paid subscription keeps them in — otherwise: paywall.
+      setSubEntitled(isEntitled(s) || inFreeTrial(user.id))
     })
     check()
     const onFocus = () => check()
@@ -9493,22 +9619,9 @@ export default function App() {
     return <AuthScreen />
   }
 
-  // Subscription gate: after auth, before setup/app. Off by default — only
-  // active when VITE_ENABLE_BILLING is 'true', so the app isn't locked until
-  // Stripe is fully set up. When enabled: show splash while loading, then the
-  // paywall if the user has no active trial/subscription.
-  if (billingEnabled && sub === undefined) {
-    return <AuthSplash />
-  }
-  if (billingEnabled && !subEntitled) {
-    return (
-      <PaywallScreen
-        sub={sub}
-        onSignOut={() => import('./auth.js').then(({ signOut }) => signOut().catch(() => {}))}
-      />
-    )
-  }
-
+  // Setup wizard: runs first, right after auth, so new users onboard (choose
+  // currencies + exchange rate) and experience the app before being asked to
+  // subscribe. The subscription gate below sits *after* this by design.
   if (!setupComplete) {
     return (
       <SetupWizardComponent
@@ -9522,11 +9635,31 @@ export default function App() {
 
   }
 
+  // Subscription gate: after auth AND onboarding, before the app. Off by
+  // default — only active when VITE_ENABLE_BILLING is 'true'. When enabled:
+  // show splash while loading, then the paywall if the user has no active
+  // trial/subscription. Placed after the setup wizard so users onboard first.
+  if (billingEnabled && sub === undefined) {
+    return <AuthSplash />
+  }
+  if (billingEnabled && !subEntitled) {
+    return (
+      <PaywallScreen
+        sub={sub}
+        onSignOut={() => import('./auth.js').then(({ signOut }) => signOut().catch(() => {}))}
+      />
+    )
+  }
+
   const openImport = (accountId = null, mode = 'statement') => {
     if (billingEnabled && !subEntitled) {
       setPremiumGateFeature(mode === 'invoice' ? 'invoice scanning and AI import' : 'bank statement import')
       setShowPremiumGate(true)
       return
+    }
+    // Trial cap: 4 AI uploads total. Once used up, route to the paywall.
+    if (onTrial && aiUploadsUsed >= TRIAL_LIMITS.aiUploads) {
+      if (requireUpgrade(`unlimited AI imports (your trial includes ${TRIAL_LIMITS.aiUploads})`)) return
     }
     setImportAccountId(accountId || null)
     setImportMode(mode)
@@ -9579,6 +9712,8 @@ export default function App() {
       count: txs.length,
       date: today(),
     })
+    // Count a consumed AI upload against the trial quota (paid users unaffected).
+    if (onTrial) setAiUploadsUsed(n => n + 1)
   }
 
   const tabs = [
@@ -9603,6 +9738,8 @@ export default function App() {
   const setters = { setAccounts, setTransactions, setBills, setRemittances, setInvestments, setGoals, setAllocations, setLoans, setFamilyMembers, setTemplates, setWkBudgets, setHmBudgets, setBudgetMonth, setGoalContribs, setSavedScenarios }
 
   const exportJSON = async () => {
+    // Export is a Pro feature during the trial — route to upgrade if not paid.
+    if (requireUpgrade('data export & backup')) return
     // Re-auth gate: exporting ALL data is sensitive. If the session isn't
     // fresh, ask the user to confirm (and offer a re-sign-in) before dumping
     // their entire financial history to a file — blocks a walk-up attacker.
@@ -9763,10 +9900,10 @@ export default function App() {
         {/* Export / Import Backup — compact icon row to save vertical space */}
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, display: 'flex', gap: 6 }}>
           <input ref={sidebarImportRef} type="file" accept=".json" style={{ display: 'none' }} onChange={importJSON} />
-          <button onClick={exportJSON} title="Export Backup — download full data as JSON"
+          <button onClick={exportJSON} title={showPremiumBadge ? 'Export Backup — Pro feature' : 'Export Backup — download full data as JSON'}
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 8px', background: `${C.green}12`, border: `1px solid ${C.green}33`, borderRadius: 9, color: C.green, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            <span style={{ fontSize: 14, flexShrink: 0 }}>💾</span>
-            <span className="sidebar-text">Export</span>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>{showPremiumBadge ? '🔒' : '💾'}</span>
+            <span className="sidebar-text" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>Export<ProBadge show={showPremiumBadge} tiny /></span>
           </button>
           <button onClick={() => sidebarImportRef.current?.click()} title="Import Backup — restore data from a JSON file"
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 8px', background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 9, color: C.teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
@@ -9851,9 +9988,21 @@ export default function App() {
 
         {/* Page */}
         <main ref={mainScrollRef} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minWidth: 0, background: C.bg, position: 'relative' }} className={`page-enter${isMobile ? ' mobile-main' : ''}`}>
+          {onTrial && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '12px 16px 0', padding: '10px 14px', background: `${C.gold}14`, border: `1px solid ${C.gold}33`, borderRadius: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.gold }}>✨ Free trial — {trialDaysLeft} day{trialDaysLeft === 1 ? '' : 's'} left</span>
+              <span style={{ fontSize: 12, color: C.muted }}>
+                Accounts {Math.min(accounts.length, TRIAL_LIMITS.accounts)}/{TRIAL_LIMITS.accounts} · AI uploads {Math.min(aiUploadsUsed, TRIAL_LIMITS.aiUploads)}/{TRIAL_LIMITS.aiUploads}
+              </span>
+              <button onClick={() => requireUpgrade('all Pro features')}
+                style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: 8, border: 'none', background: C.accent, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                Upgrade to Pro
+              </button>
+            </div>
+          )}
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} showPremiumBadge={showPremiumBadge} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
-          {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} />}
-          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} smartRules={smartRules} setSmartRules={setSmartRules} />}
+          {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} accountLimit={onTrial ? TRIAL_LIMITS.accounts : Infinity} onLimitReached={() => requireUpgrade(`unlimited accounts (your trial includes ${TRIAL_LIMITS.accounts})`)} />}
+          {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
           {activeTab === 'bills' && <Bills {...shared} {...setters} />}
           {activeTab === 'investments' && <Investments {...shared} {...setters} />}
@@ -9873,7 +10022,7 @@ export default function App() {
                 onSubscribe={async () => { const { startCheckout } = await import('./subscription.js'); await startCheckout() }}
               />
           )}
-          {activeTab === 'settings' && <Settings {...shared} {...setters} setSetupComplete={setSetupComplete} homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency} foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency} primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency} exchangeRate={exchangeRate} setExchangeRate={setExchangeRate} smartRules={smartRules} setSmartRules={setSmartRules} />}
+          {activeTab === 'settings' && <Settings {...shared} {...setters} setSetupComplete={setSetupComplete} homeCurrency={homeCurrency} setHomeCurrency={setHomeCurrency} foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency} primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency} exchangeRate={exchangeRate} setExchangeRate={setExchangeRate} smartRules={smartRules} setSmartRules={setSmartRules} onRequireUpgrade={requireUpgrade} />}
         </main>
 
         {/* Scroll-to-top / scroll-to-bottom floating arrows (bottom-right) */}
