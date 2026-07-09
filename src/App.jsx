@@ -3175,7 +3175,7 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
               <div style={{ background: C.accent + '15', border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.mutedL, lineHeight: 1.7 }}>
                 <div>Supported banks: NBK, KFH, Burgan, Gulf Bank, HDFC, SBI, Axis, ICICI and most major banks. Upload PDF or Excel/CSV export for best accuracy.</div>
                 <div style={{ marginTop: 5 }}>🏷️ <strong>Heads up on categorisation:</strong> AI assigns categories automatically — you can review and fix every one before importing.</div>
-                <div style={{ marginTop: 5 }}>🔒 <strong>Privacy Notice:</strong> Your file is sent securely to Anthropic's AI for extraction only. No data is stored externally.</div>
+                <div style={{ marginTop: 5 }}>🔒 <strong>Privacy Notice:</strong> To read your statement, the file is sent — over an encrypted connection, through our own secure server — to Anthropic's Claude AI, which extracts the transactions. Per Anthropic's commercial API terms, your data is <strong>not used to train AI models</strong>. We don't keep a separate copy of the file after processing; the extracted transactions are saved to your private account. See our <a href="/privacy" target="_blank" rel="noopener" style={{ color: C.accent }}>Privacy Policy</a> and <a href="/ai-disclosure" target="_blank" rel="noopener" style={{ color: C.accent }}>AI Processing Disclosure</a>.</div>
               </div>
 
               {scanError && (
@@ -7215,6 +7215,9 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
   const [step, setStep] = useState('upload')
   const [mode, setMode] = useState(initialMode || 'statement')
   const [file, setFile] = useState(null)
+  // Explicit consent to send the uploaded financial document to Anthropic's AI.
+  // Required before any statement/receipt upload can be processed.
+  const [aiConsent, setAiConsent] = useState(false)
   const [accountId, setAccountId] = useState(preAccountId || '')
   const [error, setError] = useState('')
   const [uploadError, setUploadError] = useState(null)
@@ -8035,7 +8038,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
           <div style={{ background:C.accent+'15', border:`1px solid ${C.accent}33`, borderRadius:10, padding:'10px 14px', marginBottom:12, fontSize:12, color:C.mutedL, lineHeight:1.7 }}>
             <div>Supported banks: NBK, KFH, Burgan, Gulf Bank, HDFC, SBI, Axis, ICICI and most major banks. Upload PDF or Excel/CSV export for best accuracy.</div>
             <div style={{ marginTop:5 }}>🏷️ <strong>Heads up on categorisation:</strong> AI assigns categories automatically — you can review and fix every one before importing.</div>
-            <div style={{ marginTop:5 }}>🔒 <strong>Privacy Notice:</strong> Your file is sent securely to Anthropic's AI for extraction only. No data is stored externally.</div>
+            <div style={{ marginTop:5 }}>🔒 <strong>Privacy Notice:</strong> To read your statement, the file is sent — over an encrypted connection, through our own secure server — to Anthropic's Claude AI, which extracts the transactions. Per Anthropic's commercial API terms, your data is <strong>not used to train AI models</strong>. We don't keep a separate copy of the file after processing; the extracted transactions are saved to your private account. See our <a href="/privacy" target="_blank" rel="noopener" style={{ color: C.accent }}>Privacy Policy</a> and <a href="/ai-disclosure" target="_blank" rel="noopener" style={{ color: C.accent }}>AI Processing Disclosure</a>.</div>
           </div>
           {fileAlreadyImported && (
             <div style={{ background:C.yellow+'15', border:`1px solid ${C.yellow}44`, borderRadius:10, padding:'10px 14px', marginBottom:12, fontSize:12, lineHeight:1.6 }}>
@@ -8077,8 +8080,18 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
           </button>
         </div>
       )}
-      <Btn onClick={mode === 'invoice' ? processInvoiceFile : processFile} disabled={!file} style={{ width:'100%', padding:'11px 0', fontSize:14 }}>
-        {file ? `✨ Extract from "${file.name.length>28?file.name.slice(0,25)+'…':file.name}"` : 'Select a file to continue'}
+      {/* Consent gate — user must agree before the document is sent to the AI. */}
+      <label style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:12, fontSize:12, color:C.mutedL, lineHeight:1.6, cursor:'pointer' }}>
+        <input type="checkbox" checked={aiConsent} onChange={e => setAiConsent(e.target.checked)}
+          style={{ width:16, height:16, marginTop:1, flexShrink:0, cursor:'pointer', accentColor:C.accent }} />
+        <span>
+          I consent to my uploaded {mode === 'invoice' ? 'receipt/invoice' : 'bank statement'} being sent to Anthropic's Claude AI for extraction, as described in the{' '}
+          <a href="/ai-disclosure" target="_blank" rel="noopener" style={{ color:C.accent }}>AI Processing Disclosure</a> and{' '}
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color:C.accent }}>Privacy Policy</a>.
+        </span>
+      </label>
+      <Btn onClick={mode === 'invoice' ? processInvoiceFile : processFile} disabled={!file || !aiConsent} style={{ width:'100%', padding:'11px 0', fontSize:14 }}>
+        {!file ? 'Select a file to continue' : !aiConsent ? 'Check the consent box to continue' : `✨ Extract from "${file.name.length>28?file.name.slice(0,25)+'…':file.name}"`}
       </Btn>
     </Modal>
   )
