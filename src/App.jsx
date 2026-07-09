@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from 'xlsx'
+import { PDFDocument } from 'pdf-lib'
 import './App.css'
 import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit } from './utils/calculations.js'
 import { getProPriceDisplay } from './pricing.js'
@@ -7473,20 +7474,65 @@ Rules:
 - If debit and credit are separate columns, debit = negative, credit = positive
 - no text before { or after }`
 
+  // Split a base64 PDF into chunks of at most PAGES_PER_CHUNK pages, returning an
+  // array of base64 strings. A multi-month statement sent as one request can
+  // exceed the Edge Function wall-clock limit (surfaces as a 546); splitting by
+  // page keeps each pass-1 request small enough to complete. Returns [original]
+  // unchanged if the PDF is short or can't be parsed (we then fall back to the
+  // single-request path so a parse failure never blocks the import).
+  const PAGES_PER_CHUNK = 4
+  const splitPdfBase64 = async b64 => {
+    try {
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+      const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
+      const total = src.getPageCount()
+      if (total <= PAGES_PER_CHUNK) return { chunks: [b64], pages: total }
+      const chunks = []
+      for (let start = 0; start < total; start += PAGES_PER_CHUNK) {
+        const out = await PDFDocument.create()
+        const idxs = []
+        for (let p = start; p < Math.min(start + PAGES_PER_CHUNK, total); p++) idxs.push(p)
+        const copied = await out.copyPages(src, idxs)
+        copied.forEach(pg => out.addPage(pg))
+        const outBytes = await out.save()
+        // btoa needs a binary string; build it in blocks to avoid call-stack limits
+        let bin = ''
+        const CH = 0x8000
+        for (let i = 0; i < outBytes.length; i += CH) bin += String.fromCharCode(...outBytes.subarray(i, i + CH))
+        chunks.push(btoa(bin))
+      }
+      return { chunks, pages: total }
+    } catch (e) {
+      console.warn('PDF split failed, using single request:', e)
+      return { chunks: [b64], pages: null }
+    }
+  }
+
   const extractInTwoPasses = async b64 => {
     setUploadProgress('Reading your bank statement…')
-    // Pass-1 only emits compact {date,description,amount,type} rows (categorising
-    // happens in a separate batched pass below), so it never needs 16k tokens.
-    // A large multi-month PDF at max_tokens:16000 produces a single long
-    // generation that can exceed the Edge Function wall-clock limit and surface
-    // to the client as a spurious 546 timeout. Capping pass-1 at 8000 keeps the
-    // worst-case generation short enough to complete. If it still times out,
-    // processFile() catches it and tells the user to split the statement.
-    const pass1 = await apiCall([
-      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-      { type: 'text', text: PASS1_PROMPT },
-    ], 8000)
-    const basic = parseAIText(pass1.content?.[0]?.text || '')
+    // PASS 1 — extract raw transactions. For large PDFs we split into page-chunks
+    // and run pass-1 per chunk so no single request hits the Edge Function
+    // wall-clock limit (the 546 timeout). Each chunk is capped at 8000 output
+    // tokens — pass-1 only emits compact {date,description,amount,type} rows;
+    // categorising is a separate batched pass below.
+    const { chunks, pages } = await splitPdfBase64(b64)
+    let basic = { bankName: '', currency: '', statementMonth: '', openingBalance: null, closingBalance: null, transactions: [] }
+    for (let ci = 0; ci < chunks.length; ci++) {
+      if (chunks.length > 1)
+        setUploadProgress(`Reading statement — part ${ci + 1} of ${chunks.length}${pages ? ` (${pages} pages)` : ''}…`)
+      const pass1 = await apiCall([
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: chunks[ci] } },
+        { type: 'text', text: PASS1_PROMPT },
+      ], 8000)
+      const part = parseAIText(pass1.content?.[0]?.text || '')
+      // First non-empty header wins for bank/currency/month/balances; transactions accumulate.
+      if (!basic.bankName && part.bankName) basic.bankName = part.bankName
+      if (!basic.currency && part.currency) basic.currency = part.currency
+      if (!basic.statementMonth && part.statementMonth) basic.statementMonth = part.statementMonth
+      if (basic.openingBalance == null && part.openingBalance != null) basic.openingBalance = part.openingBalance
+      if (part.closingBalance != null) basic.closingBalance = part.closingBalance // last chunk's closing = overall closing
+      if (Array.isArray(part.transactions)) basic.transactions.push(...part.transactions)
+    }
 
     setUploadProgress(`Categorising ${basic.transactions.length} transactions…`)
     const BATCH = 50
