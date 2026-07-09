@@ -8333,6 +8333,15 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
           </div>
         )}
       </Card>
+
+      <Card title="Legal & Privacy" style={{ marginTop: 16 }}>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>How your data is handled, including AI processing of uploaded documents.</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <a href="/privacy" target="_blank" rel="noopener"><Btn variant="ghost">Privacy Policy</Btn></a>
+          <a href="/terms" target="_blank" rel="noopener"><Btn variant="ghost">Terms of Service</Btn></a>
+          <a href="/ai-disclosure" target="_blank" rel="noopener"><Btn variant="ghost">AI Disclosure</Btn></a>
+        </div>
+      </Card>
     </div>
   )
 }
@@ -8850,9 +8859,10 @@ function AuthScreen() {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 18, fontSize: 10.5, color: C.muted, lineHeight: 1.6 }}>
-          By continuing you agree to keep your financial data accurate for your own use.<br />
+          By continuing you agree to our <a href="/terms" style={{ color: C.accent }}>Terms of Service</a> and <a href="/privacy" style={{ color: C.accent }}>Privacy Policy</a>.<br />
           This app is a personal finance tool, not financial advice.
         </div>
+        <LegalFooter />
       </div>
     </div>
   )
@@ -8994,7 +9004,150 @@ function PremiumFeatureGate({ feature, sub, onClose, onSubscribe }) {
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+// ─── Legal / policy pages ─────────────────────────────────────────────────────
+// Rendered before the auth gate so they're reachable when signed out (the
+// consent notices open these in a new tab). Routed by path: /privacy, /terms,
+// /ai-disclosure. TODO before publishing: replace [bracketed] placeholders and
+// have the Privacy Policy + Terms reviewed by a lawyer (see legal/README.md).
+const LEGAL_CONTACT = '[privacy@yourdomain.com]'
+const LEGAL_OPERATOR = '[Your Legal Name]'
+
+function LegalShell({ title, subtitle, children }) {
+  const h = { fontSize: 16, fontWeight: 800, color: C.text, margin: '22px 0 8px', letterSpacing: '-0.02em' }
+  const p = { fontSize: 13.5, color: C.textS, lineHeight: 1.7, margin: '0 0 10px' }
+  const li = { fontSize: 13.5, color: C.textS, lineHeight: 1.7, margin: '0 0 6px' }
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, padding: '32px 20px 80px' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <a href="/" style={{ fontSize: 13, color: C.accent, textDecoration: 'none' }}>← Back to app</a>
+        <h1 style={{ fontSize: 26, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', margin: '18px 0 4px' }}>{title}</h1>
+        {subtitle && <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>{subtitle}</div>}
+        <div style={{ background: C.yellow + '14', border: `1px solid ${C.yellow}44`, borderRadius: 10, padding: '10px 14px', fontSize: 12, color: C.mutedL, lineHeight: 1.6, margin: '10px 0 18px' }}>
+          ⚠️ This is a draft template. Bracketed items like {LEGAL_OPERATOR} and {LEGAL_CONTACT} must be completed, and the Privacy Policy and Terms should be reviewed by a lawyer before you rely on them.
+        </div>
+        {children({ h, p, li })}
+        <div style={{ marginTop: 28, paddingTop: 16, borderTop: `1px solid ${C.border}`, fontSize: 12, color: C.muted }}>
+          Questions or requests: <strong style={{ color: C.textS }}>{LEGAL_CONTACT}</strong>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PrivacyPolicyPage() {
+  return (
+    <LegalShell title="Privacy Policy" subtitle={`Operator: ${LEGAL_OPERATOR} · Contact: ${LEGAL_CONTACT} · Effective: [DATE]`}>
+      {({ h, p, li }) => (<>
+        <h2 style={h}>1. Who we are</h2>
+        <p style={p}>The NRI's & Expat's Personal Finance Manager ("the App") is a personal-finance tool for NRIs and expats, operated by an individual sole operator ({LEGAL_OPERATOR}). This policy explains what data we collect, why, how it is processed (including by our AI provider), and your rights.</p>
+        <h2 style={h}>2. What data we collect</h2>
+        <p style={p}><strong>You provide:</strong> your email (and Google profile if you sign in with Google); financial data you enter or import (accounts, balances, transactions, budgets, loans, investments, goals, remittances); and any bank statements or receipts you upload.</p>
+        <p style={p}><strong>Collected automatically:</strong> session tokens and standard request metadata needed to run the service; and some preferences/trial state stored in your browser's local storage.</p>
+        <p style={p}>We do not ask for government IDs, full card numbers, or plaintext passwords.</p>
+        <h2 style={h}>3. How we use your data</h2>
+        <p style={p}>To store and display your finances privately; to extract transactions from documents you upload using AI (Section 5); to power the AI advisor and categorization when you use them; to manage authentication, subscriptions/trials, and prevent abuse; and to respond to your requests. We do not sell your data or use it for advertising.</p>
+        <h2 style={h}>4. Legal bases (where applicable, e.g. GDPR)</h2>
+        <p style={p}>We process data to perform our contract with you, based on your consent (for AI processing of uploads), and for legitimate interests (security and abuse prevention). You may withdraw consent at any time.</p>
+        <h2 style={h}>5. AI processing and sub-processors</h2>
+        <p style={p}>To read uploads and power AI features, we send the relevant data to Anthropic, PBC (the Claude AI provider) over an encrypted connection, routed through our own secure server proxy. Under Anthropic's commercial API terms, your inputs and outputs are <strong>not used to train Anthropic's models</strong>. Anthropic may retain API data for a limited period under its own policies. See our AI Processing Disclosure for detail. Our key sub-processors: Supabase (database, auth), Anthropic (AI), Google (optional sign-in), Vercel (hosting), and Stripe (only if billing is enabled).</p>
+        <h2 style={h}>6. Where your data is processed</h2>
+        <p style={p}>Our providers may process data in the United States and other countries. If you are in a region with transfer restrictions (EEA/UK, India), please review this before using the App. [Lawyer to confirm transfer mechanism.]</p>
+        <h2 style={h}>7. Retention</h2>
+        <p style={p}>Account and financial data are kept while your account is active and deleted when you delete it or on request. We do not keep a separate copy of uploaded files after extraction — only the extracted transactions are saved. Local browser storage clears when you clear browser data or use "Clear All Data".</p>
+        <h2 style={h}>8. Security</h2>
+        <p style={p}>We use per-user database isolation (Row-Level Security), encrypted connections, server-side handling of API keys, and a dedicated authentication provider. See our Security Measures documentation. No system is perfectly secure.</p>
+        <h2 style={h}>9. Your rights</h2>
+        <p style={p}>You may access, correct, export, or delete your data and withdraw consent, subject to your jurisdiction. Delete data in-app via Settings → "Clear All Data", or email {LEGAL_CONTACT}. See the Data Deletion Process. We aim to respond within [30] days.</p>
+        <h2 style={h}>10. Children</h2>
+        <p style={p}>The App is not intended for anyone under [16/18]. We do not knowingly collect children's data.</p>
+        <h2 style={h}>11. Changes</h2>
+        <p style={p}>We may update this policy; material changes will be notified in-app or by email.</p>
+      </>)}
+    </LegalShell>
+  )
+}
+
+function TermsPage() {
+  return (
+    <LegalShell title="Terms of Service" subtitle={`Operator: ${LEGAL_OPERATOR} · Effective: [DATE]`}>
+      {({ h, p }) => (<>
+        <h2 style={h}>1. Acceptance</h2>
+        <p style={p}>By creating an account or using the App, you agree to these Terms, our Privacy Policy, and our AI Processing Disclosure. If you do not agree, do not use the App.</p>
+        <h2 style={h}>2. Who can use it</h2>
+        <p style={p}>You must be at least [16/18] and able to form a binding contract. You are responsible for keeping your credentials secure and for activity under your account.</p>
+        <h2 style={h}>3. What the App is — and is not</h2>
+        <p style={p}>The App is a personal money-tracking tool. It is <strong>not financial, investment, tax, or legal advice</strong>. AI categorizations, summaries, and the "Estelle" advisor are informational only and may be inaccurate — you are responsible for verifying data and for your own decisions. The App is not a bank, payment service, or money transmitter; it does not move or hold your money.</p>
+        <h2 style={h}>4. Your responsibilities</h2>
+        <p style={p}>Provide accurate information; only upload documents that are yours or that you are authorized to upload; and do not misuse the App (no unlawful use, security attacks, scraping, reverse-engineering, overloading, or uploading malware or others' data without a lawful basis).</p>
+        <h2 style={h}>5. AI features and consent</h2>
+        <p style={p}>Some features send your data to a third-party AI provider (Anthropic/Claude). You must give explicit consent before uploaded documents are processed. AI outputs are provided "as is" and may contain errors.</p>
+        <h2 style={h}>6. Subscriptions, trials, billing</h2>
+        <p style={p}>The App may offer a free trial with feature limits and paid subscriptions. If billing is enabled, Stripe processes payments under its terms; we do not store card details. Pricing and renewal terms are shown at purchase. [Add refund/cancellation policy per jurisdiction.]</p>
+        <h2 style={h}>7. Availability and changes</h2>
+        <p style={p}>We may modify, suspend, or discontinue the App at any time and do not guarantee uninterrupted or error-free operation. Continued use after changes to these Terms means acceptance.</p>
+        <h2 style={h}>8. Disclaimers</h2>
+        <p style={p}>THE APP IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND TO THE MAXIMUM EXTENT PERMITTED BY LAW.</p>
+        <h2 style={h}>9. Limitation of liability</h2>
+        <p style={p}>TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES, OR LOSS OF PROFITS, DATA, OR FINANCIAL LOSS FROM DECISIONS MADE USING THE APP. [Lawyer to set any liability cap.]</p>
+        <h2 style={h}>10. Termination</h2>
+        <p style={p}>You may stop using the App and delete your account at any time. We may suspend accounts that violate these Terms.</p>
+        <h2 style={h}>11. Governing law</h2>
+        <p style={p}>These Terms are governed by the laws of [jurisdiction]. [Lawyer to confirm venue and dispute resolution.]</p>
+      </>)}
+    </LegalShell>
+  )
+}
+
+function AiDisclosurePage() {
+  return (
+    <LegalShell title="AI Processing Disclosure" subtitle="How the app uses AI, and what data is sent">
+      {({ h, p }) => (<>
+        <h2 style={h}>1. Which AI we use</h2>
+        <p style={p}>The App uses Claude, a large language model from Anthropic, PBC, via Anthropic's commercial API. We do not run our own AI model, and no AI parsing happens locally in your browser.</p>
+        <h2 style={h}>2. When data is sent (and when it is not)</h2>
+        <p style={p}>Data is sent to Anthropic only when you actively use an AI feature. It is never sent for ordinary actions like viewing your dashboard, editing a transaction by hand, or setting a budget.</p>
+        <p style={p}>AI is used for: bank-statement import (your uploaded file), transaction categorization (extracted transactions), receipt/invoice scanning (your uploaded file), the AI advisor "Estelle" (your chat messages, any attached photo, and a <strong>summary</strong> of your finances — not your full ledger), and loan/investment document extraction.</p>
+        <h2 style={h}>3. How it is sent — the security path</h2>
+        <p style={p}>Your data goes: browser → our secure server proxy → Anthropic's Claude API. The connection is encrypted (TLS) at every hop; our API key stays server-side and is never exposed in your browser; and only signed-in users can use AI features.</p>
+        <h2 style={h}>4. How the AI provider uses your data</h2>
+        <p style={p}>Under Anthropic's commercial API terms, your inputs and outputs are <strong>not used to train Anthropic's AI models</strong>. Anthropic may retain API data for a limited time for operational and trust-and-safety purposes under its own policies, which we do not control. We do not keep a separate stored copy of your uploaded file after extraction — only the extracted transactions are saved to your account.</p>
+        <h2 style={h}>5. Accuracy — please review</h2>
+        <p style={p}>AI extraction and categorization can be wrong. The App shows you the results before importing so you can review, edit, or reject them. Do not treat AI output as verified financial advice.</p>
+        <h2 style={h}>6. Your consent and choices</h2>
+        <p style={p}>Before any document is processed by AI, you must check a consent box confirming you agree to this disclosure. You can avoid AI entirely by entering transactions manually — all core tracking works without AI. You may withdraw consent by not using AI features and contacting {LEGAL_CONTACT}.</p>
+      </>)}
+    </LegalShell>
+  )
+}
+
+// Path-based route for the standalone legal pages. Returns a component or null.
+function legalRouteFor(pathname) {
+  switch (pathname.replace(/\/+$/, '')) {
+    case '/privacy':        return PrivacyPolicyPage
+    case '/terms':          return TermsPage
+    case '/ai-disclosure':  return AiDisclosurePage
+    default:                return null
+  }
+}
+
+// Small footer linking the legal pages; shown app-wide.
+function LegalFooter() {
+  const a = { color: C.muted, fontSize: 11, textDecoration: 'none' }
+  return (
+    <div style={{ textAlign: 'center', padding: '14px 16px', fontSize: 11, color: C.muted, display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+      <a href="/privacy" style={a}>Privacy Policy</a>
+      <a href="/terms" style={a}>Terms of Service</a>
+      <a href="/ai-disclosure" style={a}>AI Disclosure</a>
+    </div>
+  )
+}
+
 export default function App() {
+  // Standalone legal pages — checked first so /privacy, /terms, /ai-disclosure
+  // render regardless of auth/session state (consent links open them directly).
+  const LegalRoute = legalRouteFor(window.location.pathname)
+  if (LegalRoute) return <LegalRoute />
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   // session === undefined → still checking (show splash, avoid auth-screen flash)
   // session === null      → signed out (show AuthScreen)
