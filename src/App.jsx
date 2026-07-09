@@ -286,6 +286,59 @@ const DEFAULT_ACCOUNTS = [
   { id: 'acc-sbi-sav',     name: 'SBI Savings Account',   country: 'home',    type: 'NRE',            balance: 0, currency: 'INR', setupBalance: 0, setupDate: today() },
 ]
 
+// ─── Sensitive-data redaction for imported statements ──────────────────────────
+// The full bank statement is sent to the AI to read transactions, but we never
+// want to STORE full account numbers or IBANs. The extraction prompt already
+// asks for "last 4 digits only", but that's just a request — this enforces it
+// client-side regardless of what the AI returns, and scrubs IBAN / long account
+// numbers that banks sometimes embed in transaction narration.
+
+// IBAN: 2 letters + 2 digits + up to 30 alphanumerics (optionally space-grouped).
+const IBAN_RE = /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){10,30}\b/g
+// A run of 9+ digits, contiguous or space-grouped — looks like a full account/
+// card number. We deliberately do NOT allow hyphen separators (ISO dates like
+// 2026-04-08 use hyphens) and require ≥9 digits so 8-digit dates (YYYYMMDD),
+// amounts, and last-4 fragments are left alone. Statements print account/card
+// numbers contiguous or space-grouped, which this still catches.
+const LONG_NUM_RE = /\b\d(?:[ ]?\d){8,}\b/g
+
+// Reduce an account-number-ish value to at most its last 4 digits.
+function lastFourOnly(v) {
+  if (v == null) return null
+  const digits = String(v).replace(/\D/g, '')
+  if (!digits) return null
+  return digits.slice(-4)
+}
+
+// Remove IBANs and long digit runs from a free-text field (keeps everything else).
+function redactSensitive(s) {
+  if (typeof s !== 'string' || !s) return s
+  return s.replace(IBAN_RE, '[redacted]').replace(LONG_NUM_RE, '[redacted]')
+}
+
+// Sanitize a full AI extraction result before it is stored or matched:
+//  - accountNumber → last 4 digits only
+//  - accountHolder → kept, but any embedded IBAN/long number stripped
+//  - each transaction description/originalDescription/notes → IBAN/long number stripped
+// Returns a new object; does not mutate the input.
+function sanitizeExtraction(result) {
+  if (!result || typeof result !== 'object') return result
+  const clean = { ...result }
+  if ('accountNumber' in clean) clean.accountNumber = lastFourOnly(clean.accountNumber)
+  if (typeof clean.accountHolder === 'string') clean.accountHolder = redactSensitive(clean.accountHolder)
+  if (Array.isArray(clean.transactions)) {
+    clean.transactions = clean.transactions.map(t => {
+      if (!t || typeof t !== 'object') return t
+      const ct = { ...t }
+      if (typeof ct.description === 'string') ct.description = redactSensitive(ct.description)
+      if (typeof ct.originalDescription === 'string') ct.originalDescription = redactSensitive(ct.originalDescription)
+      if (typeof ct.notes === 'string') ct.notes = redactSensitive(ct.notes)
+      return ct
+    })
+  }
+  return clean
+}
+
 // Resolve which account an imported statement belongs to, in priority order:
 //   1) account-number last-4 match  2) bank/account name match  3) unique currency.
 // Returns the matched account or null (null ⇒ caller must force the user to pick,
@@ -7480,7 +7533,9 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       const clean = raw.replace(/```json\n?|\n?```/g, '').trim()
       const s = clean.indexOf('{'), e2 = clean.lastIndexOf('}')
       if (s < 0 || e2 < 0) throw new Error('Could not parse response — try a clearer image')
-      setInvoiceResult(JSON.parse(clean.slice(s, e2 + 1)))
+      const invoice = JSON.parse(clean.slice(s, e2 + 1))
+      if (typeof invoice.description === 'string') invoice.description = redactSensitive(invoice.description)
+      setInvoiceResult(invoice)
       setStep('invoice_preview')
     } catch (e) {
       setUploadError(e.message || 'Could not process this file. Please try again.')
@@ -7541,6 +7596,9 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         throw new Error('Unsupported file type. Please upload a PDF, Excel (.xlsx/.xls), CSV, JPG, or PNG file.')
       }
 
+      // Enforce last-4-only account numbers and strip IBANs / full account
+      // numbers before the result is stored, matched, or displayed anywhere.
+      result = sanitizeExtraction(result)
       setAiResult(result)
 
       // Auto-detect account if none selected: match by account number, then by
