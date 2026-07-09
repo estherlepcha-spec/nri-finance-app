@@ -7475,10 +7475,17 @@ Rules:
 
   const extractInTwoPasses = async b64 => {
     setUploadProgress('Reading your bank statement…')
+    // Pass-1 only emits compact {date,description,amount,type} rows (categorising
+    // happens in a separate batched pass below), so it never needs 16k tokens.
+    // A large multi-month PDF at max_tokens:16000 produces a single long
+    // generation that can exceed the Edge Function wall-clock limit and surface
+    // to the client as a spurious 546 timeout. Capping pass-1 at 8000 keeps the
+    // worst-case generation short enough to complete. If it still times out,
+    // processFile() catches it and tells the user to split the statement.
     const pass1 = await apiCall([
       { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
       { type: 'text', text: PASS1_PROMPT },
-    ], 16000)
+    ], 8000)
     const basic = parseAIText(pass1.content?.[0]?.text || '')
 
     setUploadProgress(`Categorising ${basic.transactions.length} transactions…`)
@@ -7701,7 +7708,16 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       }
     } catch (e) {
       console.error('Statement import error:', e)
-      setUploadError(e.message || 'Could not process this file. Please try again.')
+      // A 546 (or other 5xx/timeout) means the Edge Function was killed on the
+      // platform wall-clock limit — almost always a statement covering too many
+      // months in one request, NOT a bad/scanned PDF. Give an actionable message.
+      const msg = String(e?.message || '')
+      const isTimeout = /\b(546|504|502|503|429)\b/.test(msg) || /timed? ?out|timeout/i.test(msg)
+      setUploadError(
+        isTimeout
+          ? 'This statement is too large to process in one go. Please upload one month at a time, or export it as CSV/Excel from your bank — those import much faster.'
+          : (msg || 'Could not process this file. Please try again.')
+      )
       setStep('upload')
     }
   }
@@ -8129,7 +8145,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
           <div style={{ fontSize:13, color:C.redL, marginBottom:8 }}>{uploadError}</div>
           {mode === 'statement' && (
             <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>
-              💡 Tips: Use PDF or Excel/CSV export from your bank. Scanned image PDFs may not work well.
+              💡 Tips: If the statement covers several months, upload one month at a time — large multi-month files can time out. Excel/CSV exports import fastest. Scanned image PDFs may not work well.
             </div>
           )}
           <button onClick={() => { setUploadError(null); setFile(null) }}
