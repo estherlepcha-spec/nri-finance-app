@@ -357,19 +357,36 @@ function resolveImportAccount(accounts, result) {
   }
   // 2) Bank name — normalise both sides and check either contains the other's
   // significant words (so "Burgan" statement → "Burgan Bank Savings" account).
-  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\b(bank|account|savings|current|the|of)\b/g, ' ').replace(/\s+/g, ' ').trim()
+  // We deliberately KEEP the account-type words (current/savings/salary/nre/nro)
+  // because they distinguish two accounts at the same bank — stripping them made
+  // "Burgan Current" and "Burgan Savings" both collapse to "burgan", so a Current
+  // statement could match the Savings account (or neither, when both collided).
+  const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\b(bank|account|the|of)\b/g, ' ').replace(/\s+/g, ' ').trim()
+  // The account-type/kind words we use as tie-breakers when a bank name alone is ambiguous.
+  const KIND_WORDS = ['current', 'savings', 'saving', 'salary', 'nre', 'nro', 'credit', 'card']
+  const kindOf = s => KIND_WORDS.filter(w => norm(s).split(' ').includes(w))
   const stmtBank = norm(result.bankName)
   if (stmtBank) {
-    const stmtWords = stmtBank.split(' ').filter(w => w.length >= 3)
+    // Match on the bank/brand words only (exclude kind words), so "Burgan Current"
+    // still finds Burgan accounts; then disambiguate by kind + currency below.
+    const brandWords = stmtBank.split(' ').filter(w => w.length >= 3 && !KIND_WORDS.includes(w))
     const nameMatches = accounts.filter(a => {
       const accName = norm(a.name)
       if (!accName) return false
-      return accName.includes(stmtBank) || stmtBank.includes(accName) ||
-        stmtWords.some(w => accName.split(' ').includes(w))
+      const accBrand = accName.split(' ').filter(w => !KIND_WORDS.includes(w)).join(' ')
+      return accBrand.includes(stmtBank) || stmtBank.includes(accBrand) ||
+        brandWords.some(w => accName.split(' ').includes(w))
     })
-    // If the currency is known, prefer name matches that also match currency.
-    const refined = result.currency ? nameMatches.filter(a => a.currency === result.currency) : nameMatches
-    const pool = refined.length ? refined : nameMatches
+    // Narrow the pool step by step: currency, then account-kind (current vs savings).
+    let pool = nameMatches
+    if (result.currency && pool.filter(a => a.currency === result.currency).length) {
+      pool = pool.filter(a => a.currency === result.currency)
+    }
+    const stmtKinds = kindOf(result.bankName)
+    if (stmtKinds.length && pool.length > 1) {
+      const byKind = pool.filter(a => kindOf(a.name).some(k => stmtKinds.includes(k)))
+      if (byKind.length) pool = byKind
+    }
     if (pool.length === 1) return pool[0]
   }
   // 3) Unique currency — only when exactly one account uses it.
