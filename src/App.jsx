@@ -9425,6 +9425,10 @@ export default function App() {
     })
   })
   const [transactions, setTransactions] = useState(() => load('nri_transactions', DEFAULT_TRANSACTIONS))
+  // Mirror of `transactions` for synchronous reads inside async sync handlers
+  // (applyData) where the `transactions` closure may be stale.
+  const transactionsRef = useRef(transactions)
+  useEffect(() => { transactionsRef.current = transactions }, [transactions])
   const [bills, setBills] = useState(() => {
     const stored = load('nri_bills', null)
     const OLD_BILL_NAMES = ['Apartment Rent', 'MEW Electricity & Water', 'Zain Internet', 'Mobile Postpaid', 'Health Insurance', 'Car Insurance', 'Home Electricity India', 'House Loan EMI']
@@ -9690,17 +9694,37 @@ export default function App() {
         if ('nri_foreignCurrency' in remoteData) setForeignCurrency(remoteData.nri_foreignCurrency)
         if ('nri_primaryCurrency' in remoteData) setPrimaryCurrency(remoteData.nri_primaryCurrency)
         if ('nri_exchangeRate'   in remoteData) setExchangeRate(remoteData.nri_exchangeRate)
-        if ('nri_accounts' in remoteData) setAccounts(prev => {
-          const localMap = Object.fromEntries((prev || []).map(a => [a.id, a]))
-          return (remoteData.nri_accounts || []).map(ra => ({
-            ...localMap[ra.id], ...ra,
-            creditLimit: ra.creditLimit ?? localMap[ra.id]?.creditLimit ?? 0,
-            apr:         ra.apr         ?? localMap[ra.id]?.apr         ?? 0,
-            dueDay:      ra.dueDay      ?? localMap[ra.id]?.dueDay      ?? 0,
-            minPayment:  ra.minPayment  ?? localMap[ra.id]?.minPayment  ?? 0,
-          }))
-        })
-        if ('nri_transactions'   in remoteData) setTransactions(remoteData.nri_transactions)
+        // Merge remote accounts, then RECOMPUTE balances from transactions rather
+        // than trusting the remote `balance`. A realtime echo can carry a stale
+        // `balance` (e.g. right after a local import the server copy predates the
+        // recompute); overwriting the freshly-recomputed local balance with it made
+        // account cards appear frozen until reload. We read the latest transactions
+        // via a functional setTransactions to avoid an arrival-order race between the
+        // nri_accounts and nri_transactions messages.
+        if ('nri_accounts' in remoteData) {
+          setAccounts(prev => {
+            const localMap = Object.fromEntries((prev || []).map(a => [a.id, a]))
+            const merged = (remoteData.nri_accounts || []).map(ra => ({
+              ...localMap[ra.id], ...ra,
+              creditLimit: ra.creditLimit ?? localMap[ra.id]?.creditLimit ?? 0,
+              apr:         ra.apr         ?? localMap[ra.id]?.apr         ?? 0,
+              dueDay:      ra.dueDay      ?? localMap[ra.id]?.dueDay      ?? 0,
+              minPayment:  ra.minPayment  ?? localMap[ra.id]?.minPayment  ?? 0,
+            }))
+            // Recompute from the latest transactions instead of trusting remote
+            // `balance` — a realtime echo can carry a stale balance that would
+            // otherwise freeze the card until reload.
+            return recomputeAllBalances(merged, transactionsRef.current)
+          })
+        }
+        if ('nri_transactions' in remoteData) {
+          const nextTxs = remoteData.nri_transactions
+          transactionsRef.current = nextTxs
+          setTransactions(nextTxs)
+          // Balances are derived from transactions — recompute so cards reflect the
+          // new transaction set instead of any stale stored balance.
+          setAccounts(prev => recomputeAllBalances(prev, nextTxs))
+        }
         if ('nri_bills'          in remoteData) setBills(remoteData.nri_bills)
         if ('nri_remittances'    in remoteData) setRemittances(remoteData.nri_remittances)
         if ('nri_investments'    in remoteData) setInvestments(remoteData.nri_investments)
