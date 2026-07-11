@@ -9508,6 +9508,9 @@ export default function App() {
   const [importAccountId, setImportAccountId] = useState(scanRestore?.importAccountId || null)
   const [importMode, setImportMode] = useState(scanRestore?.importMode || 'statement')
   const [lastImport, setLastImport] = useState(() => load('nri_lastImport', null))
+  // Set when an older statement is imported that doesn't connect to the anchored
+  // (later) statement — a missing period between them makes the balance unreliable.
+  const [statementGapWarning, setStatementGapWarning] = useState(null)
   const [smartRules, setSmartRules] = useState(() => load('nri_smartRules', {}))
   const [invoicePrefill, setInvoicePrefill] = useState(null)
 
@@ -10098,26 +10101,25 @@ export default function App() {
     setAccounts(prev => {
       const accountId = summary?.replaceAccountId || txs[0]?.accountId
 
-      // If the statement has an opening balance, set it as the account's setupBalance
-      // so that balance = openingBalance + all transaction deltas (correct carry-forward)
+      // Anchor the balance to a statement's opening balance. "Latest statement
+      // wins": the opening balance of the MOST RECENT statement seen anchors the
+      // account. Uploading an OLDER statement afterwards adds its transactions as
+      // history but does NOT move the anchor backward — otherwise a gap between
+      // non-contiguous statements (e.g. an un-uploaded month between them) would
+      // silently corrupt the balance. balanceAnchorDate makes recomputeAllBalances
+      // count only transactions on/after the anchor.
+      const earliestDate = txs.map(t => t.date || '').filter(Boolean).sort()[0]
       let updated = prev.map(a => {
         if (a.id !== accountId) return a
         const updates = {}
-        // Apply opening balance as setupBalance if statement provides it
-        // Only update if: account setupBalance is 0 OR this is the earliest statement
-        if (aiResult?.openingBalance != null && aiResult.openingBalance !== 0) {
-          // Find the earliest transaction date in this import to anchor the setupBalance
-          const earliestDate = txs.map(t => t.date || '').filter(Boolean).sort()[0]
-          if (earliestDate) {
-            // setupBalance = opening balance of the statement period
-            // This means: balance at start of statement = openingBalance
-            // So setupBalance (balance before any transactions) = openingBalance
-            // but we need to subtract all existing transactions BEFORE earliestDate
-            const txsBefore = newTxs.filter(t => t.accountId === accountId && (t.date || '') < earliestDate)
-            const isCC = a.type === 'Credit Card'
-            const deltaBefore = txsBefore.reduce((s, t) => s + calcTxDelta(t, isCC), 0)
-            updates.setupBalance = aiResult.openingBalance - deltaBefore
+        if (aiResult?.openingBalance != null && aiResult.openingBalance !== 0 && earliestDate) {
+          const curAnchor = a.balanceAnchorDate || a.setupDate || ''
+          // Only (re)anchor if this statement is as-recent-or-newer than the
+          // current anchor. An older statement keeps the existing later anchor.
+          if (!curAnchor || earliestDate >= curAnchor) {
+            updates.setupBalance = aiResult.openingBalance
             updates.setupDate = earliestDate
+            updates.balanceAnchorDate = earliestDate
           }
         }
         // Apply credit card details if present
@@ -10127,6 +10129,22 @@ export default function App() {
         if (aiResult?.dueDay != null) updates.dueDay = aiResult.dueDay
         return { ...a, ...updates }
       })
+
+      // Gap guard: if this import's period doesn't connect to the anchored
+      // statement (a month is missing between them), the balance can't be trusted
+      // to carry forward — warn the user so they can upload the missing period.
+      const anchoredAcct = updated.find(a => a.id === accountId)
+      if (anchoredAcct?.balanceAnchorDate && earliestDate && earliestDate < anchoredAcct.balanceAnchorDate) {
+        const latestOfThisImport = txs.map(t => t.date || '').filter(Boolean).sort().slice(-1)[0]
+        // A gap exists if this older statement ends before the anchor begins.
+        if (latestOfThisImport && latestOfThisImport < anchoredAcct.balanceAnchorDate) {
+          setTimeout(() => setStatementGapWarning({
+            accountName: anchoredAcct.name,
+            olderEnd: latestOfThisImport,
+            anchorStart: anchoredAcct.balanceAnchorDate,
+          }), 0)
+        }
+      }
 
       return recomputeAllBalances(updated, newTxs)
     })
@@ -10632,6 +10650,26 @@ export default function App() {
           onClose={() => setShowPremiumGate(false)}
           onSubscribe={async () => { const { startCheckout } = await import('./subscription.js'); await startCheckout() }}
         />
+      )}
+
+      {statementGapWarning && (
+        <Modal title="⚠️ Statement gap — balance may be off" onClose={() => setStatementGapWarning(null)} width={460}>
+          <div style={{ padding: '4px 2px' }}>
+            <div style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}44`, borderRadius: 10, padding: '12px 14px', marginBottom: 14, fontSize: 13, color: C.mutedL, lineHeight: 1.6 }}>
+              You imported an older statement for <strong>{statementGapWarning.accountName}</strong> that ends on
+              {' '}<strong>{fmtDate(statementGapWarning.olderEnd)}</strong>, but this account's balance is anchored to a
+              later statement starting <strong>{fmtDate(statementGapWarning.anchorStart)}</strong>.
+              <div style={{ marginTop: 8 }}>
+                There's a gap between them, so the older transactions were added as history but the
+                <strong> current balance still follows the most recent statement</strong> (which is more accurate).
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>
+              To get a fully continuous balance, upload the statement(s) covering the missing period between those dates.
+            </div>
+            <Btn variant="primary" style={{ width: '100%' }} onClick={() => setStatementGapWarning(null)}>Got it</Btn>
+          </div>
+        </Modal>
       )}
     </div>
   )

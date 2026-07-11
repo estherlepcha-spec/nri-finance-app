@@ -53,12 +53,19 @@ export const getClosingBalance = (accs, txs, accountId, month) => {
 // from the current balance is correct on both counts: with no transactions the
 // balance is unchanged; with transactions it builds from that baseline. The
 // seeded setupBalance is persisted so the account is migrated going forward.
+// balanceAnchorDate (optional): when set, the balance is setupBalance plus only
+// the transactions dated ON OR AFTER it — so an older statement uploaded after a
+// newer one adds history without pulling the current balance off the newer
+// statement's opening balance ("latest statement wins"). When absent (all
+// existing accounts), every transaction is summed exactly as before, so this is
+// backward-compatible and only affects accounts an import has explicitly anchored.
 export const recomputeAllBalances = (accs, txs) =>
   accs.map(acc => {
     const setupBalance = acc.setupBalance ?? (acc.balance ?? 0)
     const isCC = acc.type === 'Credit Card'
+    const anchor = acc.balanceAnchorDate
     const balance = txs
-      .filter(t => t.accountId === acc.id)
+      .filter(t => t.accountId === acc.id && (!anchor || (t.date || '') >= anchor))
       .reduce((bal, t) => bal + calcTxDelta(t, isCC), setupBalance)
     return { ...acc, setupBalance, balance }
   })
