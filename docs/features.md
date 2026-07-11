@@ -63,6 +63,31 @@ Rationale: because the account is authoritative (rule 1) and its opening balance
 can be set from the statement, a wrong-account/wrong-currency upload is the one
 case that could silently distort real balances — so it is the case we hard-stop.
 
+**4. Duplicate detection uses the bank reference, not the file name.**
+Applies to **every** account's uploads. Extraction captures each transaction's own
+unique bank identifier into a `ref` field (Internal Reference, Reference Number,
+Transaction Ref, UTR, RRN, Cheque No — copied exactly as printed). On import,
+`isDuplicate` (in `extractInTwoPasses`/`processFile`) checks in two stages:
+- **Strict:** if a transaction's `ref` matches the `ref` of an existing
+  transaction on the same account, it is a definite duplicate — regardless of
+  file name, description wording, or date formatting. This catches re-uploads of
+  the same statement saved under a different file name.
+- **Fuzzy fallback:** for rows with no `ref`, fall back to same date + amount
+  (±0.5% or ±5) + first-15-chars-of-description.
+`ref` is preserved through `sanitizeExtraction` and stored on the saved
+transaction so future imports can match against it. The separate file-name
+history check (`checkFileHistory`) is only an early hint; it is **not** the
+duplicate authority — the per-transaction `ref` is.
+
+**5. Opening balance: latest statement wins (out-of-order safe).**
+The most recent statement's opening balance anchors the account
+(`balanceAnchorDate`). Uploading an *older* statement afterwards adds its
+transactions as history but does not move the anchor backward, so a gap between
+non-contiguous statements can't silently corrupt the balance. `recomputeAllBalances`
+counts only transactions on/after `balanceAnchorDate` when it is set (absent on
+existing accounts → sums all, unchanged). A gap warning is shown when an older
+statement doesn't connect to the anchor.
+
 ## AI Features (Claude-powered)
 - Bank statement extraction
 - Investment portfolio extraction

@@ -7290,7 +7290,7 @@ const STATEMENT_EXTRACTION_PROMPT = `You are extracting transactions and account
 Extract ALL transactions and return ONLY a valid JSON object with NO markdown, NO backticks, NO explanation text before or after.
 
 Return exactly this structure:
-{"bankName":"name of the bank","accountNumber":"last 4 digits only or null","accountHolder":"account holder name or null","statementMonth":"YYYY-MM format","currency":"KWD or INR or USD","country":"Kuwait or India","openingBalance":null,"closingBalance":null,"creditLimit":null,"apr":null,"minPayment":null,"dueDay":null,"transactions":[{"date":"YYYY-MM-DD","description":"clean merchant name","originalDescription":"raw text","amount":0,"category":"Groceries","type":"income or expense or remittance","confidence":"high or medium or low"}]}
+{"bankName":"name of the bank","accountNumber":"last 4 digits only or null","accountHolder":"account holder name or null","statementMonth":"YYYY-MM format","currency":"KWD or INR or USD","country":"Kuwait or India","openingBalance":null,"closingBalance":null,"creditLimit":null,"apr":null,"minPayment":null,"dueDay":null,"transactions":[{"date":"YYYY-MM-DD","description":"clean merchant name","originalDescription":"raw text","amount":0,"category":"Groceries","type":"income or expense or remittance","confidence":"high or medium or low","ref":"bank reference or null"}]}
 
 Rules:
 - Negative amount = money going OUT (debit / expense)
@@ -7312,6 +7312,7 @@ Rules:
 - apr: annual interest/finance charge rate as a plain decimal percent (e.g. "APR 3.75%" → 3.75, "Finance charge rate: 2.99% per month" → 35.88 annualised); null if not found
 - minPayment: minimum payment due as a plain number; null if not found
 - dueDay: payment due day of month as an integer (e.g. "Due date: 15th of each month" → 15); null if not found
+- ref: each transaction's own unique bank identifier if the statement shows one — e.g. "Internal Reference", "Reference Number", "Transaction Ref", "UTR", "RRN", "Cheque No". Copy the value exactly as printed (keep any suffix like "2029-1"). If a row shows several, prefer the most specific per-transaction reference. null if the row has none. This is used to detect duplicate imports precisely, so do not invent or guess it.
 - Return ONLY the JSON object — do NOT include any text before { or after }`
 
 function BankStatementImport({ accounts, transactions, loans, setLoans, onImport, onClose, preAccountId,
@@ -7519,13 +7520,14 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
 
   const PASS1_PROMPT = `Extract ALL transactions from this bank statement.
 Return ONLY valid JSON, no markdown:
-{"bankName":"bank name","currency":"KWD or INR","statementMonth":"YYYY-MM","openingBalance":null,"closingBalance":null,"transactions":[{"date":"YYYY-MM-DD","description":"clean merchant name","amount":number,"type":"income or expense"}]}
+{"bankName":"bank name","currency":"KWD or INR","statementMonth":"YYYY-MM","openingBalance":null,"closingBalance":null,"transactions":[{"date":"YYYY-MM-DD","description":"clean merchant name","amount":number,"type":"income or expense","ref":"bank reference or null"}]}
 Rules:
 - negative=debit/expense, positive=credit/income
 - date in YYYY-MM-DD; if no year use 2026
 - amount must be a plain NUMBER — strip all commas and currency symbols (e.g. "KWD 1,250.500" → 1250.5); preserve decimal precision; do NOT round
 - Indian number formatting uses lakhs: "1,25,000" = 125000
 - If debit and credit are separate columns, debit = negative, credit = positive
+- ref: the transaction's own unique bank identifier if the statement shows one — e.g. "Internal Reference", "Reference Number", "Transaction Ref", "UTR", "RRN", "Cheque No". Use the value exactly as printed (digits/letters, keep any suffix like "2029-1"). If a row has several, prefer the most specific per-transaction reference. null if the row has none.
 - no text before { or after }`
 
   // Split a base64 PDF into chunks of at most PAGES_PER_CHUNK pages, returning an
@@ -7717,10 +7719,21 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         if (match) { resolvedAccountId = match.id; setAccountId(match.id) }
       }
 
-      // Robust duplicate detection: fuzzy match on date + amount (±0.5% or ±5) + partial description
+      // Duplicate detection — same rule for every account's uploads.
+      // 1) STRICT: if the transaction carries the bank's own reference number and
+      //    an existing transaction on this account has the same ref, it's a
+      //    definite duplicate — regardless of file name, description wording, or
+      //    date formatting. This catches re-uploads of the same statement saved
+      //    under a different file name.
+      // 2) FUZZY FALLBACK: for rows with no ref (or matching none), fall back to
+      //    date + amount (±0.5% or ±5) + first-15-chars-of-description.
       const normDesc = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      const normRef = s => (s == null ? '' : String(s)).toLowerCase().replace(/\s+/g, '').trim()
       const existingTxs = transactions.filter(t => t.accountId === resolvedAccountId)
+      const existingRefs = new Set(existingTxs.map(e => normRef(e.ref)).filter(Boolean))
       const isDuplicate = tx => {
+        const ref = normRef(tx.ref)
+        if (ref && existingRefs.has(ref)) return true // definite duplicate by bank reference
         const amt = Math.abs(tx.amount || 0)
         const tol = Math.max(5, amt * 0.005)
         const desc = normDesc(tx.description)
@@ -7869,6 +7882,9 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       amount: r.amount, category: r.category,
       type: r.type === 'income' ? 'income' : r.type === 'transfer' ? 'transfer' : 'expense',
       accountId: effectiveAccountId, currency, amountINR: 0,
+      // Persist the bank's own reference so a later re-upload of the same
+      // statement (even under a different file name) is detected as a duplicate.
+      ref: r.ref || null,
       notes: notesKey,
       isImported: true,
     }))
