@@ -41,14 +41,26 @@ export const getClosingBalance = (accs, txs, accountId, month) => {
 
 // Recompute every account's live balance from setupBalance + all transactions.
 // Call this after any transaction add/edit/delete.
+//
+// A missing setupBalance is seeded from the account's existing balance (its
+// manually-entered starting point), NOT skipped and NOT defaulted to 0.
+//
+// Previously `setupBalance === undefined` short-circuited and returned the
+// account untouched — so legacy accounts created before setupBalance existed
+// had their card balance FROZEN: transactions imported fine but the balance
+// never recomputed. Defaulting the seed to 0 instead would WIPE a legacy
+// account's manually-set balance (e.g. 500 with no transactions → 0). Seeding
+// from the current balance is correct on both counts: with no transactions the
+// balance is unchanged; with transactions it builds from that baseline. The
+// seeded setupBalance is persisted so the account is migrated going forward.
 export const recomputeAllBalances = (accs, txs) =>
   accs.map(acc => {
-    if (acc.setupBalance === undefined) return acc
+    const setupBalance = acc.setupBalance ?? (acc.balance ?? 0)
     const isCC = acc.type === 'Credit Card'
     const balance = txs
       .filter(t => t.accountId === acc.id)
-      .reduce((bal, t) => bal + calcTxDelta(t, isCC), acc.setupBalance)
-    return { ...acc, balance }
+      .reduce((bal, t) => bal + calcTxDelta(t, isCC), setupBalance)
+    return { ...acc, setupBalance, balance }
   })
 
 export const getAccountCountry = (currency) => {
