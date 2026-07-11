@@ -7797,15 +7797,21 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
   }, {})
 
   const doImport = () => {
-    // Resolve the best account ID: explicit selection → account-number match →
-    // bank-name match → currency-unique match.
+    // The account the user uploaded into is authoritative. `accountId` is the
+    // pre-selected account (from the account card's upload button) or the one the
+    // user picked in the dropdown. We only fall back to resolving from the file
+    // when NO account was chosen (e.g. the global upload button); we never let the
+    // file override a user-chosen account.
     const effectiveAccountId = accountId || resolveImportAccount(accounts, aiResult)?.id || ''
     // Never import transactions with no account — force the user to pick one.
     if (!effectiveAccountId) {
-      setError('Could not match this statement to an account. Please select the account above before importing.')
+      setError('Please select the account this statement belongs to before importing.')
       return
     }
-    const currency = aiResult?.currency || accounts.find(a => a.id === effectiveAccountId)?.currency || foreignCurrency
+    // Currency follows the chosen account, not the file — the account the user
+    // uploads into owns these transactions and its balance must reflect them.
+    const chosenAccount = accounts.find(a => a.id === effectiveAccountId)
+    const currency = chosenAccount?.currency || aiResult?.currency || foreignCurrency
     const notesKey = `Imported: ${aiResult?.bankName || 'bank'} ${aiResult?.statementMonth || ''}`.trim()
     const txs = selectedRows.map(r => ({
       id: r.id, date: r.date, description: r.description,
@@ -7844,7 +7850,10 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       ...(replaceMode ? { replaceNotes: notesKey, replaceAccountId: effectiveAccountId } : {}),
     }
     setImportSummary(summary)
-    onImport(txs, aiResult, account, summary)
+    // Pass the account actually used (chosenAccount), which reflects the user's
+    // uploaded-into / picked account — not `account`, which only tracks accountId
+    // and could be stale if the id came from the fallback resolver.
+    onImport(txs, aiResult, chosenAccount, summary)
 
     // Record this import so future uploads of the same statement are flagged
     const history = JSON.parse(localStorage.getItem('nri_importHistory') || '[]')
@@ -7937,9 +7946,12 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
   }
 
   if (step === 'preview') {
-    // Resolved account: explicit selection wins, else the smart resolver
-    // (account number → bank name → unique currency).
-    const matchedAcct = accounts.find(a => a.id === accountId) || account || resolveImportAccount(accounts, aiResult)
+    // The account the user uploaded into wins. If they pre-selected an account
+    // (uploaded from its card) or picked one in the dropdown, use it as-is and do
+    // NOT infer identity from the file. Only when no account was chosen (global
+    // upload button) do we fall back to resolving a suggestion from the file,
+    // which the user then confirms in the dropdown.
+    const matchedAcct = accounts.find(a => a.id === accountId) || resolveImportAccount(accounts, aiResult)
     const needsAccountPick = !matchedAcct
     return (
       <Modal title="Review Imported Transactions" onClose={onClose} width={900}>
