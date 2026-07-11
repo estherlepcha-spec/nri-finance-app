@@ -2092,6 +2092,7 @@ const CAT_COLORS = {
 
 function TransactionDeleteModal({ transactions, accounts, selectedForDelete, setSelectedForDelete, setShowDeleteModal, setTransactions, setAccounts }) {
   const [mode, setMode] = useState('select')
+  const [moveTarget, setMoveTarget] = useState('')
   const toggleSelect = id => setSelectedForDelete(prev => {
     const next = new Set(prev)
     next.has(id) ? next.delete(id) : next.add(id)
@@ -2099,6 +2100,24 @@ function TransactionDeleteModal({ transactions, accounts, selectedForDelete, set
   })
   const selectAll = () => setSelectedForDelete(new Set(transactions.map(t => t.id)))
   const clearAll = () => setSelectedForDelete(new Set())
+
+  // Move the selected transactions to another account. Their currency follows the
+  // target account (the account owns its transactions). Balances of both the old
+  // and new account are recomputed. Used to fix mis-assigned imports without
+  // deleting and re-uploading — e.g. two same-bank accounts ("Burgan Bank")
+  // whose statements are indistinguishable by name.
+  const doMove = (ids, targetId) => {
+    const target = accounts.find(a => a.id === targetId)
+    if (!target || ids.size === 0) return
+    const moved = transactions.map(t =>
+      ids.has(t.id) ? { ...t, accountId: targetId, currency: target.currency } : t
+    )
+    setTransactions(moved)
+    setAccounts(prev => recomputeAllBalances(prev, moved))
+    setSelectedForDelete(new Set())
+    setMoveTarget('')
+    setShowDeleteModal(false)
+  }
 
   const doDelete = ids => {
     const remaining = transactions.filter(t => !ids.has(t.id))
@@ -2112,7 +2131,7 @@ function TransactionDeleteModal({ transactions, accounts, selectedForDelete, set
   }
 
   return (
-    <Modal title="🗑️ Delete Transactions" onClose={() => setShowDeleteModal(false)} width={700}>
+    <Modal title="Manage Transactions — Move or Delete" onClose={() => setShowDeleteModal(false)} width={700}>
       <div style={{ display:'flex', gap:10, marginBottom:14 }}>
         <Btn variant={mode==='select'?'primary':'ghost'} size="sm" onClick={() => setMode('select')}>Select Manually</Btn>
         <Btn variant={mode==='confirm-all'?'danger':'ghost'} size="sm" onClick={() => setMode('confirm-all')}>Delete All</Btn>
@@ -2165,6 +2184,17 @@ function TransactionDeleteModal({ transactions, accounts, selectedForDelete, set
                 )
               })}
             </div>
+          </div>
+          {/* Move selected transactions to another account (fixes mis-assigned imports). */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, background:C.card2, borderRadius:8, padding:'8px 10px' }}>
+            <span style={{ fontSize:12, color:C.mutedL, fontWeight:600 }}>Move {selectedForDelete.size} to:</span>
+            <select value={moveTarget} onChange={e => setMoveTarget(e.target.value)}
+              style={{ ...inputStyle, fontSize:12, padding:'5px 8px', flex:1 }} disabled={selectedForDelete.size===0}>
+              <option value="">— choose account —</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+            </select>
+            <Btn variant="primary" size="sm" disabled={selectedForDelete.size===0 || !moveTarget}
+              onClick={() => doMove(selectedForDelete, moveTarget)}>Move</Btn>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <Btn variant="ghost" onClick={() => setShowDeleteModal(false)} style={{ flex:1 }}>Cancel</Btn>
