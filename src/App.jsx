@@ -7296,6 +7296,10 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
   const [error, setError] = useState('')
   const [uploadError, setUploadError] = useState(null)
   const [uploadWarning, setUploadWarning] = useState(null)
+  // Blocking currency-mismatch guard: set to { account, fileCurrency, accountCurrency }
+  // when the statement's detected currency contradicts the chosen account, so we
+  // stop the import and tell the user to upload to the correct account.
+  const [currencyMismatch, setCurrencyMismatch] = useState(null)
   const [uploadProgress, setUploadProgress] = useState('')
   const [aiResult, setAiResult] = useState(null)
   const [fileAlreadyImported, setFileAlreadyImported] = useState(null)
@@ -7811,7 +7815,23 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
     // Currency follows the chosen account, not the file — the account the user
     // uploads into owns these transactions and its balance must reflect them.
     const chosenAccount = accounts.find(a => a.id === effectiveAccountId)
-    const currency = chosenAccount?.currency || aiResult?.currency || foreignCurrency
+
+    // GUARD — currency mismatch. The account is authoritative for identity, but if
+    // the statement's own currency clearly contradicts the chosen account, the user
+    // almost certainly picked the wrong account. Importing anyway (and, worse,
+    // applying the file's opening balance) would distort the balance. So we STOP the
+    // import and ask them to upload to the correct account. We only trigger on a
+    // confident, real currency code from the file that differs from the account —
+    // an unknown/blank file currency is not treated as a mismatch.
+    const fileCur = (aiResult?.currency || '').toUpperCase().trim()
+    const acctCur = (chosenAccount?.currency || '').toUpperCase().trim()
+    const KNOWN_CURRENCIES = ['INR','KWD','AED','SAR','QAR','OMR','BHD','USD','GBP','EUR','PKR','BDT','LKR','PHP','NPR']
+    if (fileCur && acctCur && KNOWN_CURRENCIES.includes(fileCur) && fileCur !== acctCur) {
+      setCurrencyMismatch({ account: chosenAccount, fileCurrency: fileCur, accountCurrency: acctCur })
+      return // terminate — no transactions written, no balance touched
+    }
+
+    const currency = acctCur || fileCur || foreignCurrency
     const notesKey = `Imported: ${aiResult?.bankName || 'bank'} ${aiResult?.statementMonth || ''}`.trim()
     const txs = selectedRows.map(r => ({
       id: r.id, date: r.date, description: r.description,
@@ -7940,6 +7960,38 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
             View Imported Transactions →
           </Btn>
           <Btn onClick={onClose} variant="ghost" style={{ width:'100%' }}>Close</Btn>
+        </div>
+      </Modal>
+    )
+  }
+
+  // Blocking currency-mismatch guard — the statement's currency contradicts the
+  // chosen account, so the import was terminated (no data written). Ask the user
+  // to upload to the correct account. Shown over the preview step.
+  if (currencyMismatch) {
+    const { account: mmAcct, fileCurrency, accountCurrency } = currencyMismatch
+    const candidates = accounts.filter(a => (a.currency || '').toUpperCase() === fileCurrency)
+    return (
+      <Modal title="⚠️ Wrong account for this statement" onClose={() => setCurrencyMismatch(null)} width={480}>
+        <div style={{ padding:'6px 2px' }}>
+          <div style={{ background:C.red+'15', border:`1px solid ${C.red}44`, borderRadius:10, padding:'12px 14px', marginBottom:14, fontSize:13, color:C.redL, lineHeight:1.6 }}>
+            This statement is in <strong>{fileCurrency}</strong>, but you're importing it into
+            {' '}<strong>{mmAcct?.name || 'the selected account'}</strong>, which is in <strong>{accountCurrency}</strong>.
+            <div style={{ marginTop:8 }}>
+              Importing it here would record {fileCurrency} amounts as {accountCurrency} and distort this account's balance,
+              so the import was stopped. No transactions were added.
+            </div>
+          </div>
+          <div style={{ fontSize:13, color:C.text, fontWeight:600, marginBottom:6 }}>What to do</div>
+          <div style={{ fontSize:12, color:C.muted, lineHeight:1.7, marginBottom:14 }}>
+            {candidates.length > 0
+              ? <>Upload this statement to a {fileCurrency} account instead — you have: {candidates.map(a => a.name).join(', ')}.</>
+              : <>Add a {fileCurrency} account first, then upload this statement to it. If your account really is in {accountCurrency}, re-check the file — it may be the wrong statement.</>}
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <Btn variant="primary" style={{ flex:1 }} onClick={() => { setCurrencyMismatch(null); setStep('upload'); setFile(null); setAccountId('') }}>Choose a different account</Btn>
+            <Btn variant="ghost" onClick={() => setCurrencyMismatch(null)}>Back to review</Btn>
+          </div>
         </div>
       </Modal>
     )
