@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { anthropicMessages } from './services/anthropic.js'
-import * as XLSX from 'xlsx'
+// Maintained SheetJS republish — the npm 'xlsx' package is stuck at 0.18.5 with an
+// unpatched high-severity Prototype Pollution + ReDoS advisory (no fix on npm).
+// @e965/xlsx is a drop-in republish of current SheetJS (0.20.x) with those fixed.
+import * as XLSX from '@e965/xlsx'
 import { PDFDocument } from 'pdf-lib'
 import './App.css'
 import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit } from './utils/calculations.js'
