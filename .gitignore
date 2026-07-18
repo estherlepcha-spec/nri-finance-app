@@ -39,3 +39,4 @@ scripts/generate_user_manual.py
 voice-assistant.json
 tests/
 *.docx
+.mcp.json
