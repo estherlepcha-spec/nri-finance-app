@@ -2090,15 +2090,20 @@ const CAT_COLORS = {
   'ATM Withdrawal': '#94a3b8', Transfer: '#64748b', Other: '#64748b',
 }
 
-function TransactionDeleteModal({ transactions, accounts, selectedForDelete, setSelectedForDelete, setShowDeleteModal, setTransactions, setAccounts }) {
+function TransactionDeleteModal({ transactions, accounts, acctFilter, selectedForDelete, setSelectedForDelete, setShowDeleteModal, setTransactions, setAccounts }) {
   const [mode, setMode] = useState('select')
   const [moveTarget, setMoveTarget] = useState('')
+  // CRITICAL: scope the whole modal to the active account filter. Without this,
+  // "Select All" and the visible list covered EVERY account's transactions, so
+  // deleting while filtered to one account wiped all accounts' transactions.
+  const scopedTxs = acctFilter ? transactions.filter(t => t.accountId === acctFilter) : transactions
+  const filterAcctName = acctFilter ? (accounts.find(a => a.id === acctFilter)?.name || 'this account') : null
   const toggleSelect = id => setSelectedForDelete(prev => {
     const next = new Set(prev)
     next.has(id) ? next.delete(id) : next.add(id)
     return next
   })
-  const selectAll = () => setSelectedForDelete(new Set(transactions.map(t => t.id)))
+  const selectAll = () => setSelectedForDelete(new Set(scopedTxs.map(t => t.id)))
   const clearAll = () => setSelectedForDelete(new Set())
 
   // Move the selected transactions to another account. Their currency follows the
@@ -2139,25 +2144,34 @@ function TransactionDeleteModal({ transactions, accounts, selectedForDelete, set
 
       {mode === 'confirm-all' && (
         <div style={{ background:C.red+'12', border:`1px solid ${C.red}44`, borderRadius:10, padding:'16px', textAlign:'center' }}>
-          <div style={{ fontSize:15, fontWeight:700, color:C.red, marginBottom:8 }}>⚠️ Delete ALL {transactions.length} transactions?</div>
-          <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>This cannot be undone. All account balances will be reset to their setup balance.</div>
+          <div style={{ fontSize:15, fontWeight:700, color:C.red, marginBottom:8 }}>
+            ⚠️ Delete {filterAcctName ? `all ${scopedTxs.length} transactions in ${filterAcctName}` : `ALL ${transactions.length} transactions`}?
+          </div>
+          <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>
+            This cannot be undone. {filterAcctName ? `Only ${filterAcctName} is affected; other accounts are untouched.` : 'All account balances will be reset to their setup balance.'}
+          </div>
           <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
             <Btn variant="ghost" onClick={() => setMode('select')}>Cancel</Btn>
-            <Btn variant="danger" onClick={() => doDelete(new Set(transactions.map(t => t.id)))}>Yes, Delete All</Btn>
+            <Btn variant="danger" onClick={() => doDelete(new Set(scopedTxs.map(t => t.id)))}>Yes, Delete {filterAcctName ? filterAcctName : 'All'}</Btn>
           </div>
         </div>
       )}
 
       {mode === 'select' && (
         <>
+          {filterAcctName && (
+            <div style={{ fontSize:11, color:C.accent, marginBottom:8, background:C.accent+'12', border:`1px solid ${C.accent}33`, borderRadius:8, padding:'6px 10px' }}>
+              Showing <strong>{filterAcctName}</strong> only ({scopedTxs.length} transaction{scopedTxs.length!==1?'s':''}). Delete/move affects just this account.
+            </div>
+          )}
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
             <span style={{ fontSize:12, color:C.muted }}>{selectedForDelete.size} selected</span>
-            <button onClick={selectAll} style={{ background:'none', border:'none', color:C.accent, fontSize:12, cursor:'pointer', fontWeight:600 }}>Select All</button>
+            <button onClick={selectAll} style={{ background:'none', border:'none', color:C.accent, fontSize:12, cursor:'pointer', fontWeight:600 }}>Select All{filterAcctName?' (this account)':''}</button>
             <button onClick={clearAll} style={{ background:'none', border:'none', color:C.muted, fontSize:12, cursor:'pointer' }}>Clear</button>
             <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
               {[
-                { label:'This Month', fn: () => { const m=new Date().toISOString().slice(0,7); setSelectedForDelete(new Set(transactions.filter(t=>(t.date||'').startsWith(m)).map(t=>t.id))) } },
-                { label:'Duplicates', fn: () => { const normD=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); const seen=new Set(); const dups=new Set(); transactions.forEach(t=>{ const k=`${t.accountId}|${t.date}|${Math.abs(t.amount||0).toFixed(2)}|${normD(t.description).slice(0,15)}`; seen.has(k)?dups.add(t.id):seen.add(k) }); setSelectedForDelete(dups) } },
+                { label:'This Month', fn: () => { const m=new Date().toISOString().slice(0,7); setSelectedForDelete(new Set(scopedTxs.filter(t=>(t.date||'').startsWith(m)).map(t=>t.id))) } },
+                { label:'Duplicates', fn: () => { const normD=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,''); const seen=new Set(); const dups=new Set(); scopedTxs.forEach(t=>{ const k=`${t.accountId}|${t.date}|${Math.abs(t.amount||0).toFixed(2)}|${normD(t.description).slice(0,15)}`; seen.has(k)?dups.add(t.id):seen.add(k) }); setSelectedForDelete(dups) } },
               ].map(({label,fn}) => (
                 <button key={label} onClick={fn} style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:6, padding:'3px 10px', fontSize:11, color:C.mutedL, cursor:'pointer', fontWeight:600 }}>{label}</button>
               ))}
@@ -2168,7 +2182,7 @@ function TransactionDeleteModal({ transactions, accounts, selectedForDelete, set
               <div/><div>Date</div><div>Description</div><div>Account</div><div style={{textAlign:'right'}}>Amount</div>
             </div>
             <div style={{ maxHeight:360, overflowY:'auto' }}>
-              {transactions.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t => {
+              {scopedTxs.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(t => {
                 const acct = accounts.find(a=>a.id===t.accountId)
                 const checked = selectedForDelete.has(t.id)
                 return (
@@ -2948,7 +2962,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
         )
       })()}
 
-      {showDeleteModal && <TransactionDeleteModal transactions={transactions} accounts={accounts} selectedForDelete={selectedForDelete} setSelectedForDelete={setSelectedForDelete} setShowDeleteModal={setShowDeleteModal} setTransactions={setTransactions} setAccounts={setAccounts} />}
+      {showDeleteModal && <TransactionDeleteModal transactions={transactions} accounts={accounts} acctFilter={acctFilter} selectedForDelete={selectedForDelete} setSelectedForDelete={setSelectedForDelete} setShowDeleteModal={setShowDeleteModal} setTransactions={setTransactions} setAccounts={setAccounts} />}
 
       {/* Smart Assign Account — link transactions that have no account set */}
       {showAssign && (() => {
