@@ -7768,6 +7768,10 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         const amt = Math.abs(tx.amount || 0)
         let cat = applyRules(tx.description, normImportCat(tx.category))
         let type = tx.type
+        // Direction for transfers: +1 = money IN (adds to balance), -1 = money OUT.
+        // Seed from the transaction's original type — an income credit demoted to
+        // transfer is still an INFLOW and must keep adding, or the balance breaks.
+        let transferDir = tx.type === 'income' ? 1 : -1
         let isExchangeTransfer = false
         let isPersonUPIFlag = false
         let matchedLoanId = null
@@ -7775,9 +7779,9 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 
         // Apply system rules (always override AI and user rules)
         // Priority: CC Interest > Loan EMI > CC Payment > Exchange Company > Person UPI
-        // Also demote internal bank credits from income → transfer
+        // Also demote internal bank credits from income → transfer (keep inflow dir)
         if (type === 'income' && isInternalBankCredit(tx.description)) {
-          cat = 'Transfer'; type = 'transfer'
+          cat = 'Transfer'; type = 'transfer'; transferDir = 1
         }
         if (type !== 'income') {
           if (isCCInterest(tx.description)) {
@@ -7815,7 +7819,7 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
         }
 
         const isDup = isDuplicate({ ...tx, amount: amt })
-        return { ...tx, id: uid(), amount: amt, category: cat, type, selected: !isDup, isDuplicate: isDup, isExchangeTransfer, isPersonUPI: isPersonUPIFlag, isEMI: isEMIFlag, matchedLoanId, idx: i }
+        return { ...tx, id: uid(), amount: amt, category: cat, type, transferDir, selected: !isDup, isDuplicate: isDup, isExchangeTransfer, isPersonUPI: isPersonUPIFlag, isEMI: isEMIFlag, matchedLoanId, idx: i }
       })
       setRows(enriched)
       // Auto-skip duplicates — user can still uncheck individually in the review screen
@@ -7896,6 +7900,9 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       amount: r.amount, category: r.category,
       type: r.type === 'income' ? 'income' : r.type === 'transfer' ? 'transfer' : 'expense',
       accountId: effectiveAccountId, currency, amountINR: 0,
+      // Direction for transfers (+1 in / -1 out) so incoming transfers add and
+      // outgoing subtract; the balance engine reads this for type==='transfer'.
+      transferDir: r.type === 'transfer' ? (r.transferDir === 1 ? 1 : -1) : undefined,
       // Persist the bank's own reference so a later re-upload of the same
       // statement (even under a different file name) is detected as a duplicate.
       ref: r.ref || null,

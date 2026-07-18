@@ -6,8 +6,18 @@
 export const calcTxDelta = (t, isCC) => {
   const amt = Math.abs(t.amount || 0)
   // CC: income (payment) decreases balance, expense (purchase) increases balance
-  // Regular: income increases balance, expense decreases balance
-  return isCC ? (t.type === 'income' ? -amt : amt) : (t.type === 'income' ? amt : -amt)
+  if (isCC) return t.type === 'income' ? -amt : amt
+  // Regular account:
+  //  - income increases balance
+  //  - a TRANSFER has a direction: money can move IN or OUT. transferDir === 1
+  //    means inflow (adds), -1 means outflow (subtracts). This matters because an
+  //    incoming credit (e.g. "Transfer from …", "WAMD Payment From …") is demoted
+  //    from income to transfer for reporting, but it still ADDED money — treating
+  //    every transfer as an outflow flipped such credits negative and corrupted
+  //    the balance. Unmarked transfers default to outflow (-1) as before.
+  if (t.type === 'transfer') return (t.transferDir === 1 ? amt : -amt)
+  //  - everything else (expense) decreases balance
+  return t.type === 'income' ? amt : -amt
 }
 
 export const getAccountBalanceAtDate = (accs, txs, accountId, date) => {
