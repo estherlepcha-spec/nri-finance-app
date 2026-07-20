@@ -1878,22 +1878,34 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
           </div>
         </div>
 
-        {isCard && a.creditLimit > 0 && (
+        {isCard && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-            <div style={{ marginBottom: 8 }}>
-              <ProgressBar value={a.balance || 0} max={a.creditLimit} color={utilPct > 80 ? C.red : utilPct > 50 ? C.yellow : C.green} />
-              <div style={{ fontSize: 10, color: C.muted, marginTop: 4, textAlign: 'right' }}>{utilPct.toFixed(0)}% utilised</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'var(--rg-2, 1fr 1fr)', gap: 7 }}>
-              <div style={{ background: C.card2, borderRadius: 8, padding: 9 }}>
-                <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Limit</div>
-                <div className="num" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmt(a.creditLimit, a.currency)}</div>
+            {a.creditLimit > 0 && (
+              <div style={{ marginBottom: 8 }}>
+                <ProgressBar value={a.balance || 0} max={a.creditLimit} color={utilPct > 80 ? C.red : utilPct > 50 ? C.yellow : C.green} />
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 4, textAlign: 'right' }}>{utilPct.toFixed(0)}% utilised</div>
               </div>
+            )}
+            {/* Outstanding (owed) · Available (limit − owed) · Limit — the three
+                numbers a credit-card statement shows. Outstanding is always shown;
+                Available/Limit need a credit limit to be meaningful. */}
+            <div style={{ display: 'grid', gridTemplateColumns: a.creditLimit > 0 ? '1fr 1fr 1fr' : '1fr', gap: 7 }}>
               <div style={{ background: C.card2, borderRadius: 8, padding: 9 }}>
-                <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Available</div>
-                <div className="num" style={{ fontSize: 13, fontWeight: 700, color: available >= 0 ? C.green : C.red }}>{fmt(available, a.currency)}</div>
+                <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Outstanding</div>
+                <div className="num" style={{ fontSize: 13, fontWeight: 700, color: C.red }}>{fmt(a.balance || 0, a.currency)}</div>
               </div>
+              {a.creditLimit > 0 && <>
+                <div style={{ background: C.card2, borderRadius: 8, padding: 9 }}>
+                  <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Available</div>
+                  <div className="num" style={{ fontSize: 13, fontWeight: 700, color: available >= 0 ? C.green : C.red }}>{fmt(available, a.currency)}</div>
+                </div>
+                <div style={{ background: C.card2, borderRadius: 8, padding: 9 }}>
+                  <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Limit</div>
+                  <div className="num" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmt(a.creditLimit, a.currency)}</div>
+                </div>
+              </>}
             </div>
+            {a.creditLimit === 0 && <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>Set a credit limit (✏️ edit) to see available credit and utilisation.</div>}
             {a.dueDay > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>📅 Due: day {a.dueDay} · Min: <span className="num">{fmt(a.minPayment, a.currency)}</span> · APR: {a.apr}%</div>}
           </div>
         )}
