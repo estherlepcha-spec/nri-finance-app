@@ -1985,10 +1985,17 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
       {reconcileAcct && (() => {
         const diff = parseFloat(reconcileInput) - (reconcileAcct.balance || 0)
         const hasDiff = reconcileInput !== '' && !isNaN(diff) && Math.abs(diff) > 0.005
+        const isCCard = reconcileAcct.type === 'Credit Card'
         const addAdjustment = () => {
+          // Pick the adjustment type so the balance moves TOWARD the entered value.
+          // On a credit card the balance is debt and is inverted by calcTxDelta
+          // (income reduces debt, expense increases it), so the type must flip
+          // relative to a normal account or the adjustment would move the wrong way.
+          const increasesBalanceType = isCCard ? 'expense' : 'income'
+          const decreasesBalanceType = isCCard ? 'income' : 'expense'
           const adj = {
             id: uid(), date: today(), description: 'Balance adjustment (reconciliation)',
-            category: 'Other', type: diff > 0 ? 'income' : 'expense', amount: Math.abs(diff),
+            category: 'Other', type: diff > 0 ? increasesBalanceType : decreasesBalanceType, amount: Math.abs(diff),
             currency: reconcileAcct.currency, accountId: reconcileAcct.id,
             amountINR: 0
           }
