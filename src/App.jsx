@@ -62,18 +62,23 @@ const getAccountCountry = (currency) => {
 }
 
 const CURRENCY_SYMBOLS = { KWD: 'KD', BHD: 'BD', OMR: 'OMR', QAR: 'QR', SAR: 'SR', AED: 'AED', USD: '$', EUR: '€', GBP: '£', INR: '₹', PHP: '₱', NPR: 'रू', PKR: '₨', BDT: '৳', LKR: 'Rs' }
+// Decimal places per currency: KWD/BHD/OMR are 3-decimal currencies (fils), so
+// e.g. an outstanding of 144.820 must not render as "145". INR is shown as whole
+// rupees by design; everything else uses 2 decimals.
+const CURRENCY_DECIMALS = { KWD: 3, BHD: 3, OMR: 3, INR: 0 }
+const decimalsFor = cur => (cur in CURRENCY_DECIMALS ? CURRENCY_DECIMALS[cur] : 2)
 const fmt = (n, cur = 'INR') => {
   try {
+    const dp = decimalsFor(cur)
     const sym = CURRENCY_SYMBOLS[cur]
     if (sym) {
       const abs = Math.abs(n || 0)
-      const numStr = cur === 'INR'
-        ? new Intl.NumberFormat('en-IN',  { maximumFractionDigits: 0 }).format(abs)
-        : new Intl.NumberFormat('en-US',  { maximumFractionDigits: 0 }).format(abs)
+      const locale = cur === 'INR' ? 'en-IN' : 'en-US'
+      const numStr = new Intl.NumberFormat(locale, { minimumFractionDigits: dp, maximumFractionDigits: dp }).format(abs)
       return `${sym} ${numStr}`
     }
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n || 0)
-  } catch { return `${cur} ${(n || 0).toFixed(0)}` }
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: dp, maximumFractionDigits: dp }).format(n || 0)
+  } catch { return `${cur} ${(n || 0).toFixed(decimalsFor(cur))}` }
 }
 const fmtConv = (n, cur = 'INR') => {
   try {
