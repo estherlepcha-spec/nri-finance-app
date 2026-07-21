@@ -1647,8 +1647,11 @@ function AuditModal({ auditAcct, setAuditAcct, transactions, remittances, homeCu
   // This zeroes that anchor, then recomputes from remaining transactions.
   const resetOpeningBalance = () => {
     if (!confirm(`Reset the opening balance of "${a.name}" to 0?\n\nThe balance will become the sum of its transactions only (0 if there are none). This can't be undone.`)) return
+    // Clear the statement anchor too. If balanceAnchorDate stayed set, recompute
+    // would count only transactions on/after it — so the reset balance would NOT
+    // be the sum of ALL transactions as the confirmation promises.
     setAccounts(prev => recomputeAllBalances(
-      prev.map(x => x.id === a.id ? { ...x, setupBalance: 0, setupDate: today() } : x),
+      prev.map(x => x.id === a.id ? { ...x, setupBalance: 0, setupDate: today(), balanceAnchorDate: undefined } : x),
       transactions
     ))
     setAuditAcct(null)
