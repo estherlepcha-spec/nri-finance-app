@@ -25,8 +25,14 @@ export const getAccountBalanceAtDate = (accs, txs, accountId, date) => {
   if (!acc) return 0
   const setupBal = acc.setupBalance ?? 0
   const isCC = acc.type === 'Credit Card'
+  // Honor balanceAnchorDate exactly like recomputeAllBalances does — count only
+  // transactions on/after the anchor. Without this, the monthly Opening/Closing
+  // figures summed ALL transactions while the account's live "Current Balance"
+  // (a.balance) counted only anchored ones, so the two disagreed (e.g. closing
+  // shown far higher than the current balance).
+  const anchor = acc.balanceAnchorDate
   return txs
-    .filter(t => t.accountId === accountId && t.date && t.date <= date)
+    .filter(t => t.accountId === accountId && t.date && t.date <= date && (!anchor || t.date >= anchor))
     .reduce((bal, t) => bal + calcTxDelta(t, isCC), setupBal)
 }
 
