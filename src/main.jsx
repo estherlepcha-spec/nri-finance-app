@@ -2,6 +2,11 @@ import { StrictMode, Component } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import LandingPage from './components/LandingPage.jsx'
+
+// Temporary preview route: open the app with ?landing=1 to view the
+// marketing LandingPage in isolation, without touching the real app.
+const showLandingPreview = new URLSearchParams(window.location.search).has('landing')
 
 class ErrorBoundary extends Component {
   state = { error: null, info: null }
@@ -45,7 +50,7 @@ class ErrorBoundary extends Component {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      {showLandingPreview ? <LandingPage /> : <App />}
     </ErrorBoundary>
   </StrictMode>,
 )
