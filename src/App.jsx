@@ -12,6 +12,7 @@ import { getProPriceDisplay } from './pricing.js'
 // ─── Extracted modules ────────────────────────────────────────────────────────
 import SetupWizardComponent from './components/SetupWizard/index.jsx'
 import FamilyComponent from './components/Family/index.jsx'
+import OnboardingTour, { resetOnboarding } from './OnboardingTour.jsx'
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 const load = (key, fallback) => {
@@ -8609,6 +8610,11 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
         )}
       </Card>
 
+      <Card title="Help" style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Replay the guided walkthrough of the app's key features.</p>
+        <Btn variant="ghost" onClick={() => { resetOnboarding(); window.location.reload() }}>🧭 Replay Onboarding Tour</Btn>
+      </Card>
+
       <Card title="Danger Zone">
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Permanently delete all financial data and reset the app. This cannot be undone.</p>
         <Btn variant="danger" onClick={() => setShowClearModal(true)}>🗑️ Clear All Data</Btn>
@@ -10310,6 +10316,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, overflow: 'hidden' }}>
+      <OnboardingTour />
 
       {/* ── Sidebar: hidden on mobile, icon-only on tablet, full on desktop ── */}
       <aside className="sidebar" style={{ width: 232, background: C.card, borderRight: `1px solid ${C.border}` }}>
@@ -10338,7 +10345,7 @@ export default function App() {
 
         {/* Live Rates Ticker — collapsible so the navigation stays visible */}
         <div className="sidebar-rates" style={{ borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-          <button onClick={() => setShowRates(v => !v)} title="Toggle live exchange rates"
+          <button data-tour="currency-toggle" onClick={() => setShowRates(v => !v)} title="Toggle live exchange rates"
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 14px', color: C.muted }}>
             <span className="sidebar-text" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>💱 Live Rates</span>
             <span style={{ fontSize: 10 }}>{showRates ? '▴' : '▾'}</span>
@@ -10377,8 +10384,9 @@ export default function App() {
                 const t = tabs.find(x => x.id === tid)
                 if (!t) return null
                 const isActive = activeTab === tid
+                const tourId = tid === 'accounts' ? 'add-account' : tid === 'remittances' ? 'transfer-tracker' : tid === 'tax' ? 'tax-section' : undefined
                 return (
-                  <button key={tid} className={isActive ? '' : 'nav-btn'} onClick={() => setActiveTab(tid)} style={{
+                  <button key={tid} data-tour={tourId} className={isActive ? '' : 'nav-btn'} onClick={() => setActiveTab(tid)} style={{
                     display: 'flex', alignItems: 'center', width: '100%', padding: '8px 18px',
                     background: isActive ? `${C.accent}1c` : 'none', border: 'none',
                     borderLeft: `3px solid ${isActive ? C.accent : 'transparent'}`,
@@ -10420,7 +10428,7 @@ export default function App() {
         </div>
 
         {/* Bottom Net Worth + Sync status */}
-        <div style={{ padding: '14px 18px', borderTop: `1px solid ${C.border}`, background: C.card2, flexShrink: 0 }}>
+        <div data-tour="dashboard-summary" style={{ padding: '14px 18px', borderTop: `1px solid ${C.border}`, background: C.card2, flexShrink: 0 }}>
           {syncStatus !== 'unavailable' && syncStatus !== 'checking' && (
             <div className="sidebar-text" style={{ display:'flex', alignItems:'center', gap:5, marginBottom:8 }}>
               <span style={{ width:7, height:7, borderRadius:'50%', flexShrink:0,

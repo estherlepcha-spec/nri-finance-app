@@ -13,6 +13,7 @@
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
     "@supabase/supabase-js": "^2.107.0",
+    "driver.js": "^1.8.0",
     "pdf-lib": "^1.17.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
