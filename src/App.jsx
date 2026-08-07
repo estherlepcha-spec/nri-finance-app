@@ -9181,6 +9181,78 @@ function AuthScreen() {
 // ─── Paywall / subscription screen ────────────────────────────────────────────
 // Shown when a signed-in user has no active subscription/trial. Starts Stripe
 // Checkout (14-day free trial, card required).
+// Second-factor gate for NEW accounts: require the user to confirm control of
+// their email via a 6-digit code before the app unlocks. Sits in front of the
+// setup wizard. Once verified we stamp nri_verifiedAt (local + cloud) so it is
+// a one-time step per account.
+function VerifyEmailGate({ email, onVerified, onSignOut }) {
+  const [code, setCode] = useState('')
+  const [sending, setSending] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const send = async () => {
+    setSending(true); setError(''); setNotice('')
+    try {
+      const { sendEmailVerificationCode } = await import('./auth.js')
+      await sendEmailVerificationCode(email)
+      setSent(true)
+      setNotice(`We emailed a 6-digit code to ${email}.`)
+    } catch (e) { setError(e.message || 'Could not send the code. Try again.') }
+    setSending(false)
+  }
+
+  const verify = async (e) => {
+    e?.preventDefault()
+    if (!/^\d{6}$/.test(code.trim())) { setError('Enter the 6-digit code from your email.'); return }
+    setVerifying(true); setError('')
+    try {
+      const { verifyEmailCode } = await import('./auth.js')
+      await verifyEmailCode(email, code.trim())
+      onVerified()
+    } catch (err) {
+      setError(/token|invalid|expired/i.test(err.message || '') ? 'That code is invalid or expired. Request a new one.' : (err.message || 'Verification failed.'))
+      setVerifying(false)
+    }
+  }
+
+  // Auto-send the first code when the gate mounts.
+  useEffect(() => { send() /* eslint-disable-next-line */ }, [])
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 420, background: C.card, border: `1px solid ${C.borderL}`, borderRadius: 20, padding: 32, boxShadow: '0 24px 64px rgba(0,0,0,0.4)', textAlign: 'center' }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>📧</div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 6, letterSpacing: '-0.03em' }}>Verify your email</h2>
+        <p style={{ color: C.muted, fontSize: 13, marginBottom: 22, lineHeight: 1.6 }}>
+          One quick step to secure your account. Enter the 6-digit code we sent to <strong style={{ color: C.text }}>{email}</strong>.
+        </p>
+        <form onSubmit={verify}>
+          <input
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric" placeholder="______" maxLength={6}
+            style={{ ...inputStyle, textAlign: 'center', fontSize: 26, letterSpacing: '0.4em', fontWeight: 700, marginBottom: 14 }}
+          />
+          {error && <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{error}</div>}
+          {notice && !error && <div style={{ color: C.green, fontSize: 12, marginBottom: 10 }}>{notice}</div>}
+          <Btn onClick={verify} disabled={verifying || code.length !== 6} style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}>
+            {verifying ? 'Verifying…' : 'Verify & continue'}
+          </Btn>
+        </form>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 16, fontSize: 12 }}>
+          <button onClick={send} disabled={sending} style={{ background: 'none', border: 'none', color: C.accentL, cursor: 'pointer', fontWeight: 600 }}>
+            {sending ? 'Sending…' : (sent ? 'Resend code' : 'Send code')}
+          </button>
+          <button onClick={onSignOut} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}>Sign out</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PaywallScreen({ sub, onSignOut }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -9511,6 +9583,12 @@ export default function App() {
   // build, letting a brand-new user skip currency setup. Currencies can't gate this
   // either — they default to INR/KWD, so "has currencies" is always true.
   const [setupComplete, setSetupComplete] = useState(() => !!load('nri_onboardedAt', null))
+
+  // New-account email verification (second factor). A NEW account must confirm
+  // its email via a 6-digit code before the app unlocks. Tracked by an explicit
+  // nri_verifiedAt marker (local + cloud). Existing/onboarded accounts are
+  // grandfathered in the applyData migration below so they aren't challenged.
+  const [emailVerified, setEmailVerified] = useState(() => !!load('nri_verifiedAt', null))
   const [homeCurrency, setHomeCurrency] = useState(() => load('nri_homeCurrency', DEFAULT_HOME_CURRENCY))
   const [foreignCurrency, setForeignCurrency] = useState(() => load('nri_foreignCurrency', DEFAULT_FOREIGN_CURRENCY))
   const [primaryCurrency, setPrimaryCurrency] = useState(() => load('nri_primaryCurrency', DEFAULT_PRIMARY_CURRENCY))
@@ -9829,9 +9907,10 @@ export default function App() {
         // Onboarding completion is driven by the explicit nri_onboardedAt marker
         // (written only by the wizard), NOT by the bare nri_setupComplete boolean
         // — which could leak in from a stale cache seed and wrongly skip setup.
+        const alreadyOnboarded = remoteData.nri_setupComplete === true && remoteData.nri_homeCurrency && (remoteData.nri_accounts?.length)
         if ('nri_onboardedAt' in remoteData) {
           setSetupComplete(!!remoteData.nri_onboardedAt)
-        } else if (remoteData.nri_setupComplete === true && remoteData.nri_homeCurrency && (remoteData.nri_accounts?.length)) {
+        } else if (alreadyOnboarded) {
           // Migration for accounts that completed the OLD wizard before the marker
           // existed: they have setupComplete=true + currencies + real accounts, so
           // they are genuinely onboarded. Backfill the marker so they aren't sent
@@ -9840,6 +9919,18 @@ export default function App() {
           const ts = new Date().toISOString()
           try { localStorage.setItem('nri_onboardedAt', JSON.stringify(ts)) } catch { /* ignore */ }
           persist('nri_onboardedAt', ts)
+        }
+
+        // Email verification: honor the explicit marker. Grandfather existing
+        // accounts that were already onboarded before this gate existed, so we
+        // don't suddenly challenge established users.
+        if ('nri_verifiedAt' in remoteData) {
+          setEmailVerified(!!remoteData.nri_verifiedAt)
+        } else if (alreadyOnboarded) {
+          setEmailVerified(true)
+          const ts = new Date().toISOString()
+          try { localStorage.setItem('nri_verifiedAt', JSON.stringify(ts)) } catch { /* ignore */ }
+          persist('nri_verifiedAt', ts)
         }
         if ('nri_homeCurrency'   in remoteData) setHomeCurrency(remoteData.nri_homeCurrency)
         if ('nri_foreignCurrency' in remoteData) setForeignCurrency(remoteData.nri_foreignCurrency)
@@ -10169,6 +10260,23 @@ export default function App() {
   }
   if (session === null) {
     return <AuthScreen />
+  }
+
+  // Email-verification gate: a NEW account must confirm its email (6-digit code)
+  // before anything else — sits in front of the setup wizard by design.
+  if (!emailVerified) {
+    return (
+      <VerifyEmailGate
+        email={user?.email}
+        onVerified={() => {
+          const ts = new Date().toISOString()
+          try { localStorage.setItem('nri_verifiedAt', JSON.stringify(ts)) } catch { /* ignore */ }
+          persist('nri_verifiedAt', ts)
+          setEmailVerified(true)
+        }}
+        onSignOut={() => import('./auth.js').then(({ signOut }) => signOut().catch(() => {}))}
+      />
+    )
   }
 
   // Setup wizard: runs first, right after auth, so new users onboard (choose

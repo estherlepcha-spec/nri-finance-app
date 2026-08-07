@@ -65,6 +65,27 @@ export async function resendVerification(email) {
   if (error) throw error
 }
 
+// ── New-account email verification (second factor for Google sign-ups) ────────
+// Google OAuth users arrive already email-verified by Google, so there is no
+// native confirmation to re-trigger. To add a deliberate confirm-your-email
+// step for a NEW account, we send a 6-digit email OTP the user types back in.
+// No redirect (works the same in dev and prod without extra URL whitelisting).
+
+// Email a fresh 6-digit code to the signed-in user's address.
+export async function sendEmailVerificationCode(email) {
+  // shouldCreateUser:false — the account already exists (they're signed in via
+  // Google); we only want to send a code to prove inbox control.
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })
+  if (error) throw error
+}
+
+// Verify the code the user entered. Returns true on success.
+export async function verifyEmailCode(email, token) {
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+  if (error) throw error
+  return true
+}
+
 // Sign out of this device only.
 export async function signOut() {
   const { error } = await supabase.auth.signOut()

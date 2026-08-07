@@ -65,13 +65,16 @@ export const test = base.extend({
       // nri_setupComplete boolean), so set both.
       window.localStorage.setItem('nri_setupComplete', 'true')
       window.localStorage.setItem('nri_onboardedAt', JSON.stringify(new Date().toISOString()))
+      // Past the email-verification gate too.
+      window.localStorage.setItem('nri_verifiedAt', JSON.stringify(new Date().toISOString()))
     }, [storageKey, session])
 
     await use(page)
   },
 
-  // Like authedPage but WITHOUT nri_setupComplete — simulates a brand-new user
-  // who should land on the onboarding wizard (currency setup) with no accounts.
+  // Like authedPage but WITHOUT the onboarding marker — simulates a user who has
+  // PASSED email verification but not yet done the currency wizard, so they land
+  // on the onboarding wizard (currency setup) with no accounts.
   freshAuthedPage: async ({ page }, use) => {
     test.skip(!projectRef, 'VITE_SUPABASE_URL missing from .env — cannot compute Supabase storage key')
     const storageKey = `sb-${projectRef}-auth-token`
@@ -79,9 +82,24 @@ export const test = base.extend({
 
     await page.addInitScript(([key, sess]) => {
       window.localStorage.setItem(key, JSON.stringify(sess))
-      // NOTE: intentionally NOT setting nri_setupComplete — new user.
+      // Already verified (so we test the wizard, not the verify gate)…
+      window.localStorage.setItem('nri_verifiedAt', JSON.stringify(new Date().toISOString()))
+      // …but intentionally NOT onboarded — new user for the wizard.
     }, [storageKey, session])
 
+    await use(page)
+  },
+
+  // A truly brand-new account: authenticated, but past NEITHER gate. Should land
+  // on the email-verification gate first.
+  unverifiedAuthedPage: async ({ page }, use) => {
+    test.skip(!projectRef, 'VITE_SUPABASE_URL missing from .env — cannot compute Supabase storage key')
+    const storageKey = `sb-${projectRef}-auth-token`
+    const session = fakeSession()
+    await page.addInitScript(([key, sess]) => {
+      window.localStorage.setItem(key, JSON.stringify(sess))
+      // No nri_verifiedAt, no nri_onboardedAt.
+    }, [storageKey, session])
     await use(page)
   },
 })

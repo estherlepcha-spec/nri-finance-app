@@ -25,6 +25,17 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 - [ ] Sign back in as **User A** → A's accounts and balances are **fully intact**
 - [ ] Repeat A→B switch **without** closing the tab (in-page switch also isolates)
 
+## 0b. New-account email verification (second factor)
+> Automated coverage: e2e/verify-email.spec.js. Needs Supabase email OTP enabled + the
+> sender/template configured (dashboard) for the live email to actually arrive.
+- [ ] A brand-new account (incl. Google sign-in) hits **"Verify your email"** BEFORE the wizard
+- [ ] A 6-digit code is emailed to the account's address (auto-sent on the screen)
+- [ ] "Verify & continue" is disabled until 6 digits are entered
+- [ ] Wrong/expired code shows a clear error; "Resend code" sends a fresh one
+- [ ] Correct code unlocks → proceeds to the currency wizard
+- [ ] After verifying once, signing out and back in does **not** re-challenge (marker persists)
+- [ ] Existing/onboarded accounts are **grandfathered** (not suddenly challenged)
+
 ## 1. Setup Wizard (first run) — 4-step onboarding
 > Automated coverage: e2e/onboarding.spec.js (new user -> wizard, no sample accounts, presets).
 - [ ] A brand-new account lands on the wizard's **currency step first** (not the dashboard)
