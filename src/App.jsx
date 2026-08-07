@@ -10507,9 +10507,12 @@ export default function App() {
                 const t = tabs.find(x => x.id === tid)
                 if (!t) return null
                 const isActive = activeTab === tid
-                const tourId = tid === 'accounts' ? 'add-account' : tid === 'remittances' ? 'transfer-tracker' : tid === 'tax' ? 'tax-section' : undefined
+                // Every nav item carries a stable data-tour anchor (nav-<id>) so the
+                // onboarding tour can highlight any feature. Legacy aliases kept for
+                // the original step ids.
+                const legacyAlias = tid === 'accounts' ? 'add-account' : tid === 'remittances' ? 'transfer-tracker' : tid === 'tax' ? 'tax-section' : null
                 return (
-                  <button key={tid} data-tour={tourId} className={isActive ? '' : 'nav-btn'} onClick={() => setActiveTab(tid)} style={{
+                  <button key={tid} data-tour={`nav-${tid}`} data-tour-alias={legacyAlias || undefined} className={isActive ? '' : 'nav-btn'} onClick={() => setActiveTab(tid)} style={{
                     display: 'flex', alignItems: 'center', width: '100%', padding: '8px 18px',
                     background: isActive ? `${C.accent}1c` : 'none', border: 'none',
                     borderLeft: `3px solid ${isActive ? C.accent : 'transparent'}`,

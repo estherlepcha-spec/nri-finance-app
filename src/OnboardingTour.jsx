@@ -25,50 +25,97 @@ import "driver.js/dist/driver.css";
 
 const STORAGE_KEY = "onboarding_tour_completed_v1";
 
+// Guided walkthrough of the app's key features for a first-time user. Each step
+// highlights a real element (see the data-tour anchors in App.jsx). Steps whose
+// element is missing are skipped automatically, so the tour is resilient.
 const steps = [
+  {
+    // No element → a centered welcome dialog.
+    popover: {
+      title: "Welcome! 👋 Let's take a quick tour",
+      description:
+        "A 60-second walkthrough of the main features. You can skip anytime, and replay it later from Settings → Replay Onboarding Tour.",
+    },
+  },
+  {
+    element: '[data-tour="nav-accounts"]',
+    popover: {
+      title: "1. Add your accounts 🏦",
+      description:
+        "Start here. Add your bank accounts (NRE/NRO, foreign salary, savings) and credit cards to track balances across currencies.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-transactions"]',
+    popover: {
+      title: "2. Import transactions ↕",
+      description:
+        "Upload a bank statement (PDF, Excel, CSV, or a photo) and the AI extracts and categorises every transaction for you. Or add them manually.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-remittances"]',
+    popover: {
+      title: "3. Track money sent home ✈️",
+      description:
+        "Log remittances with the exchange rate you got, and see how efficient your transfers are over time.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-bills"]',
+    popover: {
+      title: "4. Never miss a bill 📋",
+      description:
+        "Add recurring bills and due dates so upcoming payments always show on your dashboard.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-goals"]',
+    popover: {
+      title: "5. Set savings goals 🎯",
+      description:
+        "Create goals (emergency fund, home down payment, education) and track progress as you contribute.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-budget"]',
+    popover: {
+      title: "6. Plan your budget 📊",
+      description:
+        "Set monthly limits per category for both your working and home countries, and see actual vs planned.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-tax"]',
+    popover: {
+      title: "7. Estimate your tax 🧾",
+      description:
+        "A worldwide tax estimator covering 13 countries — handy for NRIs and expats planning across borders.",
+      side: "right",
+    },
+  },
+  {
+    element: '[data-tour="nav-advisor"]',
+    popover: {
+      title: "8. Meet Estelle, your AI advisor 💅",
+      description:
+        "Ask Estelle anything about your finances — 'Can I afford this?', 'How am I doing this month?' — she uses your real data to answer.",
+      side: "right",
+    },
+  },
   {
     element: '[data-tour="dashboard-summary"]',
     popover: {
       title: "Your net worth, always visible",
       description:
-        "Your combined balance across every linked account and currency lives here at the bottom of the sidebar.",
+        "Your combined balance across every account and currency lives here. That's the tour — enjoy! 🎉",
       side: "top",
-    },
-  },
-  {
-    element: '[data-tour="currency-toggle"]',
-    popover: {
-      title: "Live exchange rates",
-      description:
-        "Expand this panel anytime to see up-to-date rates for the currencies you track.",
-      side: "bottom",
-    },
-  },
-  {
-    element: '[data-tour="add-account"]',
-    popover: {
-      title: "Link a new account",
-      description:
-        "Add an NRE, NRO, foreign bank, credit card, or loan account here to start tracking it.",
-      side: "right",
-    },
-  },
-  {
-    element: '[data-tour="transfer-tracker"]',
-    popover: {
-      title: "Track transfers home",
-      description:
-        "Monitor remittance history, exchange rates used, and pending transfers here.",
-      side: "right",
-    },
-  },
-  {
-    element: '[data-tour="tax-section"]',
-    popover: {
-      title: "Stay on top of tax status",
-      description:
-        "Quick view of your residency status and relevant tax flags for the year.",
-      side: "right",
     },
   },
 ];

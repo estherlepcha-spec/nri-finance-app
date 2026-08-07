@@ -25,6 +25,15 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 - [ ] Sign back in as **User A** → A's accounts and balances are **fully intact**
 - [ ] Repeat A→B switch **without** closing the tab (in-page switch also isolates)
 
+### 0c. Guided feature tour (first run)
+> Automated coverage: e2e/onboarding-tour.spec.js. Driver.js tour, anchored to nav items.
+- [ ] After finishing the wizard, a new user sees the **"Welcome! Let's take a quick tour"** popover
+- [ ] Next steps through features in order: Accounts → Transactions → Remittances → Bills → Goals → Budget → Tax → Estelle → Net Worth
+- [ ] Each step highlights the correct sidebar nav item (no blank/missing targets)
+- [ ] Tour can be skipped (Esc / close) and completed (Done)
+- [ ] A returning user does **not** see the tour again
+- [ ] Settings → "Replay Onboarding Tour" restarts it
+
 ## 1. Setup Wizard (first run) — 4-step onboarding
 > Automated coverage: e2e/onboarding.spec.js (new user -> wizard, no sample accounts, presets).
 - [ ] A brand-new account lands on the wizard's **currency step first** (not the dashboard)

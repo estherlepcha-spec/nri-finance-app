@@ -86,6 +86,21 @@ export const test = base.extend({
 
     await use(page)
   },
+
+  // Onboarded (past the wizard) but the onboarding TOUR has NOT been dismissed,
+  // so it auto-runs. Used to verify the guided feature tour works.
+  tourAuthedPage: async ({ page }, use) => {
+    test.skip(!projectRef, 'VITE_SUPABASE_URL missing from .env — cannot compute Supabase storage key')
+    const storageKey = `sb-${projectRef}-auth-token`
+    const session = fakeSession()
+    await page.addInitScript(([key, sess]) => {
+      window.localStorage.setItem(key, JSON.stringify(sess))
+      window.localStorage.setItem('nri_setupComplete', 'true')
+      window.localStorage.setItem('nri_onboardedAt', JSON.stringify(new Date().toISOString()))
+      // Do NOT set onboarding_tour_completed_v1 — we want the tour to run.
+    }, [storageKey, session])
+    await use(page)
+  },
 })
 
 export { expect }
