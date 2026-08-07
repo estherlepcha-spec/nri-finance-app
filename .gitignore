@@ -40,3 +40,9 @@ voice-assistant.json
 tests/
 *.docx
 .mcp.json
+
+# Playwright
+playwright-report/
+test-results/
+e2e/.auth/
+.env.test
