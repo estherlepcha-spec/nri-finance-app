@@ -16,6 +16,15 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 - [ ] "Sign out everywhere" invalidates the session on a second device/browser
 - [ ] Signed-out state loads/writes nothing (no data leaks to a shared id)
 
+### 0a. Cross-user isolation on a shared device (CRITICAL — regression guard)
+> Guards the fixed leak where a new user saw the previous user's accounts (at 0 balance).
+> Automated coverage: `npm test` (tests/user-isolation.test.js). Confirm live too:
+- [ ] Sign in as **User A** → create 2+ accounts with balances → sign out
+- [ ] Sign in as **User B** (different account) → sees **NO accounts/data of A** (clean slate, or B's own only)
+- [ ] Check DevTools → Application → Local Storage: no `nri_accounts`/etc. from A remain under B
+- [ ] Sign back in as **User A** → A's accounts and balances are **fully intact**
+- [ ] Repeat A→B switch **without** closing the tab (in-page switch also isolates)
+
 ## 1. Setup Wizard (first run)
 - [ ] Fresh account shows the setup wizard
 - [ ] Home + foreign currency selection persists
