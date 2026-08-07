@@ -15,7 +15,7 @@ const SYNC_KEYS = [
   'nri_exchangeRate', 'nri_accounts', 'nri_transactions', 'nri_bills', 'nri_remittances',
   'nri_investments', 'nri_goals', 'nri_goalContribs', 'nri_allocations', 'nri_loans',
   'nri_family', 'nri_templates', 'nri_wkBudgets', 'nri_hmBudgets', 'nri_budgetMonth',
-  'nri_savedScenarios', 'nri_lastImport', 'nri_smartRules', 'nri_onboardedAt', 'nri_verifiedAt',
+  'nri_savedScenarios', 'nri_lastImport', 'nri_smartRules', 'nri_onboardedAt',
 ]
 
 let _onStatus = null
