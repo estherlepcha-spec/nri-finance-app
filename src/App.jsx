@@ -9735,8 +9735,19 @@ export default function App() {
   useEffect(() => {
     if (session === undefined) return // still resolving — don't act yet
     const uid = session?.user?.id || null
+
+    // SECURITY: detect a cache that belongs to a *different* user than the one now
+    // signed in — either because the account changed within this page's life
+    // (prev !== uid) OR because the persisted owner tag doesn't match (covers the
+    // sign-out→sign-in-via-reload path where prevUserIdRef resets to undefined).
+    // In either case wipe every nri_* key AND reload so no state re-persists the
+    // old data and no seed step can leak it into the new account.
+    const taggedOwner = (() => { try { return localStorage.getItem('nri_cacheOwner') } catch { return null } })()
     const prev = prevUserIdRef.current
-    if (prev !== undefined && prev !== uid) {
+    const switchedInPage = prev !== undefined && prev !== uid
+    const foreignCache = uid && taggedOwner && taggedOwner !== uid
+
+    if (switchedInPage || foreignCache) {
       try {
         Object.keys(localStorage).filter(k => k.startsWith('nri_')).forEach(k => localStorage.removeItem(k))
       } catch { /* ignore */ }
@@ -9744,6 +9755,11 @@ export default function App() {
       window.location.reload()
       return
     }
+
+    // Stamp the cache with the current owner so future sign-ins can tell whose
+    // data this is. Signed-out (uid=null) leaves any existing tag as-is; the
+    // foreignCache check above catches a subsequent different-user sign-in.
+    if (uid) { try { localStorage.setItem('nri_cacheOwner', uid) } catch { /* ignore */ } }
     prevUserIdRef.current = uid
   }, [session])
 
@@ -9851,13 +9867,20 @@ export default function App() {
         if (remoteData && Object.keys(remoteData).length > 0) {
           applyData(remoteData)
         } else {
-          // New account with no cloud rows yet — seed it from whatever is in
-          // localStorage on this device (e.g. data created before sign-in).
-          // TODO(data-migration): decide whether the first user should also
-          // claim the legacy user_id='default' rows. Left intentionally manual.
-          SYNC_KEYS.forEach(k => {
-            try { const v = localStorage.getItem(k); if (v) saveToSupabase(k, JSON.parse(v)) } catch { /* ignore seed failures */ }
-          })
+          // New account with no cloud rows yet. SECURITY: we may ONLY seed from
+          // localStorage when that cache provably belongs to THIS user — otherwise
+          // a previous user's cached data on a shared device would be uploaded into
+          // (and thus leaked to) the new account. We tag the cache with its owner
+          // id (nri_cacheOwner, written by the persistence effects); seed only on a
+          // match. On any mismatch/absence, start empty — the user's real data, if
+          // any, lives in their own cloud rows and would have loaded above.
+          const cacheOwner = (() => { try { return localStorage.getItem('nri_cacheOwner') } catch { return null } })()
+          if (cacheOwner === user.id) {
+            SYNC_KEYS.forEach(k => {
+              try { const v = localStorage.getItem(k); if (v) saveToSupabase(k, JSON.parse(v)) } catch { /* ignore seed failures */ }
+            })
+          }
+          // else: foreign or untagged cache — do NOT seed. Data stays empty.
         }
         setSyncStatus('synced')
       }).catch(() => setSyncStatus('offline'))
