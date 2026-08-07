@@ -144,8 +144,17 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 ## 18. Settings & Data Management
 - [ ] Change currencies / exchange rate → app-wide reconversion
 - [ ] Export all data → file downloads with correct contents
-- [ ] Data deletion flow works (and re-auth gate prompts on sensitive actions)
+- [ ] "Clear All Data" wipes financial data but keeps the login (typed DELETE confirm)
 - [ ] Billing toggle (if enabled) shows plan state
+
+### 18a. Delete Account (permanent) — needs delete-account Edge Function deployed
+> Automated coverage: e2e/delete-account.spec.js (UI + confirmation gate).
+- [ ] Settings → Danger Zone has a **Delete Account** button (distinct from Clear All Data)
+- [ ] Account-menu (top-right) "⚠️ Delete account" routes to Settings Danger Zone
+- [ ] Confirm button is disabled until **DELETE** is typed
+- [ ] Confirming (with the function deployed) deletes all cloud data + the login, then signs out
+- [ ] After deletion, signing in with the same Google account creates a **fresh** empty account (old data gone)
+- [ ] If the Edge Function isn't deployed, the button shows a clear error (doesn't half-delete)
 
 ## 19. Sync (multi-device)
 - [ ] Open the app in two browsers signed into the same account

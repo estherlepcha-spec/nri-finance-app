@@ -71,6 +71,32 @@ export async function signOut() {
   if (error) throw error
 }
 
+// Permanently delete the signed-in user's account and ALL their data. Calls the
+// server-side delete-account Edge Function (which uses the service-role key to
+// remove the auth user + their rows), then clears the local cache and signs out.
+// This is irreversible.
+export async function deleteAccount() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('You must be signed in to delete your account.')
+
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+  })
+  let data = {}
+  try { data = await res.json() } catch { /* non-JSON error body */ }
+  if (!res.ok) throw new Error(data?.error || `Account deletion failed (${res.status}).`)
+
+  // Wipe local cache so nothing lingers on this device, then sign out.
+  try { Object.keys(localStorage).filter(k => k.startsWith('nri_')).forEach(k => localStorage.removeItem(k)) } catch { /* ignore */ }
+  await supabase.auth.signOut().catch(() => {})
+  return true
+}
+
 // Sign out of EVERY device — revokes all active sessions for this user.
 // Use when a user suspects their account is compromised.
 export async function signOutEverywhere() {

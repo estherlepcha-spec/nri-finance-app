@@ -65,6 +65,8 @@ export const test = base.extend({
       // nri_setupComplete boolean), so set both.
       window.localStorage.setItem('nri_setupComplete', 'true')
       window.localStorage.setItem('nri_onboardedAt', JSON.stringify(new Date().toISOString()))
+      // Skip the first-run Driver.js tour (its overlay intercepts clicks in tests).
+      window.localStorage.setItem('onboarding_tour_completed_v1', 'true')
     }, [storageKey, session])
 
     await use(page)

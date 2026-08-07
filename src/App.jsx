@@ -8447,6 +8447,26 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
   const [pendingImport, setPendingImport] = useState(null)
   const fileRef = useRef(null)
 
+  // Delete-account (permanent) modal state.
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [deleteText, setDeleteText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  const handleDeleteAccount = async () => {
+    if (deleteText !== 'DELETE') return
+    setDeleting(true); setDeleteError('')
+    try {
+      const { deleteAccount } = await import('./auth.js')
+      await deleteAccount()
+      // Account gone + signed out — onAuthChange will drop us to the sign-in screen.
+      window.location.reload()
+    } catch (e) {
+      setDeleteError(e.message || 'Could not delete your account. Please try again.')
+      setDeleting(false)
+    }
+  }
+
   const clearNriKeys = () => {
     Object.keys(localStorage).filter(k => k.startsWith('nri_')).forEach(k => localStorage.removeItem(k))
   }
@@ -8642,6 +8662,35 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
             </div>
           </div>
         )}
+
+        <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 20, paddingTop: 20 }}>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            Permanently delete your <strong style={{ color: C.text }}>entire account</strong> — all data <em>and</em> your login. You will be signed out and cannot recover it.
+          </p>
+          <Btn variant="danger" onClick={() => setShowDeleteAccount(true)}>⚠️ Delete Account</Btn>
+          {showDeleteAccount && (
+            <div style={{ marginTop: 16, background: C.card2, borderRadius: 12, padding: 20, border: `1px solid ${C.red}44` }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.red, marginBottom: 8 }}>⚠️ Permanently delete your account?</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
+                This deletes ALL your financial data <strong>and</strong> your login account from our servers. You will be signed out immediately and this <strong>cannot be undone</strong>. To use the app again you would have to sign up from scratch.
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Type <strong style={{ color: C.red }}>DELETE</strong> to confirm:</div>
+              <input
+                value={deleteText}
+                onChange={e => setDeleteText(e.target.value)}
+                placeholder="Type DELETE"
+                style={{ ...inputStyle, marginBottom: 12, borderColor: deleteText === 'DELETE' ? C.red : C.border }}
+              />
+              {deleteError && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{deleteError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn variant="danger" onClick={handleDeleteAccount} disabled={deleteText !== 'DELETE' || deleting}>
+                  {deleting ? 'Deleting…' : 'Permanently Delete My Account'}
+                </Btn>
+                <Btn variant="ghost" onClick={() => { setShowDeleteAccount(false); setDeleteText(''); setDeleteError('') }} disabled={deleting}>Cancel</Btn>
+              </div>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card title="Legal & Privacy" style={{ marginTop: 16 }}>
@@ -10527,8 +10576,14 @@ export default function App() {
                     ↩︎ Sign out
                   </button>
                   <button onClick={() => { setShowAccountMenu(false); if (window.confirm('Sign out of ALL devices? Any device currently signed into this account will be logged out.')) import('./auth.js').then(({ signOutEverywhere }) => signOutEverywhere().catch(() => {})) }}
-                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: C.redL, cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, color: C.redL, cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
                     🛡️ Sign out everywhere
+                  </button>
+                  {/* Routes to Settings → Danger Zone, where the typed confirmation lives
+                      (we never delete straight from a dropdown click). */}
+                  <button onClick={() => { setShowAccountMenu(false); setActiveTab('settings') }}
+                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: C.red, cursor: 'pointer', fontSize: 12, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    ⚠️ Delete account
                   </button>
                 </div>
               )}

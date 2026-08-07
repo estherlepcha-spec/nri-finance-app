@@ -40,6 +40,22 @@ The function lives at:
 > It requires a signed-in Supabase user, so only your authenticated users can
 > spend your Anthropic budget.
 
+### Also deploy the account-deletion function
+
+The **Delete Account** feature (Settings → Danger Zone) needs a server-side
+function, because deleting a Supabase auth user requires the service-role key
+(never shipped to the browser):
+
+```bash
+supabase functions deploy delete-account
+```
+
+It uses the already-set `SUPABASE_SERVICE_ROLE_KEY` (plus `SUPABASE_URL` /
+`SUPABASE_ANON_KEY`, which Edge Functions get automatically). No new secret.
+It deletes ONLY the calling user (id from their JWT) — their `nri_finance_data`
+rows, their `subscriptions` row, then their auth account. Until it's deployed,
+the Delete Account button will show an error instead of deleting.
+
 ---
 
 ## Step B — Deploy the frontend to Vercel
