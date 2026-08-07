@@ -129,25 +129,53 @@ export function resetOnboarding() {
   window.localStorage.removeItem(STORAGE_KEY);
 }
 
+// An element is a usable tour target only if it's actually rendered AND visible.
+// The sidebar (and its nav items) is display:none on mobile and collapsed on
+// tablet, so a step pointing at a hidden nav item would leave Driver.js with
+// nowhere to anchor the popover — the tour would appear to "not show". We filter
+// those out so only visible steps run; element-less steps (welcome) always keep.
+function isVisible(selector) {
+  const el = document.querySelector(selector);
+  if (!el) return false;
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return false;
+  const style = window.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+}
+
+function buildRunnableSteps() {
+  return steps.filter((s) => !s.element || isVisible(s.element));
+}
+
 export default function OnboardingTour({ autoStart = true, onComplete }) {
   const driverRef = useRef(null);
 
   useEffect(() => {
-    const driverObj = driver({
-      showProgress: true,
-      steps,
-      onDestroyed: () => {
-        window.localStorage.setItem(STORAGE_KEY, "true");
-        if (onComplete) onComplete();
-      },
-    });
-    driverRef.current = driverObj;
+    if (!(autoStart && shouldShowOnboarding())) return;
 
-    if (autoStart && shouldShowOnboarding()) {
-      // Slight delay ensures target elements are mounted first
-      const timer = setTimeout(() => driverObj.drive(), 300);
-      return () => clearTimeout(timer);
-    }
+    // Wait until the layout is painted, then build the step list from what's
+    // actually visible right now (handles the responsive sidebar).
+    const start = () => {
+      const runnable = buildRunnableSteps();
+      // If literally nothing is anchorable (shouldn't happen — welcome + net
+      // worth are element-light), still show the welcome so the user gets a hello.
+      const driverObj = driver({
+        showProgress: true,
+        allowClose: true,
+        overlayColor: "rgba(0,0,0,0.65)",
+        steps: runnable.length ? runnable : steps.filter((s) => !s.element),
+        onDestroyed: () => {
+          window.localStorage.setItem(STORAGE_KEY, "true");
+          if (onComplete) onComplete();
+        },
+      });
+      driverRef.current = driverObj;
+      driverObj.drive();
+    };
+
+    // Longer delay so the sidebar/nav and dashboard have mounted & painted.
+    const timer = setTimeout(start, 700);
+    return () => clearTimeout(timer);
   }, [autoStart, onComplete]);
 
   return null;
