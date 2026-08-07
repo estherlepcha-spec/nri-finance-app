@@ -29,6 +29,8 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 > Automated coverage: e2e/onboarding.spec.js (new user -> wizard, no sample accounts, presets).
 - [ ] A brand-new account lands on the wizard's **currency step first** (not the dashboard)
 - [ ] New user has **NO pre-seeded sample accounts** (no Burgan/Qatar/Visa/SBI)
+- [ ] New user has **NO pre-seeded goals** (no "Home Down Payment"/"Children Education" with saved balances) — covered by e2e/empty-new-user.spec.js
+- [ ] New user has **NO pre-seeded budget categories** (no "Home Loan EMI" etc. with fake limits)
 - [ ] **Step 0 (Currencies):** home / foreign / primary dropdowns show the **full currency list** (all 60, grouped) — any country's currency is selectable
 - [ ] Continue is **disabled** until home + foreign are chosen and **different**
 - [ ] Foreign dropdown **excludes** the chosen home currency (can't pick the same twice)

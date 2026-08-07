@@ -301,6 +301,13 @@ const DEFAULT_ACCOUNTS = [
 // migration path, never seeded for new users.
 const NEW_USER_ACCOUNTS = []
 
+// Same principle for goals and budgets: a new user must start empty, not with
+// sample goals (which showed fake "saved" balances) or sample budget categories
+// (fake limits). The DEFAULT_* versions are kept only for legacy migration.
+const NEW_USER_GOALS = []
+const NEW_USER_WK_BUDGETS = []
+const NEW_USER_HM_BUDGETS = []
+
 // ─── Sensitive-data redaction for imported statements ──────────────────────────
 // The full bank statement is sent to the AI to read transactions, but we never
 // want to STORE full account numbers or IBANs. The extraction prompt already
@@ -8479,13 +8486,13 @@ function Settings({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCu
     setBills(DEFAULT_BILLS)
     setRemittances(DEFAULT_REMITTANCES)
     setInvestments(DEFAULT_INVESTMENTS)
-    setGoals(DEFAULT_GOALS.map(g => ({ ...g })))
+    setGoals(NEW_USER_GOALS)
     setAllocations(DEFAULT_ALLOCATIONS)
     setLoans(DEFAULT_LOANS)
     setFamilyMembers(DEFAULT_FAMILY_MEMBERS)
     setTemplates(DEFAULT_TEMPLATES)
-    setWkBudgets(DEFAULT_WK_BUDGETS.map(b => ({ ...b })))
-    setHmBudgets(DEFAULT_HM_BUDGETS.map(b => ({ ...b })))
+    setWkBudgets(NEW_USER_WK_BUDGETS)
+    setHmBudgets(NEW_USER_HM_BUDGETS)
     setGoalContribs([])
     setSavedScenarios([])
     setBudgetMonth(new Date().toISOString().slice(0, 7))
@@ -9613,7 +9620,9 @@ export default function App() {
     const isOldDefaults = stored && stored.every(i => ['SBI Mutual Fund', 'NPS Tier 1', 'Fixed Deposit - SBI', 'Gold', 'KFH Shares'].includes(i.name))
     return (!stored || isOldDefaults) ? DEFAULT_INVESTMENTS : stored
   })
-  const [goals, setGoals] = useState(() => load('nri_goals', DEFAULT_GOALS.map(g => ({ ...g }))))
+  // New user (no stored goals) starts empty — never seed the fake sample goals
+  // (which showed bogus "saved" balances). Legacy stored data is respected.
+  const [goals, setGoals] = useState(() => load('nri_goals', null) ?? NEW_USER_GOALS)
   const [goalContribs, setGoalContribs] = useState(() => load('nri_goalContribs', []))
   const [savedScenarios, setSavedScenarios] = useState(() => load('nri_savedScenarios', []))
   const [allocations, setAllocations] = useState(() => load('nri_allocations', DEFAULT_ALLOCATIONS))
@@ -9624,8 +9633,10 @@ export default function App() {
   })
   const [familyMembers, setFamilyMembers] = useState(() => load('nri_family', DEFAULT_FAMILY_MEMBERS))
   const [templates, setTemplates] = useState(() => load('nri_templates', DEFAULT_TEMPLATES))
-  const [wkBudgets, setWkBudgets] = useState(() => load('nri_wkBudgets', DEFAULT_WK_BUDGETS.map(b => ({ ...b }))))
-  const [hmBudgets, setHmBudgets] = useState(() => load('nri_hmBudgets', DEFAULT_HM_BUDGETS.map(b => ({ ...b }))))
+  // New user starts with no budget categories (the sample limits were arbitrary
+  // and country-specific). Legacy stored budgets are respected.
+  const [wkBudgets, setWkBudgets] = useState(() => load('nri_wkBudgets', null) ?? NEW_USER_WK_BUDGETS)
+  const [hmBudgets, setHmBudgets] = useState(() => load('nri_hmBudgets', null) ?? NEW_USER_HM_BUDGETS)
   const [budgetMonth, setBudgetMonth] = useState(() => load('nri_budgetMonth', new Date().toISOString().slice(0, 7)))
 
   // Restore UI state after a camera-induced page reload on mobile.
