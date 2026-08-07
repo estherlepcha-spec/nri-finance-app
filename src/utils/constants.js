@@ -119,6 +119,38 @@ export const DEFAULT_HOME_CURRENCY    = 'INR'
 export const DEFAULT_FOREIGN_CURRENCY = 'KWD'
 export const DEFAULT_PRIMARY_CURRENCY = 'INR'
 
+// Onboarding region presets. Picking a country auto-sets its currency, so users
+// don't have to know currency codes. Used by the SetupWizard.
+// HOME_COUNTRIES = where the user is originally from (their remittance target).
+// WORK_COUNTRIES = where they currently live/work (their earning currency).
+export const HOME_COUNTRIES = [
+  { code: 'IN', name: 'India',       currency: 'INR' },
+  { code: 'PK', name: 'Pakistan',    currency: 'PKR' },
+  { code: 'PH', name: 'Philippines', currency: 'PHP' },
+  { code: 'BD', name: 'Bangladesh',  currency: 'BDT' },
+  { code: 'LK', name: 'Sri Lanka',   currency: 'LKR' },
+  { code: 'NP', name: 'Nepal',       currency: 'NPR' },
+]
+
+export const WORK_COUNTRIES = [
+  { code: 'KW', name: 'Kuwait',            currency: 'KWD' },
+  { code: 'AE', name: 'United Arab Emirates', currency: 'AED' },
+  { code: 'SA', name: 'Saudi Arabia',      currency: 'SAR' },
+  { code: 'QA', name: 'Qatar',             currency: 'QAR' },
+  { code: 'BH', name: 'Bahrain',           currency: 'BHD' },
+  { code: 'OM', name: 'Oman',              currency: 'OMR' },
+  { code: 'US', name: 'United States',     currency: 'USD' },
+  { code: 'GB', name: 'United Kingdom',    currency: 'GBP' },
+  { code: 'CA', name: 'Canada',            currency: 'CAD' },
+  { code: 'AU', name: 'Australia',         currency: 'AUD' },
+  { code: 'SG', name: 'Singapore',         currency: 'SGD' },
+]
+
+// A brand-new user starts with NO accounts (they add their real ones in the
+// guided onboarding step). The old sample-account set is kept only for the
+// legacy-data migration path in App.jsx — never seeded for new users.
+export const NEW_USER_ACCOUNTS = []
+
 export const DEFAULT_ACCOUNTS = [
   { id: 'acc-burgan-sav', name: 'Burgan Bank Savings', country: 'foreign', type: 'Salary Account', balance: 0, currency: 'KWD', setupBalance: 0 },
   { id: 'acc-qatar-cc',   name: 'Qatar Credit Card',   country: 'foreign', type: 'Credit Card',    balance: 0, currency: 'KWD', setupBalance: 0, creditLimit: 2000 },

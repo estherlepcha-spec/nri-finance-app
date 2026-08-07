@@ -66,6 +66,21 @@ export const test = base.extend({
 
     await use(page)
   },
+
+  // Like authedPage but WITHOUT nri_setupComplete — simulates a brand-new user
+  // who should land on the onboarding wizard (currency setup) with no accounts.
+  freshAuthedPage: async ({ page }, use) => {
+    test.skip(!projectRef, 'VITE_SUPABASE_URL missing from .env — cannot compute Supabase storage key')
+    const storageKey = `sb-${projectRef}-auth-token`
+    const session = fakeSession()
+
+    await page.addInitScript(([key, sess]) => {
+      window.localStorage.setItem(key, JSON.stringify(sess))
+      // NOTE: intentionally NOT setting nri_setupComplete — new user.
+    }, [storageKey, session])
+
+    await use(page)
+  },
 })
 
 export { expect }

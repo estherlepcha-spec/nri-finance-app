@@ -25,11 +25,19 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 - [ ] Sign back in as **User A** → A's accounts and balances are **fully intact**
 - [ ] Repeat A→B switch **without** closing the tab (in-page switch also isolates)
 
-## 1. Setup Wizard (first run)
-- [ ] Fresh account shows the setup wizard
-- [ ] Home + foreign currency selection persists
-- [ ] Exchange rate is prefilled from live rates and editable
-- [ ] Completing setup lands on the Dashboard; re-login skips the wizard
+## 1. Setup Wizard (first run) — 4-step onboarding
+> Automated coverage: e2e/onboarding.spec.js (new user -> wizard, no sample accounts, presets).
+- [ ] A brand-new account lands on the wizard's **currency step first** (not the dashboard)
+- [ ] New user has **NO pre-seeded sample accounts** (no Burgan/Qatar/Visa/SBI)
+- [ ] **Step 0 (Region):** picking "I'm from" (e.g. Philippines) sets home currency (PHP); "I work in" (e.g. UAE) sets foreign (AED)
+- [ ] Continue is **disabled** until both countries are chosen
+- [ ] "My country isn't listed" reveals manual currency dropdowns; back-link returns to presets
+- [ ] **Step 1 (Rate):** exchange rate is **prefilled live** from rates and shows "✓ Live rate"; editable
+- [ ] **Step 2 (First account):** can toggle Work/Home, add a real account (name/type/balance, credit limit for cards)
+- [ ] "Skip for now" advances without creating an account
+- [ ] **Step 3 (Done):** summary shows chosen currencies, rate, and first account (or "add anytime")
+- [ ] After "Get Started": lands on Dashboard with **only** the account you added (or empty)
+- [ ] Currencies/rate persist; re-login skips the wizard
 
 ## 2. Dashboard
 - [ ] Net worth = sum of account balances (converted to primary currency)

@@ -1,49 +1,188 @@
-import { useState } from 'react'
-import { C } from '../../utils/constants.js'
+import { useState, useEffect } from 'react'
+import { C, HOME_COUNTRIES, WORK_COUNTRIES, HOME_ACCOUNT_TYPES, WORK_ACCOUNT_TYPES } from '../../utils/constants.js'
 import { Flag } from '../../utils/formatting.jsx'
-import { Btn, Field, CurrencySel, inputStyle } from '../shared/index.jsx'
+import { Btn, Field, Sel, CurrencySel, inputStyle } from '../shared/index.jsx'
 
-export default function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurrency, setForeignCurrency, primaryCurrency, setPrimaryCurrency, exchangeRate, setExchangeRate, onComplete }) {
+// Onboarding wizard. Guaranteed first stop for a new user (gated in App.jsx on
+// "currencies not chosen yet"). Four steps:
+//   0. Region presets  → pick home/work country, which set the currencies
+//   1. Exchange rate   → pre-filled live from `rates`, editable
+//   2. First account   → add your real first account (skippable)
+//   3. Done            → summary
+export default function SetupWizard({
+  homeCurrency, setHomeCurrency,
+  foreignCurrency, setForeignCurrency,
+  primaryCurrency, setPrimaryCurrency,
+  exchangeRate, setExchangeRate,
+  rates = {},
+  onCreateAccount,
+  onComplete,
+}) {
   const [step, setStep] = useState(0)
+
+  // Region selections. Empty by default so the user must actively choose —
+  // no silent "India/Kuwait" acceptance.
+  const [homeCountry, setHomeCountry] = useState('')
+  const [workCountry, setWorkCountry] = useState('')
+  const [manualCurrency, setManualCurrency] = useState(false)
+
+  // Guided first-account fields.
+  const [acctSide, setAcctSide] = useState('foreign') // 'foreign' (work) | 'home'
+  const [acctName, setAcctName] = useState('')
+  const [acctType, setAcctType] = useState('Salary Account')
+  const [acctBalance, setAcctBalance] = useState('')
+  const [acctCreditLimit, setAcctCreditLimit] = useState('')
+  const [accountAdded, setAccountAdded] = useState(false)
+
+  // When a home/work country is picked, set the matching currency.
+  const pickHome = code => {
+    setHomeCountry(code)
+    const c = HOME_COUNTRIES.find(x => x.code === code)
+    if (c) { setHomeCurrency(c.currency); setPrimaryCurrency(c.currency) }
+  }
+  const pickWork = code => {
+    setWorkCountry(code)
+    const c = WORK_COUNTRIES.find(x => x.code === code)
+    if (c) setForeignCurrency(c.currency)
+  }
+
+  // Compute a live exchange rate (1 foreign = ? home) from the rates map, which
+  // is keyed to USD. rate = homePerUsd / foreignPerUsd.
+  const liveRate = (() => {
+    const h = rates[homeCurrency], f = rates[foreignCurrency]
+    if (h && f) return h / f
+    return null
+  })()
+  const [rateAutoFilled, setRateAutoFilled] = useState(false)
+  useEffect(() => {
+    // Pre-fill the rate once, when entering the rate step, if we have a live one.
+    if (step === 1 && liveRate && !rateAutoFilled) {
+      setExchangeRate(Number(liveRate.toFixed(4)))
+      setRateAutoFilled(true)
+    }
+  }, [step, liveRate, rateAutoFilled, setExchangeRate])
+
+  const acctTypes = acctSide === 'home' ? HOME_ACCOUNT_TYPES : WORK_ACCOUNT_TYPES
+  const acctCurrency = acctSide === 'home' ? homeCurrency : foreignCurrency
+  const isCard = acctType === 'Credit Card'
+
+  const addAccount = () => {
+    if (!acctName.trim()) return
+    onCreateAccount?.({
+      id: `acc-${Date.now()}`,
+      name: acctName.trim(),
+      country: acctSide,
+      type: acctType,
+      currency: acctCurrency,
+      balance: parseFloat(acctBalance) || 0,
+      setupBalance: parseFloat(acctBalance) || 0,
+      ...(isCard ? { creditLimit: parseFloat(acctCreditLimit) || 0 } : {}),
+    })
+    setAccountAdded(true)
+    setStep(3)
+  }
+
+  const canContinueRegion = manualCurrency
+    ? (homeCurrency && foreignCurrency)
+    : (homeCountry && workCountry)
+
   const steps = [
     {
-      title: "Welcome to NRI's & Expat's Personal Finance Manager",
-      sub: "Let's configure your currencies",
+      title: "Welcome — let's set up your currencies",
+      sub: 'Tell us where you\'re from and where you work. We\'ll pick the right currencies for you.',
       body: (
         <>
-          <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
-            As an NRI you manage money across countries. Tell us your currencies to get started.
-          </p>
-          <CurrencySel label="Home currency (India)" value={homeCurrency} onChange={e => setHomeCurrency(e.target.value)} />
-          <CurrencySel label="Foreign currency (country of residence)" value={foreignCurrency} onChange={e => setForeignCurrency(e.target.value)} exclude={['INR']} />
-          <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
+          {!manualCurrency ? (
+            <>
+              <Sel
+                label="I'm originally from"
+                value={homeCountry}
+                onChange={e => pickHome(e.target.value)}
+                options={[{ value: '', label: 'Select your home country…' },
+                  ...HOME_COUNTRIES.map(c => ({ value: c.code, label: `${c.name} (${c.currency})` }))]}
+              />
+              <Sel
+                label="I currently live / work in"
+                value={workCountry}
+                onChange={e => pickWork(e.target.value)}
+                options={[{ value: '', label: 'Select where you work…' },
+                  ...WORK_COUNTRIES.map(c => ({ value: c.code, label: `${c.name} (${c.currency})` }))]}
+              />
+              <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
+              <button onClick={() => setManualCurrency(true)}
+                style={{ background: 'none', border: 'none', color: C.accentL, fontSize: 12, cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
+                My country isn't listed — choose currencies manually
+              </button>
+            </>
+          ) : (
+            <>
+              <CurrencySel label="Home currency" value={homeCurrency} onChange={e => setHomeCurrency(e.target.value)} />
+              <CurrencySel label="Foreign currency (where you work)" value={foreignCurrency} onChange={e => setForeignCurrency(e.target.value)} exclude={[homeCurrency]} />
+              <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
+              <button onClick={() => setManualCurrency(false)}
+                style={{ background: 'none', border: 'none', color: C.accentL, fontSize: 12, cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
+                ← Back to country picker
+              </button>
+            </>
+          )}
         </>
       ),
     },
     {
-      title: 'Set Exchange Rate',
-      sub: "Enter today's rate — update anytime in Settings",
+      title: 'Set your exchange rate',
+      sub: liveRate ? 'We fetched a live rate — edit it if you prefer.' : "Enter today's rate — you can update it anytime in Settings.",
       body: (
         <>
           <Field label={`1 ${foreignCurrency} = ? ${homeCurrency}`}>
-            <input type="number" step="0.01" min="0" value={exchangeRate}
+            <input type="number" step="0.0001" min="0" value={exchangeRate}
               onChange={e => setExchangeRate(parseFloat(e.target.value) || 0)}
               style={{ ...inputStyle, fontSize: 20, fontWeight: 700 }} />
           </Field>
-          <p style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>For USD→INR, this is typically 83–85.</p>
+          {liveRate
+            ? <p style={{ color: C.green, fontSize: 12, marginTop: 6 }}>✓ Live rate: 1 {foreignCurrency} ≈ {liveRate.toFixed(4)} {homeCurrency}</p>
+            : <p style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>Tip: you can refresh live rates later from Settings.</p>}
+        </>
+      ),
+    },
+    {
+      title: 'Add your first account',
+      sub: 'Add a real account to start tracking — or skip and add it later.',
+      body: (
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <Btn variant={acctSide === 'foreign' ? 'primary' : 'subtle'} onClick={() => { setAcctSide('foreign'); setAcctType(WORK_ACCOUNT_TYPES[0]) }} style={{ flex: 1, justifyContent: 'center' }}>
+              Work account ({foreignCurrency})
+            </Btn>
+            <Btn variant={acctSide === 'home' ? 'primary' : 'subtle'} onClick={() => { setAcctSide('home'); setAcctType(HOME_ACCOUNT_TYPES[0]) }} style={{ flex: 1, justifyContent: 'center' }}>
+              Home account ({homeCurrency})
+            </Btn>
+          </div>
+          <Field label="Account name">
+            <input value={acctName} onChange={e => setAcctName(e.target.value)} placeholder="e.g. My Salary Account" style={inputStyle} />
+          </Field>
+          <Sel label="Type" value={acctType} onChange={e => setAcctType(e.target.value)} options={acctTypes} />
+          <Field label={`Current balance (${acctCurrency})`}>
+            <input type="number" step="0.01" value={acctBalance} onChange={e => setAcctBalance(e.target.value)} placeholder="0" style={inputStyle} />
+          </Field>
+          {isCard && (
+            <Field label={`Credit limit (${acctCurrency})`}>
+              <input type="number" step="0.01" value={acctCreditLimit} onChange={e => setAcctCreditLimit(e.target.value)} placeholder="0" style={inputStyle} />
+            </Field>
+          )}
         </>
       ),
     },
     {
       title: "You're all set!",
-      sub: 'Start tracking your NRI finances',
+      sub: 'Start tracking your finances across borders.',
       body: (
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
           <div style={{ background: C.card2, borderRadius: 10, padding: 16, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 13, color: C.text, display:'flex', alignItems:'center', gap:6 }}><Flag currency={homeCurrency} size={14} />Home: <strong>{homeCurrency}</strong></div>
-            <div style={{ fontSize: 13, color: C.text, display:'flex', alignItems:'center', gap:6 }}><Flag currency={foreignCurrency} size={14} />Foreign: <strong>{foreignCurrency}</strong></div>
+            <div style={{ fontSize: 13, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}><Flag currency={homeCurrency} size={14} />Home: <strong>{homeCurrency}</strong></div>
+            <div style={{ fontSize: 13, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}><Flag currency={foreignCurrency} size={14} />Foreign: <strong>{foreignCurrency}</strong></div>
             <div style={{ fontSize: 13, color: C.text }}>💱 Rate: <strong>1 {foreignCurrency} = {exchangeRate} {homeCurrency}</strong></div>
+            <div style={{ fontSize: 13, color: C.text }}>🏦 First account: <strong>{accountAdded ? acctName : 'add one anytime from Accounts'}</strong></div>
           </div>
         </div>
       ),
@@ -51,6 +190,10 @@ export default function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurr
   ]
 
   const cur = steps[step]
+  const isRegion = step === 0
+  const isAccountStep = step === 2
+  const isLast = step === steps.length - 1
+
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: 460 }}>
@@ -75,10 +218,20 @@ export default function SetupWizard({ homeCurrency, setHomeCurrency, foreignCurr
           <p style={{ color: C.muted, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>{cur.sub}</p>
           {cur.body}
           <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-            {step > 0 && <Btn variant="ghost" onClick={() => setStep(s => s - 1)} style={{ flex: 1 }}>← Back</Btn>}
-            <Btn onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : onComplete()} style={{ flex: 1 }}>
-              {step < steps.length - 1 ? 'Continue →' : '🚀 Get Started'}
-            </Btn>
+            {step > 0 && <Btn variant="ghost" onClick={() => setStep(s => s - 1)} style={{ flex: 1, justifyContent: 'center' }}>← Back</Btn>}
+            {isAccountStep ? (
+              <>
+                <Btn variant="ghost" onClick={() => setStep(3)} style={{ flex: 1, justifyContent: 'center' }}>Skip for now</Btn>
+                <Btn onClick={addAccount} disabled={!acctName.trim()} style={{ flex: 1, justifyContent: 'center' }}>Add account →</Btn>
+              </>
+            ) : (
+              <Btn
+                onClick={() => isLast ? onComplete() : setStep(s => s + 1)}
+                disabled={isRegion && !canContinueRegion}
+                style={{ flex: 1, justifyContent: 'center' }}>
+                {isLast ? '🚀 Get Started' : 'Continue →'}
+              </Btn>
+            )}
           </div>
         </div>
       </div>

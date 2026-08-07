@@ -296,6 +296,11 @@ const DEFAULT_ACCOUNTS = [
   { id: 'acc-sbi-sav',     name: 'SBI Savings Account',   country: 'home',    type: 'NRE',            balance: 0, currency: 'INR', setupBalance: 0, setupDate: today() },
 ]
 
+// A brand-new user starts with NO accounts — they add their real first account
+// during onboarding. DEFAULT_ACCOUNTS above is only for the legacy sample-data
+// migration path, never seeded for new users.
+const NEW_USER_ACCOUNTS = []
+
 // ─── Sensitive-data redaction for imported statements ──────────────────────────
 // The full bank statement is sent to the AI to read transactions, but we never
 // want to STORE full account numbers or IBANs. The extraction prompt already
@@ -9511,12 +9516,18 @@ export default function App() {
   const [accounts, setAccounts] = useState(() => {
     const txs = load('nri_transactions', DEFAULT_TRANSACTIONS)
     const stored = load('nri_accounts', null)
-    // Migrate: if stored accounts are the old KFH/Axis defaults, replace with current defaults
+    // A brand-new user (no stored accounts) starts EMPTY — they add their real
+    // first account in the onboarding wizard. We must NOT seed the old sample
+    // accounts (Burgan/Qatar/SBI…), which confused non-India/Kuwait users and
+    // showed foreign banks they never created.
+    // Migrate: if stored accounts are the old KFH/Axis sample set, replace with
+    // the current sample set (legacy-data path only — these users already had
+    // sample accounts before this change).
     const OLD_IDS = new Set([1, 2, 3, 4])
     const OLD_NAMES = ['KFH Salary Account', 'KFH Credit Card', 'Axis Credit Card', 'SBI Savings Account']
     const isOldDefaults = stored && stored.length > 0 &&
       stored.every(a => OLD_IDS.has(a.id) && OLD_NAMES.includes(a.name))
-    const base = (!stored || isOldDefaults) ? DEFAULT_ACCOUNTS : stored
+    const base = !stored ? NEW_USER_ACCOUNTS : (isOldDefaults ? DEFAULT_ACCOUNTS : stored)
     return base.map(acc => {
       if (acc.setupBalance !== undefined) return acc
       // Migrate: derive setupBalance so that setupBalance + all transactions = current balance
@@ -10150,6 +10161,8 @@ export default function App() {
         foreignCurrency={foreignCurrency} setForeignCurrency={setForeignCurrency}
         primaryCurrency={primaryCurrency} setPrimaryCurrency={setPrimaryCurrency}
         exchangeRate={exchangeRate} setExchangeRate={setExchangeRate}
+        rates={rates}
+        onCreateAccount={acc => setAccounts(prev => [...(prev || []), acc])}
         onComplete={() => setSetupComplete(true)}
       />
     )
