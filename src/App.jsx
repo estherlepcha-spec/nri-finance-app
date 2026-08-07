@@ -9504,7 +9504,13 @@ export default function App() {
   // such flag, so the country/currency wizard runs for them. We intentionally
   // do NOT auto-skip based on stray local data, so new accounts always set up
   // their countries.
-  const [setupComplete, setSetupComplete] = useState(() => load('nri_setupComplete', false))
+  // Onboarding is "complete" only when the user genuinely finished the wizard,
+  // tracked by an explicit marker (nri_onboardedAt, a timestamp) that is written
+  // ONLY by the wizard's onComplete. We deliberately do NOT trust nri_setupComplete
+  // alone: as a bare boolean it could be set true by a stale cache seed or an old
+  // build, letting a brand-new user skip currency setup. Currencies can't gate this
+  // either — they default to INR/KWD, so "has currencies" is always true.
+  const [setupComplete, setSetupComplete] = useState(() => !!load('nri_onboardedAt', null))
   const [homeCurrency, setHomeCurrency] = useState(() => load('nri_homeCurrency', DEFAULT_HOME_CURRENCY))
   const [foreignCurrency, setForeignCurrency] = useState(() => load('nri_foreignCurrency', DEFAULT_FOREIGN_CURRENCY))
   const [primaryCurrency, setPrimaryCurrency] = useState(() => load('nri_primaryCurrency', DEFAULT_PRIMARY_CURRENCY))
@@ -9820,7 +9826,21 @@ export default function App() {
         keys.forEach(k => _remoteKeys.add(k))
         setTimeout(() => keys.forEach(k => _remoteKeys.delete(k)), 600)
 
-        if ('nri_setupComplete'  in remoteData) setSetupComplete(remoteData.nri_setupComplete)
+        // Onboarding completion is driven by the explicit nri_onboardedAt marker
+        // (written only by the wizard), NOT by the bare nri_setupComplete boolean
+        // — which could leak in from a stale cache seed and wrongly skip setup.
+        if ('nri_onboardedAt' in remoteData) {
+          setSetupComplete(!!remoteData.nri_onboardedAt)
+        } else if (remoteData.nri_setupComplete === true && remoteData.nri_homeCurrency && (remoteData.nri_accounts?.length)) {
+          // Migration for accounts that completed the OLD wizard before the marker
+          // existed: they have setupComplete=true + currencies + real accounts, so
+          // they are genuinely onboarded. Backfill the marker so they aren't sent
+          // through onboarding again.
+          setSetupComplete(true)
+          const ts = new Date().toISOString()
+          try { localStorage.setItem('nri_onboardedAt', JSON.stringify(ts)) } catch { /* ignore */ }
+          persist('nri_onboardedAt', ts)
+        }
         if ('nri_homeCurrency'   in remoteData) setHomeCurrency(remoteData.nri_homeCurrency)
         if ('nri_foreignCurrency' in remoteData) setForeignCurrency(remoteData.nri_foreignCurrency)
         if ('nri_primaryCurrency' in remoteData) setPrimaryCurrency(remoteData.nri_primaryCurrency)
@@ -10163,7 +10183,14 @@ export default function App() {
         exchangeRate={exchangeRate} setExchangeRate={setExchangeRate}
         rates={rates}
         onCreateAccount={acc => setAccounts(prev => [...(prev || []), acc])}
-        onComplete={() => setSetupComplete(true)}
+        onComplete={() => {
+          // Write the explicit onboarding marker (local + cloud) THEN flip the
+          // gate. This marker is what future sessions read to decide setup is done.
+          const ts = new Date().toISOString()
+          try { localStorage.setItem('nri_onboardedAt', JSON.stringify(ts)) } catch { /* ignore */ }
+          persist('nri_onboardedAt', ts)
+          setSetupComplete(true)
+        }}
       />
     )
 

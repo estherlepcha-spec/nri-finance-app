@@ -60,8 +60,11 @@ export const test = base.extend({
       // Supabase v2 stores { currentSession, expiresAt } (or the session directly
       // in newer versions). Store the session object; supabase-js reads it back.
       window.localStorage.setItem(key, JSON.stringify(sess))
-      // Skip the setup wizard so we land on the real app shell.
+      // Skip the setup wizard so we land on the real app shell. Onboarding is
+      // now gated on the explicit nri_onboardedAt marker (not the bare
+      // nri_setupComplete boolean), so set both.
       window.localStorage.setItem('nri_setupComplete', 'true')
+      window.localStorage.setItem('nri_onboardedAt', JSON.stringify(new Date().toISOString()))
     }, [storageKey, session])
 
     await use(page)

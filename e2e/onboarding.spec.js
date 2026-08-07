@@ -31,6 +31,20 @@ test('new user is NOT shown pre-seeded sample accounts (no fake Burgan/Qatar/SBI
   }
 })
 
+test('a leaked nri_setupComplete=true (without nri_onboardedAt) does NOT skip the wizard', async ({ freshAuthedPage: page }) => {
+  // Reproduces the reported bug: onboarding was skipped even for a user who never
+  // chose currencies, because a stray nri_setupComplete flag was trusted. The fix
+  // gates onboarding on the explicit nri_onboardedAt marker instead.
+  await page.addInitScript(() => {
+    window.localStorage.setItem('nri_setupComplete', 'true') // leaked/stale flag
+    // NOTE: no nri_onboardedAt — the user never actually completed onboarding.
+  })
+  await page.goto('/')
+  // Must still land on the currency wizard, not the dashboard.
+  await expect(page.getByText(/set up your currencies/i)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Overview of your NRI/i)).toHaveCount(0)
+})
+
 test('region preset picks a currency and the Continue gate unlocks', async ({ freshAuthedPage: page }) => {
   await page.goto('/')
   await expect(page.getByText(/set up your currencies/i)).toBeVisible({ timeout: 15_000 })
