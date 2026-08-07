@@ -29,9 +29,9 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 > Automated coverage: e2e/onboarding.spec.js (new user -> wizard, no sample accounts, presets).
 - [ ] A brand-new account lands on the wizard's **currency step first** (not the dashboard)
 - [ ] New user has **NO pre-seeded sample accounts** (no Burgan/Qatar/Visa/SBI)
-- [ ] **Step 0 (Region):** picking "I'm from" (e.g. Philippines) sets home currency (PHP); "I work in" (e.g. UAE) sets foreign (AED)
-- [ ] Continue is **disabled** until both countries are chosen
-- [ ] "My country isn't listed" reveals manual currency dropdowns; back-link returns to presets
+- [ ] **Step 0 (Currencies):** home / foreign / primary dropdowns show the **full currency list** (all 60, grouped) — any country's currency is selectable
+- [ ] Continue is **disabled** until home + foreign are chosen and **different**
+- [ ] Foreign dropdown **excludes** the chosen home currency (can't pick the same twice)
 - [ ] **Step 1 (Rate):** exchange rate is **prefilled live** from rates and shows "✓ Live rate"; editable
 - [ ] **Step 2 (First account):** can toggle Work/Home, add a real account (name/type/balance, credit limit for cards)
 - [ ] "Skip for now" advances without creating an account

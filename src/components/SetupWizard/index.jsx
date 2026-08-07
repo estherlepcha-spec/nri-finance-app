@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { C, HOME_COUNTRIES, WORK_COUNTRIES, HOME_ACCOUNT_TYPES, WORK_ACCOUNT_TYPES } from '../../utils/constants.js'
+import { C, HOME_ACCOUNT_TYPES, WORK_ACCOUNT_TYPES } from '../../utils/constants.js'
 import { Flag } from '../../utils/formatting.jsx'
 import { Btn, Field, Sel, CurrencySel, inputStyle } from '../shared/index.jsx'
 
 // Onboarding wizard. Guaranteed first stop for a new user (gated in App.jsx on
-// "currencies not chosen yet"). Four steps:
-//   0. Region presets  → pick home/work country, which set the currencies
+// "onboarding not completed"). Four steps:
+//   0. Currencies      → home / foreign / primary (full currency list, all 60)
 //   1. Exchange rate   → pre-filled live from `rates`, editable
 //   2. First account   → add your real first account (skippable)
 //   3. Done            → summary
@@ -20,12 +20,6 @@ export default function SetupWizard({
 }) {
   const [step, setStep] = useState(0)
 
-  // Region selections. Empty by default so the user must actively choose —
-  // no silent "India/Kuwait" acceptance.
-  const [homeCountry, setHomeCountry] = useState('')
-  const [workCountry, setWorkCountry] = useState('')
-  const [manualCurrency, setManualCurrency] = useState(false)
-
   // Guided first-account fields.
   const [acctSide, setAcctSide] = useState('foreign') // 'foreign' (work) | 'home'
   const [acctName, setAcctName] = useState('')
@@ -33,18 +27,6 @@ export default function SetupWizard({
   const [acctBalance, setAcctBalance] = useState('')
   const [acctCreditLimit, setAcctCreditLimit] = useState('')
   const [accountAdded, setAccountAdded] = useState(false)
-
-  // When a home/work country is picked, set the matching currency.
-  const pickHome = code => {
-    setHomeCountry(code)
-    const c = HOME_COUNTRIES.find(x => x.code === code)
-    if (c) { setHomeCurrency(c.currency); setPrimaryCurrency(c.currency) }
-  }
-  const pickWork = code => {
-    setWorkCountry(code)
-    const c = WORK_COUNTRIES.find(x => x.code === code)
-    if (c) setForeignCurrency(c.currency)
-  }
 
   // Compute a live exchange rate (1 foreign = ? home) from the rates map, which
   // is keyed to USD. rate = homePerUsd / foreignPerUsd.
@@ -82,48 +64,29 @@ export default function SetupWizard({
     setStep(3)
   }
 
-  const canContinueRegion = manualCurrency
-    ? (homeCurrency && foreignCurrency)
-    : (homeCountry && workCountry)
+  // Home & foreign must be chosen and different.
+  const canContinueRegion = !!homeCurrency && !!foreignCurrency && homeCurrency !== foreignCurrency
 
   const steps = [
     {
       title: "Welcome — let's set up your currencies",
-      sub: 'Tell us where you\'re from and where you work. We\'ll pick the right currencies for you.',
+      sub: 'Choose your home currency (where you send money) and the currency you earn in. All world currencies are available.',
       body: (
         <>
-          {!manualCurrency ? (
-            <>
-              <Sel
-                label="I'm originally from"
-                value={homeCountry}
-                onChange={e => pickHome(e.target.value)}
-                options={[{ value: '', label: 'Select your home country…' },
-                  ...HOME_COUNTRIES.map(c => ({ value: c.code, label: `${c.name} (${c.currency})` }))]}
-              />
-              <Sel
-                label="I currently live / work in"
-                value={workCountry}
-                onChange={e => pickWork(e.target.value)}
-                options={[{ value: '', label: 'Select where you work…' },
-                  ...WORK_COUNTRIES.map(c => ({ value: c.code, label: `${c.name} (${c.currency})` }))]}
-              />
-              <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
-              <button onClick={() => setManualCurrency(true)}
-                style={{ background: 'none', border: 'none', color: C.accentL, fontSize: 12, cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
-                My country isn't listed — choose currencies manually
-              </button>
-            </>
-          ) : (
-            <>
-              <CurrencySel label="Home currency" value={homeCurrency} onChange={e => setHomeCurrency(e.target.value)} />
-              <CurrencySel label="Foreign currency (where you work)" value={foreignCurrency} onChange={e => setForeignCurrency(e.target.value)} exclude={[homeCurrency]} />
-              <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
-              <button onClick={() => setManualCurrency(false)}
-                style={{ background: 'none', border: 'none', color: C.accentL, fontSize: 12, cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
-                ← Back to country picker
-              </button>
-            </>
+          <CurrencySel
+            label="Home currency (where you're from)"
+            value={homeCurrency}
+            onChange={e => { setHomeCurrency(e.target.value); if (primaryCurrency === foreignCurrency || !primaryCurrency) setPrimaryCurrency(e.target.value) }}
+          />
+          <CurrencySel
+            label="Foreign currency (where you live / work)"
+            value={foreignCurrency}
+            onChange={e => setForeignCurrency(e.target.value)}
+            exclude={[homeCurrency]}
+          />
+          <CurrencySel label="Primary display currency" value={primaryCurrency} onChange={e => setPrimaryCurrency(e.target.value)} />
+          {homeCurrency && foreignCurrency && homeCurrency === foreignCurrency && (
+            <p style={{ color: C.red, fontSize: 12, marginTop: 4 }}>Home and foreign currency must be different.</p>
           )}
         </>
       ),

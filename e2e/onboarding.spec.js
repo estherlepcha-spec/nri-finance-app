@@ -10,10 +10,10 @@ test('new user lands on the currency setup wizard (not the dashboard)', async ({
 
   await page.goto('/')
 
-  // The wizard's first step is about currencies / where you're from.
+  // The wizard's first step is the currency setup.
   await expect(page.getByText(/set up your currencies/i)).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText(/originally from/i)).toBeVisible()
-  await expect(page.getByText(/live \/ work in/i)).toBeVisible()
+  await expect(page.getByText(/Home currency \(where you're from\)/i)).toBeVisible()
+  await expect(page.getByText(/Foreign currency \(where you live/i)).toBeVisible()
 
   // We should NOT be on the dashboard yet.
   await expect(page.getByText(/Overview of your NRI/i)).toHaveCount(0)
@@ -45,19 +45,34 @@ test('a leaked nri_setupComplete=true (without nri_onboardedAt) does NOT skip th
   await expect(page.getByText(/Overview of your NRI/i)).toHaveCount(0)
 })
 
-test('region preset picks a currency and the Continue gate unlocks', async ({ freshAuthedPage: page }) => {
+test('full currency list is available and Continue unlocks when home != foreign', async ({ freshAuthedPage: page }) => {
   await page.goto('/')
   await expect(page.getByText(/set up your currencies/i)).toBeVisible({ timeout: 15_000 })
 
-  // Continue is disabled until both countries are chosen.
-  const cont = page.getByRole('button', { name: /Continue/i })
-  await expect(cont).toBeDisabled()
-
-  // Pick home + work countries via the two selects (first two selects on the page).
-  // Values are the country codes (see HOME_COUNTRIES/WORK_COUNTRIES).
+  // The home-currency dropdown should carry the full currency list (60+ options),
+  // not a short curated country set. Pick a less-common one to prove breadth.
   const selects = page.locator('select')
-  await selects.nth(0).selectOption('IN') // India -> INR
-  await selects.nth(1).selectOption('KW') // Kuwait -> KWD
+  const homeOptions = selects.nth(0).locator('option')
+  expect(await homeOptions.count()).toBeGreaterThan(40)
 
+  // Choose home = NPR (Nepal) and foreign = a far-flung currency to prove any
+  // country works, not just the old presets.
+  await selects.nth(0).selectOption('NPR')
+  await selects.nth(1).selectOption('ZAR') // South African Rand — not in old presets
+
+  const cont = page.getByRole('button', { name: /Continue/i })
   await expect(cont).toBeEnabled()
+})
+
+test('foreign-currency dropdown excludes the chosen home currency', async ({ freshAuthedPage: page }) => {
+  // The UI prevents picking the same currency for both by excluding the home
+  // currency from the foreign dropdown's options.
+  await page.goto('/')
+  await expect(page.getByText(/set up your currencies/i)).toBeVisible({ timeout: 15_000 })
+
+  const selects = page.locator('select')
+  await selects.nth(0).selectOption('USD') // home = USD
+  // The foreign dropdown should no longer offer USD.
+  const foreignHasUsd = await selects.nth(1).locator('option[value="USD"]').count()
+  expect(foreignHasUsd).toBe(0)
 })
