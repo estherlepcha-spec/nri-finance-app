@@ -152,6 +152,30 @@ export const convertAmountToINR = (amount, currency, rates = {}, fallbackExchang
   return value
 }
 
+// ── EMI budget matching ───────────────────────────────────────────────────────
+// A per-loan EMI budget category ("<loan> EMI") must attribute the right EMI
+// transactions to itself. With multiple EMI loans a generic "Loan EMI" category
+// is ambiguous, so require a loan-specific signal: explicit matchedLoanId, the
+// loan name/lender in the description, or (for a bare Loan EMI tx) the amount
+// matching this loan's EMI within 5%. `sameCountry` is passed in by the caller.
+export const emiTxMatchesLoan = (t, loan, sameCountry = true) => {
+  if (!t || !loan) return false
+  if (t.type === 'income') return false
+  const cat = (t.category || '').toLowerCase()
+  const desc = (t.description || '').toLowerCase()
+  if (t.matchedLoanId === loan.id) return true
+  const nameLower = (loan.name || '').toLowerCase()
+  const lenderLower = (loan.lender || '').toLowerCase()
+  if (nameLower.length >= 4 && desc.includes(nameLower)) return true
+  if (lenderLower.length >= 4 && desc.includes(lenderLower)) return true
+  const isEmiCat = cat === 'loan emi' || cat === 'emi'
+  if (isEmiCat && sameCountry && loan.emi > 0) {
+    const amt = Math.abs(t.amount || 0)
+    if (Math.abs(amt - loan.emi) / loan.emi <= 0.05) return true
+  }
+  return false
+}
+
 // ── Budget allocation helpers ─────────────────────────────────────────────────
 // Convert a real per-category amount to a % of income (1 decimal). 0 if no income.
 export const amountToPct = (amount, income) => {

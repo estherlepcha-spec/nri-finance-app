@@ -6,7 +6,7 @@ import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from '@e965/xlsx'
 import { PDFDocument } from 'pdf-lib'
 import './App.css'
-import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill, amountToPct, fixedCommitmentSummary } from './utils/calculations.js'
+import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill, amountToPct, fixedCommitmentSummary, emiTxMatchesLoan } from './utils/calculations.js'
 import { getProPriceDisplay } from './pricing.js'
 
 // ─── Extracted modules ────────────────────────────────────────────────────────
@@ -5740,8 +5740,29 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
     const vars = CAT_VARIATIONS[b] || [b]
     return vars.some(v => t === v || t.includes(v) || v.includes(t))
   }
-  const getSpentFrom = (txs, amtFn, name) =>
-    txs.filter(t => matchCategory(t.category, name)).reduce((s, t) => s + amtFn(t), 0)
+
+  // A per-loan EMI budget category (created by the Loans page as "<loan> EMI") is
+  // named after the specific loan, but EMI transactions carry the GENERIC "Loan
+  // EMI" category — so plain name matching never links them. For those budgets,
+  // match the underlying loan's EMI payments (by matched loan-id, generic Loan
+  // EMI/EMI category in the same country, or the loan name/lender in the text).
+  const findLoanForBudget = budgetName => {
+    const bn = (budgetName || '').toLowerCase().trim()
+    if (!bn.endsWith('emi')) return null
+    return (loans || []).find(l => `${(l.name || '').toLowerCase()} emi` === bn) || null
+  }
+  const txSameCountry = t => t.accountId
+    ? (isWorking ? wkAccIds : hmAccIds).has(t.accountId)
+    : (isWorking ? (t.currency || '') !== 'INR' : (t.currency || '') === 'INR')
+
+  const getSpentFrom = (txs, amtFn, name) => {
+    // A per-loan EMI budget ("<loan> EMI") is named after the specific loan, but
+    // EMI transactions carry the generic "Loan EMI" category, so plain name
+    // matching never links them. Match the underlying loan's EMI payments instead.
+    const loan = findLoanForBudget(name)
+    if (loan) return txs.filter(t => emiTxMatchesLoan(t, loan, txSameCountry(t))).reduce((s, t) => s + amtFn(t), 0)
+    return txs.filter(t => matchCategory(t.category, name)).reduce((s, t) => s + amtFn(t), 0)
+  }
 
   // Re-categorise a transaction directly from the budget drill-down. Also learns
   // the correction (description → category) so future ones from that merchant
