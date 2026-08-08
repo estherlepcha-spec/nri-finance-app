@@ -8414,7 +8414,9 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
 function SubscriptionCard() {
   const [sub, setSub] = useState(undefined)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const price = getProPriceDisplay()
+  const billingEnabled = import.meta.env.VITE_ENABLE_BILLING === 'true'
   useEffect(() => {
     import('./subscription.js').then(async ({ getSubscription }) => setSub(await getSubscription() ?? null))
   }, [])
@@ -8423,6 +8425,11 @@ function SubscriptionCard() {
     try { const { openPortal } = await import('./subscription.js'); await openPortal() }
     catch { setBusy(false) }
   }
+  const upgrade = async () => {
+    setBusy(true); setError('')
+    try { const { startCheckout } = await import('./subscription.js'); await startCheckout(price.priceKey) }
+    catch (e) { setError(e.message || 'Could not open checkout.'); setBusy(false) }
+  }
   const label = sub === undefined ? 'Loading…'
     : !sub ? 'No active subscription'
     : sub.status === 'trialing' ? 'Free trial active'
@@ -8430,6 +8437,9 @@ function SubscriptionCard() {
     : sub.status
   const ends = sub?.current_period_end ? new Date(sub.current_period_end).toLocaleDateString('default', { day: 'numeric', month: 'short', year: 'numeric' }) : null
   const col = sub?.status === 'active' || sub?.status === 'trialing' ? C.green : C.muted
+  // Show the upgrade CTA when billing is on and the user has no active paid sub.
+  const isActivePaid = sub && (sub.status === 'active' || sub.status === 'trialing')
+  const showUpgrade = billingEnabled && sub !== undefined && !isActivePaid
   return (
     <Card title={`Subscription - ${price.monthlyLabel}`} style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ends ? 6 : 0 }}>
@@ -8442,7 +8452,16 @@ function SubscriptionCard() {
           <span style={{ fontSize: 13, color: C.textS }}>{ends}</span>
         </div>
       )}
-      {sub && <Btn variant="ghost" onClick={manage} disabled={busy} style={{ width: '100%' }}>{busy ? 'Opening…' : '💳 Manage subscription'}</Btn>}
+      {showUpgrade && (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 10 }}>
+            Unlock unlimited accounts, AI imports, and data export with Pro.
+          </p>
+          <Btn onClick={upgrade} disabled={busy} style={{ width: '100%' }}>{busy ? 'Opening…' : `⭐ Upgrade to Pro — ${price.monthlyLabel}`}</Btn>
+          {error && <div style={{ fontSize: 12, color: C.red, marginTop: 8 }}>{error}</div>}
+        </div>
+      )}
+      {sub && !showUpgrade && <Btn variant="ghost" onClick={manage} disabled={busy} style={{ width: '100%' }}>{busy ? 'Opening…' : '💳 Manage subscription'}</Btn>}
     </Card>
   )
 }
