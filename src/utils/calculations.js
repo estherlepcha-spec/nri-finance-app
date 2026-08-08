@@ -200,15 +200,26 @@ export const rollForwardBill = (bill, now = new Date()) => {
   while (b.paid && b.dueDate && shouldRoll(b.dueDate, b.frequency) && guard < 240) {
     const nextDue = advanceBillDate(b.dueDate, b.frequency)
     if (!nextDue) break
+    // Record the amount actually charged this period. For a variable bill that's
+    // the actualAmount entered/auto-matched; for a fixed bill it's `amount`.
+    const paidAmount = (b.variable && b.actualAmount != null && b.actualAmount !== '') ? Number(b.actualAmount) : b.amount
     const entry = {
       month: (b.dueDate || '').slice(0, 7),
       dueDate: b.dueDate,
       amount: b.amount,
+      ...(b.variable ? { actualAmount: paidAmount } : {}),
       paidVia: b.autoPaid ? 'auto' : 'manual',
       ...(b.autoPaidTxId ? { txId: b.autoPaidTxId } : {}),
     }
     const history = [...(b.history || []), entry]
     b = { ...b, dueDate: nextDue, paid: false, history }
+    // Variable bills: clear this period's actual (so the new month prompts for a
+    // fresh figure) and refresh the estimate to the running average of history.
+    if (b.variable) {
+      const amts = history.map(h => Number(h.actualAmount ?? h.amount)).filter(n => !isNaN(n) && n > 0)
+      b.actualAmount = null
+      if (amts.length) b.amount = Math.round((amts.reduce((s, n) => s + n, 0) / amts.length) * 1000) / 1000
+    }
     delete b.autoPaid; delete b.autoPaidTxId; delete b.autoSuppressed
     guard++
   }

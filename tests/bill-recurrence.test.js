@@ -63,6 +63,28 @@ test('rollForwardBill: a paid bill due in a FUTURE month does NOT roll', () => {
   assert.equal(rolled, bill)
 })
 
+test('rollForwardBill: variable bill records its actual amount in history and clears it', () => {
+  const bill = { id: 'v1', name: 'Phone', frequency: 'Monthly', dueDate: '2026-07-10', variable: true, amount: 12, actualAmount: 14.5, paid: true }
+  const rolled = rollForwardBill(bill, new Date('2026-08-05T00:00:00'))
+  assert.equal(rolled.dueDate, '2026-08-10')
+  assert.equal(rolled.paid, false)
+  assert.equal(rolled.actualAmount, null) // cleared for the new period
+  assert.equal(rolled.history[0].actualAmount, 14.5) // recorded what was charged
+})
+
+test('rollForwardBill: variable bill estimate becomes the average of past actuals', () => {
+  // Two prior periods (10 and 14) already in history, this period actual = 18.
+  const bill = {
+    id: 'v2', name: 'Electricity', frequency: 'Monthly', dueDate: '2026-07-01', variable: true,
+    amount: 12, actualAmount: 18, paid: true,
+    history: [{ month: '2026-05', actualAmount: 10 }, { month: '2026-06', actualAmount: 14 }],
+  }
+  const rolled = rollForwardBill(bill, new Date('2026-08-05T00:00:00'))
+  // Average of 10, 14, 18 = 14
+  assert.equal(rolled.amount, 14)
+  assert.equal(rolled.actualAmount, null)
+})
+
 test('rollForwardBill: non-recurring (One-time) paid bill never rolls', () => {
   const bill = { id: 'b5', name: 'Deposit', frequency: 'One-time', dueDate: '2026-06-01', amount: 200, paid: true }
   const rolled = rollForwardBill(bill, new Date('2026-08-10T00:00:00'))

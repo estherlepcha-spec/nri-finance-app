@@ -3386,7 +3386,21 @@ function Remittances({ remittances, setRemittances, accounts, transactions, fore
 function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurrency }) {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(null)
-  const blank = { name: '', amount: '', currency: 'INR', dueDate: '', frequency: 'Monthly', category: 'Utilities', paid: false, country: 'foreign' }
+  const blank = { name: '', amount: '', currency: 'INR', dueDate: '', frequency: 'Monthly', category: 'Utilities', paid: false, country: 'foreign', variable: false }
+
+  // For a variable bill the pending figure is the actual amount entered for this
+  // period if present, otherwise the estimate (`amount`). Fixed bills just use
+  // `amount`. Used everywhere a pending total/figure is shown.
+  const effectiveAmount = b => (b.variable && b.actualAmount != null && b.actualAmount !== '' ? Number(b.actualAmount) : Number(b.amount || 0))
+
+  // Estimate for a variable bill = average of past paid amounts recorded in
+  // history (actual where known, else the amount at the time). Falls back to the
+  // current estimate when there's no history yet.
+  const estimateFromHistory = b => {
+    const amounts = (b.history || []).map(h => Number(h.actualAmount ?? h.amount)).filter(n => !isNaN(n) && n > 0)
+    if (!amounts.length) return Number(b.amount || 0)
+    return Math.round((amounts.reduce((s, n) => s + n, 0) / amounts.length) * 1000) / 1000
+  }
   const [form, setForm] = useState(blank)
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
@@ -3420,13 +3434,19 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
       if (t.type !== 'expense') return false
       if ((t.currency || 'INR') !== (b.currency || 'INR')) return false
       if (!inBillingWindow(t)) return false // must be paid in the bill's month
-      // amount within 1% or 1 unit, whichever is larger (covers rounding/fees)
-      const tol = Math.max(1, b.amount * 0.01)
-      if (Math.abs((t.amount || 0) - b.amount) > tol) return false
+      // Amount check: fixed bills must match the set amount within tolerance.
+      // Variable bills (postpaid phone, electricity) can't — the charge differs
+      // each period — so we match on vendor/category alone and take the txn's
+      // amount as the actual. Require a name hit for variable bills to avoid a
+      // loose category-only match grabbing the wrong expense.
+      if (!b.variable) {
+        const tol = Math.max(1, b.amount * 0.01)
+        if (Math.abs((t.amount || 0) - b.amount) > tol) return false
+      }
       const desc = (t.description || '').toLowerCase()
       const nameHit = bn.length >= 3 && desc.includes(bn)
       const catHit = b.category && t.category && b.category.toLowerCase() === t.category.toLowerCase()
-      return nameHit || catHit
+      return b.variable ? nameHit : (nameHit || catHit)
     }) || null
   }, [transactions])
 
@@ -3452,7 +3472,15 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
     const next = bills.map(b => {
       const match = findMatch(b)
       if (b.autoSuppressed) return b // user deliberately un-ticked — leave alone
-      if (match && !b.paid) { changed = true; return { ...b, paid: true, autoPaid: true, autoPaidTxId: match.id } }
+      if (match && !b.paid) {
+        changed = true
+        // For a variable bill, capture the transaction's amount as this period's
+        // actual (unless the user already typed one).
+        const actualAmount = b.variable && (b.actualAmount == null || b.actualAmount === '')
+          ? Math.abs(match.amount || 0)
+          : b.actualAmount
+        return { ...b, paid: true, autoPaid: true, autoPaidTxId: match.id, ...(b.variable ? { actualAmount } : {}) }
+      }
       // If a previously auto-marked bill lost its matching transaction, revert it.
       if (b.autoPaid && !match) { changed = true; const rest = { ...b }; delete rest.autoPaid; delete rest.autoPaidTxId; return { ...rest, paid: false } }
       return b
@@ -3462,11 +3490,22 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
   }, [transactions, bills.length])
 
   const save = () => {
-    if (!form.name || !form.amount) return
-    const item = { ...form, amount: parseFloat(form.amount), id: editing?.id || uid() }
+    // For a variable bill the estimate can be blank (we'll learn it from history);
+    // for a fixed bill an amount is required.
+    if (!form.name || (!form.variable && !form.amount)) return
+    const item = {
+      ...form,
+      amount: parseFloat(form.amount) || 0,
+      variable: !!form.variable,
+      actualAmount: form.variable ? (form.actualAmount === '' || form.actualAmount == null ? null : parseFloat(form.actualAmount)) : undefined,
+      id: editing?.id || uid(),
+    }
     setBills(p => editing ? p.map(b => b.id === editing.id ? item : b) : [...p, item])
     setShowAdd(false); setEditing(null); setForm(blank)
   }
+
+  // Quick inline setter for a variable bill's actual amount on its card.
+  const setActual = (id, val) => setBills(p => p.map(b => b.id === id ? { ...b, actualAmount: val === '' ? null : parseFloat(val) } : b))
 
   const toggle = id => setBills(p => p.map(b => {
     if (b.id !== id) return b
@@ -3476,13 +3515,13 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
     return { ...b, paid: nowPaid, autoPaid: false, autoPaidTxId: undefined, autoSuppressed: !nowPaid }
   }))
   const del = id => setBills(p => p.filter(b => b.id !== id))
-  const edit = b => { setForm({ ...blank, ...b, amount: String(b.amount) }); setEditing(b); setShowAdd(true) }
+  const edit = b => { setForm({ ...blank, ...b, amount: String(b.amount ?? ''), actualAmount: b.actualAmount == null ? '' : String(b.actualAmount) }); setEditing(b); setShowAdd(true) }
   const unpaid = bills.filter(b => !b.paid)
   const paid = bills.filter(b => b.paid)
   const wkUnpaid = unpaid.filter(b => b.country === 'foreign')
   const hmUnpaid = unpaid.filter(b => b.country === 'home')
-  const wkTotal = wkUnpaid.reduce((s, b) => s + (b.amount || 0), 0)
-  const hmTotal = hmUnpaid.reduce((s, b) => s + (b.amount || 0), 0)
+  const wkTotal = wkUnpaid.reduce((s, b) => s + effectiveAmount(b), 0)
+  const hmTotal = hmUnpaid.reduce((s, b) => s + effectiveAmount(b), 0)
 
   const daysUntil = dueDate => {
     if (!dueDate) return null
@@ -3514,12 +3553,22 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
               <span style={{ fontSize: 13, fontWeight: 600, color: isOverdue && !b.paid ? C.red : C.text }}>{b.name}</span>
               <Badge color={b.country === 'home' ? C.purple : C.teal}><Flag currency={b.currency} size={13} /></Badge>
             </div>
-            <div style={{ fontSize: 11, color: C.muted }}>{b.frequency}{b.dueDate ? ` · Due ${b.dueDate}` : ''} · {b.category}{b.autoPaid ? ' · ✓ auto-matched from transactions' : ''}</div>
+            <div style={{ fontSize: 11, color: C.muted }}>{b.frequency}{b.dueDate ? ` · Due ${b.dueDate}` : ''} · {b.category}{b.variable ? ` · 📊 Variable · est ~${fmt(estimateFromHistory(b), b.currency)}` : ''}{b.autoPaid ? ' · ✓ auto-matched from transactions' : ''}</div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {dueBadgeText && !b.paid && <Badge color={dueBadgeColor}>{dueBadgeText}</Badge>}
-          <div className="num" style={{ fontSize: 14, fontWeight: 700, color: b.paid ? C.muted : C.yellow }}>{fmt(b.amount, b.currency)}</div>
+          {/* Variable + unpaid: let the user type the real amount inline. */}
+          {b.variable && !b.paid ? (
+            <input
+              type="number" value={b.actualAmount ?? ''} onChange={e => setActual(b.id, e.target.value)}
+              placeholder={String(estimateFromHistory(b) || '')}
+              title="Enter this period's actual amount"
+              style={{ ...inputStyle, width: 90, padding: '5px 8px', fontSize: 13, fontWeight: 700, textAlign: 'right', minHeight: 0, color: (b.actualAmount != null && b.actualAmount !== '') ? C.yellow : C.muted }}
+            />
+          ) : (
+            <div className="num" style={{ fontSize: 14, fontWeight: 700, color: b.paid ? C.muted : C.yellow }}>{fmt(effectiveAmount(b), b.currency)}</div>
+          )}
           <IconBtn onClick={() => edit(b)}>✏️</IconBtn>
           <IconBtn onClick={() => del(b.id)}>🗑️</IconBtn>
         </div>
@@ -3569,10 +3618,17 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
             ))}
           </div>
           <Input label="Bill name" value={form.name} onChange={f('name')} placeholder="e.g. Netflix, Electricity" />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!form.variable} onChange={e => setForm(p => ({ ...p, variable: e.target.checked }))} style={{ width: 15, height: 15, accentColor: C.accent }} />
+            <span style={{ fontSize: 12, color: C.textS }}>Amount varies each period (e.g. postpaid phone, electricity)</span>
+          </label>
           <div style={grid2}>
-            <Input label="Amount" type="number" value={form.amount} onChange={f('amount')} />
+            <Input label={form.variable ? 'Estimated amount' : 'Amount'} type="number" value={form.amount} onChange={f('amount')} placeholder={form.variable ? 'avg / rough estimate' : ''} />
             <CurrencySel label="Currency" value={form.currency} onChange={f('currency')} />
           </div>
+          {form.variable && (
+            <Input label="Actual amount this period (optional)" type="number" value={form.actualAmount ?? ''} onChange={f('actualAmount')} placeholder="enter when the bill arrives" />
+          )}
           <Sel label="Frequency" value={form.frequency} onChange={f('frequency')} options={BILL_FREQS} />
           <Sel label="Category" value={form.category} onChange={f('category')} options={BILL_CATS} />
           <Input label="Due date (optional)" type="date" value={form.dueDate} onChange={f('dueDate')} />
