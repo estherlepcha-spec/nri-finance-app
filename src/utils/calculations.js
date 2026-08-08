@@ -168,8 +168,14 @@ export const emiTxMatchesLoan = (t, loan, sameCountry = true) => {
   const lenderLower = (loan.lender || '').toLowerCase()
   if (nameLower.length >= 4 && desc.includes(nameLower)) return true
   if (lenderLower.length >= 4 && desc.includes(lenderLower)) return true
-  const isEmiCat = cat === 'loan emi' || cat === 'emi'
-  if (isEmiCat && sameCountry && loan.emi > 0) {
+  // Accept the generic category that matches the obligation's nature: formal
+  // loans use "Loan EMI"; interest-free installment purchases use
+  // "Installment/EMI Purchase". An installment item is NOT a Loan EMI.
+  const isInstallment = loan.type === 'Installment/Appliance'
+  const catMatches = isInstallment
+    ? cat === 'installment/emi purchase' || cat === 'installment'
+    : cat === 'loan emi' || cat === 'emi'
+  if (catMatches && sameCountry && loan.emi > 0) {
     const amt = Math.abs(t.amount || 0)
     if (Math.abs(amt - loan.emi) / loan.emi <= 0.05) return true
   }

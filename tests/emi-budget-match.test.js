@@ -36,3 +36,23 @@ test('amount outside 5% of the loan EMI does not match on category alone', () =>
   const tx = { type: 'expense', category: 'Loan EMI', description: 'Payment', amount: 50, currency: 'KWD' }
   assert.equal(emiTxMatchesLoan(tx, alMulla, true), false)
 })
+
+// Interest-free installment purchases match the "Installment/EMI Purchase"
+// category, and must NOT be matched by a "Loan EMI" tx (they aren't loans).
+const gym = { id: 'L3', name: 'Deema - Ras Gym Membership', lender: '', emi: 75, currency: 'KWD', type: 'Installment/Appliance' }
+
+test('installment purchase matches an Installment/EMI Purchase tx by amount', () => {
+  const tx = { type: 'expense', category: 'Installment/EMI Purchase', description: 'Deema installment', amount: 75, currency: 'KWD' }
+  assert.equal(emiTxMatchesLoan(tx, gym, true), true)
+})
+
+test('a "Loan EMI" tx does NOT match an installment purchase (not a loan)', () => {
+  const tx = { type: 'expense', category: 'Loan EMI', description: 'Payment', amount: 75, currency: 'KWD' }
+  assert.equal(emiTxMatchesLoan(tx, gym, true), false)
+})
+
+test('a "Loan EMI" car-loan tx does NOT match on the installment category', () => {
+  // Al Mulla is a formal loan; an Installment/EMI Purchase tx must not credit it.
+  const tx = { type: 'expense', category: 'Installment/EMI Purchase', description: 'x', amount: 96, currency: 'KWD' }
+  assert.equal(emiTxMatchesLoan(tx, alMulla, true), false)
+})

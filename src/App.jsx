@@ -141,7 +141,11 @@ const DEFAULT_GOALS = [
   { id: 2, name: 'Emergency Fund',     type: 'Emergency Fund',     target: 5000,    saved: 3200,    currency: 'KWD', deadline: '2026-12-31', monthlyContribution: 300,   priority: 'High', notes: '6 months Kuwait expenses' },
   { id: 3, name: 'Children Education', type: 'Children Education', target: 5000000, saved: 1200000, currency: 'INR', deadline: '2030-06-30', monthlyContribution: 20000, priority: 'High', notes: 'Engineering college fund' },
 ]
-const LOAN_TYPES = ['Home Loan', 'Car Loan', 'Personal Loan', 'Education Loan', 'Business Loan', 'Other']
+const LOAN_TYPES = ['Home Loan', 'Car Loan', 'Personal Loan', 'Education Loan', 'Business Loan', 'Installment/Appliance', 'Other']
+// Interest-free item bought in installments (appliance, gym membership, BNPL) —
+// tracked here for convenience but it is NOT a formal loan. Its budget category
+// is "Installment/EMI Purchase", not "Loan EMI".
+const isInstallmentType = t => t === 'Installment/Appliance'
 const TX_CATEGORY_GROUPS = {
   'Daily Living':      ['Rent', 'Apartment Maintenance', 'Groceries', 'Dining', 'Transport', 'Utilities', 'Household'],
   'Family & Personal': ['Healthcare', 'Education', 'Family Support', 'Personal Care', 'Shopping', 'Entertainment', 'Giving/Donation'],
@@ -4839,7 +4843,9 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
   }
 
   const addToBudget = loan => {
-    const catName = `${loan.name} EMI`
+    // Per-item budget line. The label suffix reflects whether it's a formal loan
+    // (EMI) or an interest-free installment purchase, so the two read correctly.
+    const catName = isInstallmentType(loan.type) ? `${loan.name} Installment` : `${loan.name} EMI`
     ;(loan.country === 'foreign' ? setWkBudgets : setHmBudgets)(p => {
       if (p.find(b => b.name.toLowerCase() === catName.toLowerCase())) return p
       return [...p, { id: uid(), name: catName, limit: loan.emi || 0 }]
@@ -5269,8 +5275,10 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
             <Input label="Outstanding balance" type="number" value={form.outstanding} onChange={f('outstanding')} error={errors.outstanding} />
           </div>
           <div style={grid2}>
-            <Input label="Monthly EMI" type="number" value={form.emi} onChange={f('emi')} />
-            <Input label="Interest rate % p.a." type="number" step="0.1" value={form.rate} onChange={f('rate')} />
+            <Input label={isInstallmentType(form.type) ? 'Monthly installment' : 'Monthly EMI'} type="number" value={form.emi} onChange={f('emi')} />
+            {isInstallmentType(form.type)
+              ? <Field label="Interest"><div style={{ ...inputStyle, display: 'flex', alignItems: 'center', color: C.muted, cursor: 'default' }}>Interest-free</div></Field>
+              : <Input label="Interest rate % p.a." type="number" step="0.1" value={form.rate} onChange={f('rate')} />}
           </div>
           <div style={grid2}>
             <Input label="Tenure (months)" type="number" value={form.tenureMonths} onChange={f('tenureMonths')} />
@@ -5748,8 +5756,11 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
   // EMI/EMI category in the same country, or the loan name/lender in the text).
   const findLoanForBudget = budgetName => {
     const bn = (budgetName || '').toLowerCase().trim()
-    if (!bn.endsWith('emi')) return null
-    return (loans || []).find(l => `${(l.name || '').toLowerCase()} emi` === bn) || null
+    if (!bn.endsWith('emi') && !bn.endsWith('installment')) return null
+    return (loans || []).find(l => {
+      const n = (l.name || '').toLowerCase()
+      return `${n} emi` === bn || `${n} installment` === bn
+    }) || null
   }
   const txSameCountry = t => t.accountId
     ? (isWorking ? wkAccIds : hmAccIds).has(t.accountId)
