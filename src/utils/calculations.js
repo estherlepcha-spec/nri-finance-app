@@ -173,20 +173,31 @@ export const advanceBillDate = (dateStr, frequency) => {
   return d.toISOString().slice(0, 10)
 }
 
-// Roll a paid recurring bill forward past its due date into the current period,
-// recording each completed period in `history`. Given a bill and a reference
-// "now" date, returns the updated bill (or the same object if no change).
-// Catches up multiple missed periods (e.g. app not opened for 3 months).
-// A bill only rolls when it is BOTH paid AND its due date is in the past — an
-// unpaid overdue bill stays as the current pending period.
+// Roll a paid recurring bill forward into the current period, recording each
+// completed period in `history`. Returns the updated bill (or the same object
+// if no change). Catches up multiple missed periods.
+//
+// Trigger is CALENDAR-MONTH based (month-based rollover): a paid bill rolls once
+// its due-date MONTH is earlier than the current month — so a bill paid in
+// August shows "paid ✓" all through August and only becomes next-period pending
+// on the 1st of September. (Weekly bills roll on the day, since a month boundary
+// doesn't fit them.) An UNPAID bill never rolls — it stays as the pending period.
+const monthKey = (d) => d.getUTCFullYear() * 12 + d.getUTCMonth()
 export const rollForwardBill = (bill, now = new Date()) => {
   if (!bill || !bill.dueDate) return bill
   const recurs = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'].includes(bill.frequency)
   if (!recurs) return bill
+  const nowMonth = monthKey(now)
   const nowTime = now.getTime()
+  const shouldRoll = (dueStr, freq) => {
+    if (freq === 'Weekly') return Date.parse(dueStr + 'T23:59:59Z') < nowTime // day-based
+    // Month-based: roll only once the due month is fully behind us.
+    const due = new Date(dueStr + 'T00:00:00Z')
+    return monthKey(due) < nowMonth
+  }
   let b = bill
   let guard = 0 // safety cap against runaway loops
-  while (b.paid && b.dueDate && Date.parse(b.dueDate + 'T23:59:59Z') < nowTime && guard < 240) {
+  while (b.paid && b.dueDate && shouldRoll(b.dueDate, b.frequency) && guard < 240) {
     const nextDue = advanceBillDate(b.dueDate, b.frequency)
     if (!nextDue) break
     const entry = {
