@@ -7508,8 +7508,34 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
     const m = text.match(new RegExp(`"${fieldName}"\\s*:\\s*([0-9.]+)`, 'i'))
     return m ? parseFloat(m[1]) : null
   }
+  // Best-effort recovery of a single transaction object whose raw JSON failed to
+  // parse (e.g. an unescaped quote or a stray control char inside a merchant
+  // name like a transliterated Arabic payee). Rather than DROP the row — which
+  // silently loses a real transaction — pull the fields out with regex. Returns
+  // null only if we can't recover even a description/amount.
+  const salvageObject = raw => {
+    const date = extractField(raw, 'date')
+    let description = extractField(raw, 'description') || extractField(raw, 'narration') || extractField(raw, 'particulars')
+    // If the description regex missed (e.g. it contained an unescaped quote),
+    // grab everything after "description": up to the next field or object end.
+    if (!description) {
+      const m = raw.match(/"description"\s*:\s*"([\s\S]*?)"\s*[,}]/i)
+      if (m) description = m[1]
+    }
+    const amount = extractNumberField(raw, 'amount')
+    const type = extractField(raw, 'type')
+    const ref = extractField(raw, 'ref')
+    if (description == null && amount == null && date == null) return null
+    return {
+      date, description: description || 'Unknown', amount,
+      ...(type ? { type } : {}), ...(ref ? { ref } : {}),
+      _salvaged: true, // flag so the caller can warn the user to verify this row
+    }
+  }
+
   const extractCompleteObjects = arrayText => {
     const objects = []; let depth = 0, start = -1, inString = false, escape = false
+    let salvaged = 0
     for (let i = 0; i < arrayText.length; i++) {
       const c = arrayText[i]
       if (escape) { escape = false; continue }
@@ -7520,14 +7546,21 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
       else if (c === '}') {
         depth--
         if (depth === 0 && start !== -1) {
+          const raw = arrayText.substring(start, i + 1)
           try {
-            const obj = JSON.parse(arrayText.substring(start, i + 1))
+            const obj = JSON.parse(raw)
             if (obj.date || obj.amount !== undefined || obj.description) objects.push(obj)
-          } catch { /* skip malformed */ }
+          } catch {
+            // Don't silently drop — try to salvage the row's fields.
+            const rec = salvageObject(raw)
+            if (rec) { objects.push(rec); salvaged++ }
+          }
           start = -1
         }
       }
     }
+    if (salvaged) console.warn(`Salvaged ${salvaged} transaction(s) whose JSON was malformed`)
+    extractCompleteObjects._salvagedCount = salvaged
     return objects
   }
   const validateAndClean = parsed => {
@@ -7545,6 +7578,10 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
         category: t.category || 'Other',
         type: t.type || ((t.amount || 0) > 0 ? 'income' : 'expense'),
         confidence: t.confidence || 'medium',
+        // Preserve the bank reference (used for duplicate detection) and the
+        // salvage flag (so the UI can warn the user to verify recovered rows).
+        ...(t.ref != null ? { ref: t.ref } : {}),
+        ...(t._salvaged ? { _salvaged: true } : {}),
       }))
       .filter(t => !isNaN(t.amount))
     if (parsed.transactions.length === 0)
@@ -7562,6 +7599,13 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
     try { return validateAndClean(JSON.parse(jsonStr)) } catch (firstErr) {
       console.log('First parse failed, attempting repair:', firstErr.message)
     }
+    // Second attempt: strip raw control chars inside the JSON (a common cause of
+    // "Bad control character in string literal" from AI output — e.g. a literal
+    // newline/tab inside a merchant name) before falling back to the salvager.
+    try {
+      const deControlled = jsonStr.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]+/g, ' ')
+      return validateAndClean(JSON.parse(deControlled))
+    } catch { /* fall through to field-level repair below */ }
     // Repair: extract header fields + individual transaction objects
     const txStart = jsonStr.indexOf('"transactions"')
     if (txStart === -1) throw new Error('Could not find transactions in response. Please upload one month at a time.')
@@ -7779,6 +7823,13 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       // Enforce last-4-only account numbers and strip IBANs / full account
       // numbers before the result is stored, matched, or displayed anywhere.
       result = sanitizeExtraction(result)
+      // If any row had to be recovered from malformed JSON (e.g. an unescaped
+      // quote in a payee name), it is no longer silently dropped — but flag it so
+      // the user double-checks those rows' details before importing.
+      const salvagedRows = (result.transactions || []).filter(t => t._salvaged)
+      if (salvagedRows.length) {
+        setUploadWarning(`${salvagedRows.length} transaction${salvagedRows.length > 1 ? 's were' : ' was'} recovered from a formatting issue in the statement — please verify ${salvagedRows.length > 1 ? 'their' : 'its'} amount and description before importing.`)
+      }
       setAiResult(result)
 
       // Auto-detect account if none selected: match by account number, then by
