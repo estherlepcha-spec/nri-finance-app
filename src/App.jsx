@@ -600,34 +600,45 @@ function Btn({ onClick, variant = 'primary', children, style: s = {}, disabled, 
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...(vs[variant] || vs.primary), ...s }}>{children}</button>
 }
 
-function Field({ label, children }) {
+// Form fields accept an optional `error` string: sets a red border and shows the
+// message below (inline required-field validation). Keep in sync with the copies
+// in src/components/shared/index.jsx.
+const errorInputStyle = { borderColor: C.red, boxShadow: `0 0 0 2px ${C.red}22` }
+
+function FieldError({ error }) {
+  if (!error) return null
+  return <div style={{ color: C.red, fontSize: 11, marginTop: 4, fontWeight: 600 }}>⚠ {error}</div>
+}
+
+function Field({ label, children, error }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 11, color: C.mutedL, marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      {label && <label style={{ display: 'block', fontSize: 11, color: error ? C.red : C.mutedL, marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>}
       {children}
+      <FieldError error={error} />
     </div>
   )
 }
 
 const inputStyle = { width: '100%', background: C.card2, border: `1px solid ${C.border}`, borderRadius: 9, padding: '10px 13px', color: C.text, fontSize: 'var(--input-fs, 13px)', minHeight: 'var(--input-min-h, 40px)', outline: 'none', letterSpacing: '-0.01em', transition: 'border-color 0.15s, box-shadow 0.15s' }
 
-function Input({ label, ...props }) {
-  const el = <input style={inputStyle} {...props} />
-  return label ? <Field label={label}>{el}</Field> : el
+function Input({ label, error, style, ...props }) {
+  const el = <input style={{ ...inputStyle, ...(error ? errorInputStyle : {}), ...style }} {...props} />
+  return label ? <Field label={label} error={error}>{el}</Field> : (<>{el}<FieldError error={error} /></>)
 }
 
-function Sel({ label, options, ...props }) {
+function Sel({ label, options, error, style, ...props }) {
   const el = (
-    <select style={inputStyle} {...props}>
+    <select style={{ ...inputStyle, ...(error ? errorInputStyle : {}), ...style }} {...props}>
       {options.map(o => typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
-  return label ? <Field label={label}>{el}</Field> : el
+  return label ? <Field label={label} error={error}>{el}</Field> : (<>{el}<FieldError error={error} /></>)
 }
 
-function CurrencySel({ label, exclude = [], ...props }) {
+function CurrencySel({ label, exclude = [], error, style, ...props }) {
   const el = (
-    <select style={inputStyle} {...props}>
+    <select style={{ ...inputStyle, ...(error ? errorInputStyle : {}), ...style }} {...props}>
       {Object.entries(CURRENCY_GROUPS).map(([group, codes]) => {
         const filtered = codes.filter(c => !exclude.includes(c))
         if (!filtered.length) return null
@@ -641,7 +652,7 @@ function CurrencySel({ label, exclude = [], ...props }) {
       })}
     </select>
   )
-  return label ? <Field label={label}>{el}</Field> : el
+  return label ? <Field label={label} error={error}>{el}</Field> : (<>{el}<FieldError error={error} /></>)
 }
 
 function CatSel({ label, value, onChange, incomeOnly }) {
@@ -1749,6 +1760,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
   const [editing, setEditing] = useState(null)
   const blank = { name: '', type: 'Savings Account', country: 'foreign', currency: foreignCurrency, balance: '', bank: '', accountNumber: '', creditLimit: '', dueDay: '', minPayment: '', apr: '' }
   const [form, setForm] = useState(blank)
+  const [errors, setErrors] = useState({})
   const f = k => e => {
     const val = e.target.value
     if (k === 'currency') {
@@ -1756,13 +1768,17 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
     } else {
       setForm(p => ({ ...p, [k]: val }))
     }
+    setErrors(p => p[k] ? { ...p, [k]: undefined } : p)
   }
 
   const isCC = form.type === 'Credit Card'
   const accountTypeOptions = form.country === 'home' ? HOME_ACCOUNT_TYPES : WORK_ACCOUNT_TYPES
 
   const save = () => {
-    if (!form.name || form.balance === '') return
+    const errs = {}
+    if (!form.name || !form.name.trim()) errs.name = 'Please enter an account name.'
+    if (form.balance === '' || form.balance == null) errs.balance = 'Please enter the balance.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
     const parsedBal = parseFloat(form.balance) || 0
     const item = {
       ...form,
@@ -1786,7 +1802,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
       // opening-balance edit (a no-op for new accounts with no transactions yet).
       return editing ? recomputeAllBalances(next, transactions) : next
     })
-    setShowAdd(false); setEditing(null); setForm(blank)
+    setShowAdd(false); setEditing(null); setForm(blank); setErrors({})
   }
 
   const del = id => { if (confirm('Delete this account?')) setAccounts(p => p.filter(a => a.id !== id)) }
@@ -2073,7 +2089,7 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
       {auditAcct && <AuditModal auditAcct={auditAcct} setAuditAcct={setAuditAcct} transactions={transactions} remittances={remittances} homeCurrency={homeCurrency} setTransactions={setTransactions} setAccounts={setAccounts} />}
 
       {showAdd && (
-        <Modal title={editing ? 'Edit Account' : 'Add Account'} onClose={() => { setShowAdd(false); setEditing(null) }}>
+        <Modal title={editing ? 'Edit Account' : 'Add Account'} onClose={() => { setShowAdd(false); setEditing(null); setErrors({}) }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             {[['foreign', 'Working Country'], ['home', 'Home Country']].map(([val, label]) => (
               <button key={val} onClick={() => setForm(p => ({ ...p, country: val, type: val === 'home' ? 'NRE' : 'Savings Account', currency: val === 'home' ? homeCurrency : foreignCurrency }))}
@@ -2082,12 +2098,12 @@ function Accounts({ accounts, setAccounts, transactions, setTransactions, remitt
               </button>
             ))}
           </div>
-          <Input label="Account name" value={form.name} onChange={f('name')} placeholder="e.g. Emirates NBD Salary" />
+          <Input label="Account name" value={form.name} onChange={f('name')} placeholder="e.g. Emirates NBD Salary" error={errors.name} />
           <Sel label="Account type" value={form.type} onChange={f('type')} options={accountTypeOptions} />
           <CurrencySel label="Currency" value={form.currency} onChange={f('currency')} />
           <Input label="Bank name (optional)" value={form.bank} onChange={f('bank')} placeholder="e.g. Emirates NBD" />
           <Input label="Account number (optional)" value={form.accountNumber} onChange={f('accountNumber')} placeholder="Last 4 digits shown" />
-          <Input label={isCC ? 'Current balance owed' : 'Current balance'} type="number" value={form.balance} onChange={f('balance')} placeholder="0" />
+          <Input label={isCC ? 'Current balance owed' : 'Current balance'} type="number" value={form.balance} onChange={f('balance')} placeholder="0" error={errors.balance} />
           {editing && (
             <>
               <Input label="Opening balance" type="number" value={form.setupBalance ?? ''} onChange={f('setupBalance')} placeholder="0" />
@@ -2293,8 +2309,10 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 
   const blank = { type: 'expense', date: today(), description: '', category: 'Groceries', amount: '', currency: 'AED', amountINR: '', accountId: '', ccPayAccountId: '', salaryForMonth: '', transferTo: '' }
   const [form, setForm] = useState(blank)
+  const [errors, setErrors] = useState({})
   const f = k => e => {
     const val = e.target.value
+    setErrors(p => p[k] ? { ...p, [k]: undefined } : p)
     if (k === 'accountId') {
       const acct = accounts.find(a => a.id === val)
       setForm(p => ({ ...p, accountId: val, currency: acct ? acct.currency : p.currency }))
@@ -2332,7 +2350,11 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
   })() : null
 
   const save = () => {
-    if (!form.amount || !form.date) return
+    const errs = {}
+    if (!form.amount) errs.amount = 'Please enter an amount.'
+    if (!form.date) errs.date = 'Please pick a date.'
+    if (!form.accountId) errs.accountId = 'Please select an account.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
     const amt = parseFloat(form.amount) || 0
     const txCur = selAcct ? selAcct.currency : form.currency
     const amountINR = parseFloat(form.amountINR) || toINR(amt, txCur)
@@ -2356,7 +2378,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
     setTransactions(newTxs)
     // Recompute all balances from setupBalance + transactions (handles add, edit, and account changes)
     setAccounts(recomputeAllBalances(accounts, newTxs))
-    setEditing(null); setShowAdd(false); setForm(blank)
+    setEditing(null); setShowAdd(false); setForm(blank); setErrors({})
   }
 
   // When typing a description for a NEW transaction, auto-suggest the category
@@ -2781,7 +2803,7 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
 
       {/* Add/Edit modal */}
       {showAdd && (
-        <Modal title={editing ? 'Edit Transaction' : 'Add Transaction'} onClose={() => { setShowAdd(false); setEditing(null); setShowSaveTmpl(false) }} width={500}>
+        <Modal title={editing ? 'Edit Transaction' : 'Add Transaction'} onClose={() => { setShowAdd(false); setEditing(null); setShowSaveTmpl(false); setErrors({}) }} width={500}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             {['income', 'expense'].map(v => (
               <button key={v} onClick={() => setForm(p => ({ ...p, type: v }))}
@@ -2789,8 +2811,8 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
             ))}
           </div>
           <div style={grid2}>
-            <Input label="Date" type="date" value={form.date} onChange={f('date')} />
-            <Input label={`Amount${selAcct ? ` (${selAcct.currency})` : ''}`} type="number" value={form.amount} onChange={f('amount')} placeholder="0" />
+            <Input label="Date" type="date" value={form.date} onChange={f('date')} error={errors.date} />
+            <Input label={`Amount${selAcct ? ` (${selAcct.currency})` : ''}`} type="number" value={form.amount} onChange={f('amount')} placeholder="0" error={errors.amount} />
           </div>
           {selAcct && (
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, marginTop: -6, padding: '4px 8px', background: C.card2, borderRadius: 6 }}>
@@ -2825,8 +2847,8 @@ function Transactions({ transactions, setTransactions, accounts, setAccounts, fo
           })()}
 
           {/* Grouped account selector */}
-          <Field label="Account">
-            <select value={form.accountId} onChange={f('accountId')} style={inputStyle}>
+          <Field label="Account" error={errors.accountId}>
+            <select value={form.accountId} onChange={f('accountId')} style={{ ...inputStyle, ...(errors.accountId ? errorInputStyle : {}) }}>
               <option value="">— No account —</option>
               {workAccountCards.length > 0 && (
                 <optgroup label="Working Country">
@@ -3402,7 +3424,9 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
     return Math.round((amounts.reduce((s, n) => s + n, 0) / amounts.length) * 1000) / 1000
   }
   const [form, setForm] = useState(blank)
-  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const [errors, setErrors] = useState({})
+  // Update a field and clear its error as the user types/selects.
+  const f = k => e => { const v = e.target.value; setForm(p => ({ ...p, [k]: v })); setErrors(p => p[k] ? { ...p, [k]: undefined } : p) }
 
   // ── Auto-mark bills paid from matching expense transactions ──────────────────
   // When an expense in Transactions plausibly corresponds to a bill (same
@@ -3490,9 +3514,12 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
   }, [transactions, bills.length])
 
   const save = () => {
-    // For a variable bill the estimate can be blank (we'll learn it from history);
-    // for a fixed bill an amount is required.
-    if (!form.name || (!form.variable && !form.amount)) return
+    // Validate required fields — highlight + message instead of silently doing nothing.
+    // For a variable bill the estimate can be blank (learned from history).
+    const errs = {}
+    if (!form.name || !form.name.trim()) errs.name = 'Please enter a bill name.'
+    if (!form.variable && !form.amount) errs.amount = 'Please enter the amount.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
     const item = {
       ...form,
       amount: parseFloat(form.amount) || 0,
@@ -3501,7 +3528,7 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
       id: editing?.id || uid(),
     }
     setBills(p => editing ? p.map(b => b.id === editing.id ? item : b) : [...p, item])
-    setShowAdd(false); setEditing(null); setForm(blank)
+    setShowAdd(false); setEditing(null); setForm(blank); setErrors({})
   }
 
   // Quick inline setter for a variable bill's actual amount on its card.
@@ -3608,7 +3635,7 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
       }
 
       {showAdd && (
-        <Modal title={editing ? 'Edit Bill' : 'Add Bill'} onClose={() => { setShowAdd(false); setEditing(null) }}>
+        <Modal title={editing ? 'Edit Bill' : 'Add Bill'} onClose={() => { setShowAdd(false); setEditing(null); setErrors({}) }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             {[['foreign', 'Working Country'], ['home', 'Home Country']].map(([val, label]) => (
               <button key={val} onClick={() => setForm(p => ({ ...p, country: val, currency: val === 'home' ? (homeCurrency || 'INR') : (foreignCurrency || 'KWD') }))}
@@ -3617,13 +3644,13 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
               </button>
             ))}
           </div>
-          <Input label="Bill name" value={form.name} onChange={f('name')} placeholder="e.g. Netflix, Electricity" />
+          <Input label="Bill name" value={form.name} onChange={f('name')} placeholder="e.g. Netflix, Electricity" error={errors.name} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px', cursor: 'pointer' }}>
             <input type="checkbox" checked={!!form.variable} onChange={e => setForm(p => ({ ...p, variable: e.target.checked }))} style={{ width: 15, height: 15, accentColor: C.accent }} />
             <span style={{ fontSize: 12, color: C.textS }}>Amount varies each period (e.g. postpaid phone, electricity)</span>
           </label>
           <div style={grid2}>
-            <Input label={form.variable ? 'Estimated amount' : 'Amount'} type="number" value={form.amount} onChange={f('amount')} placeholder={form.variable ? 'avg / rough estimate' : ''} />
+            <Input label={form.variable ? 'Estimated amount' : 'Amount'} type="number" value={form.amount} onChange={f('amount')} placeholder={form.variable ? 'avg / rough estimate' : ''} error={errors.amount} />
             <CurrencySel label="Currency" value={form.currency} onChange={f('currency')} />
           </div>
           {form.variable && (
@@ -3695,13 +3722,17 @@ function Investments({ investments, setInvestments, foreignCurrency, homeCurrenc
 
   const blank = { name: '', type: 'Mutual Fund', invested: '', currentValue: '', currency: foreignCurrency, purchaseDate: '', expectedReturn: '', units: '', nav: '', isin: '', folio: '', maturityDate: '', interestRate: '', dividends: '', country: 'foreign' }
   const [form, setForm] = useState(blank)
-  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const [errors, setErrors] = useState({})
+  const f = k => e => { const v = e.target.value; setForm(p => ({ ...p, [k]: v })); setErrors(p => p[k] ? { ...p, [k]: undefined } : p) }
 
   const getInvCountry = i => i.country || (i.currency === homeCurrency ? 'home' : 'foreign')
   const convINR = (i, field) => toINR(i[field] || 0, i.currency)
 
   const save = () => {
-    if (!form.name || !form.invested) return
+    { const errs = {}
+      if (!form.name || !form.name.trim()) errs.name = 'Please enter a name.'
+      if (!form.invested) errs.invested = 'Please enter the amount invested.'
+      if (Object.keys(errs).length) { setErrors(errs); return } }
     const invested = parseFloat(form.invested) || 0
     const nav = parseFloat(form.nav) || 0
     const units = parseFloat(form.units) || 0
@@ -4081,15 +4112,15 @@ function Investments({ investments, setInvestments, foreignCurrency, homeCurrenc
 
       {/* Add / Edit Investment Modal */}
       {showAdd && (
-        <Modal title={editing ? 'Edit Investment' : 'Add Investment'} onClose={() => { setShowAdd(false); setEditing(null) }}>
-          <Input label="Investment name" value={form.name} onChange={f('name')} placeholder="e.g. HDFC Top 100 Fund" />
+        <Modal title={editing ? 'Edit Investment' : 'Add Investment'} onClose={() => { setShowAdd(false); setEditing(null); setErrors({}) }}>
+          <Input label="Investment name" value={form.name} onChange={f('name')} placeholder="e.g. HDFC Top 100 Fund" error={errors.name} />
           <div style={grid2}>
             <Sel label="Type" value={form.type} onChange={f('type')} options={INVESTMENT_TYPES} />
             <Sel label="Country" value={form.country || 'foreign'} onChange={f('country')} options={[['foreign', `Working (${foreignCurrency})`], ['home', `Home (${homeCurrency})`]]} />
           </div>
           <CurrencySel label="Currency" value={form.currency} onChange={f('currency')} />
           <div style={grid2}>
-            <Input label="Amount invested" type="number" value={form.invested} onChange={f('invested')} />
+            <Input label="Amount invested" type="number" value={form.invested} onChange={f('invested')} error={errors.invested} />
             <Input label="Current value" type="number" value={form.currentValue} onChange={f('currentValue')} placeholder="Auto from units×NAV" />
           </div>
           <div style={grid2}>
@@ -4127,7 +4158,8 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
   const [celebration, setCelebration] = useState(null)
   const blank = { name: '', type: 'Other', target: '', saved: '', currency: 'INR', deadline: '', monthlyContribution: '', linkedAccountId: '', priority: 'Medium', notes: '' }
   const [form, setForm] = useState(blank)
-  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const [errors, setErrors] = useState({})
+  const f = k => e => { const v = e.target.value; setForm(p => ({ ...p, [k]: v })); setErrors(p => p[k] ? { ...p, [k]: undefined } : p) }
   const [contribForm, setContribForm] = useState({ amount: '', date: today(), note: '' })
   const [whatIfExtra, setWhatIfExtra] = useState(0)
 
@@ -4181,11 +4213,14 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
   }
 
   const save = () => {
-    if (!form.name || !form.target) return
+    const errs = {}
+    if (!form.name || !form.name.trim()) errs.name = 'Please enter a goal name.'
+    if (!form.target) errs.target = 'Please enter a target amount.'
+    if (Object.keys(errs).length) { setErrors(errs); return }
     const item = { ...form, target: parseFloat(form.target) || 0, saved: parseFloat(form.saved) || 0, monthlyContribution: parseFloat(form.monthlyContribution) || 0, id: editing?.id || uid() }
     if (!editing && item.saved >= item.target && item.target > 0) { setCelebration(item.name); setTimeout(() => setCelebration(null), 5000) }
     setGoals(p => editing ? p.map(g => g.id === editing.id ? item : g) : [...p, item])
-    setShowAdd(false); setEditing(null); setForm(blank)
+    setShowAdd(false); setEditing(null); setForm(blank); setErrors({})
   }
 
   const edit = g => { setForm({ ...blank, ...g, target: String(g.target), saved: String(g.saved || 0), monthlyContribution: String(g.monthlyContribution || ''), linkedAccountId: g.linkedAccountId || '' }); setEditing(g); setShowAdd(true) }
@@ -4407,9 +4442,9 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
       })()}
 
       {showAdd && (
-        <Modal title={editing ? 'Edit Goal' : 'Add Goal'} onClose={() => { setShowAdd(false); setEditing(null) }} width={520}>
+        <Modal title={editing ? 'Edit Goal' : 'Add Goal'} onClose={() => { setShowAdd(false); setEditing(null); setErrors({}) }} width={520}>
           <div style={grid2}>
-            <Input label="Goal name" value={form.name} onChange={f('name')} placeholder="e.g. Home Down Payment" />
+            <Input label="Goal name" value={form.name} onChange={f('name')} placeholder="e.g. Home Down Payment" error={errors.name} />
             <Sel label="Type" value={form.type} onChange={f('type')} options={GOAL_TYPES} />
           </div>
           <div style={grid2}>
@@ -4417,7 +4452,7 @@ function Goals({ goals, setGoals, goalContribs, setGoalContribs, accounts, remit
             <CurrencySel label="Currency" value={form.currency} onChange={f('currency')} />
           </div>
           <div style={grid2}>
-            <Input label="Target amount" type="number" value={form.target} onChange={f('target')} />
+            <Input label="Target amount" type="number" value={form.target} onChange={f('target')} error={errors.target} />
             <Input label="Already saved" type="number" value={form.saved} onChange={f('saved')} />
           </div>
           <div style={grid2}>
@@ -4630,7 +4665,8 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
   const [confirmExtra, setConfirmExtra] = useState(null)
   const blank = { name: '', type: 'Home Loan', lender: '', principal: '', outstanding: '', emi: '', rate: '', currency: 'INR', country: 'home', startDate: '', tenureMonths: '', remainingMonths: '', extraMonthly: '' }
   const [form, setForm] = useState(blank)
-  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const [errors, setErrors] = useState({})
+  const f = k => e => { const v = e.target.value; setForm(p => ({ ...p, [k]: v })); setErrors(p => p[k] ? { ...p, [k]: undefined } : p) }
 
   const renderLoanCard = l => {
     const paidPct = l.principal > 0 ? ((l.principal - l.outstanding) / l.principal) * 100 : 0
@@ -4811,7 +4847,10 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
   }
 
   const save = () => {
-    if (!form.name || !form.outstanding) return
+    { const errs = {}
+      if (!form.name || !form.name.trim()) errs.name = 'Please enter a loan name.'
+      if (!form.outstanding) errs.outstanding = 'Please enter the outstanding amount.'
+      if (Object.keys(errs).length) { setErrors(errs); return } }
     const item = { ...form, principal: parseFloat(form.principal)||0, outstanding: parseFloat(form.outstanding)||0, emi: parseFloat(form.emi)||0, rate: parseFloat(form.rate)||0, tenureMonths: parseInt(form.tenureMonths)||0, remainingMonths: parseInt(form.remainingMonths)||0, extraMonthly: parseFloat(form.extraMonthly)||0, asOfDate: today(), id: editing?.id || uid() }
     setLoans(p => editing ? p.map(l => l.id === editing.id ? item : l) : [...p, item])
     if (autoAddEMI && item.emi > 0) addToBudget(item)
@@ -5215,8 +5254,8 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
 
       {/* Add / Edit Loan Modal */}
       {showAdd && (
-        <Modal title={editing ? 'Edit Loan' : 'Add Loan'} onClose={() => { setShowAdd(false); setEditing(null) }} width={500}>
-          <Input label="Loan name" value={form.name} onChange={f('name')} placeholder="e.g. SBI Home Loan" />
+        <Modal title={editing ? 'Edit Loan' : 'Add Loan'} onClose={() => { setShowAdd(false); setEditing(null); setErrors({}) }} width={500}>
+          <Input label="Loan name" value={form.name} onChange={f('name')} placeholder="e.g. SBI Home Loan" error={errors.name} />
           <div style={grid2}>
             <Sel label="Type" value={form.type} onChange={f('type')} options={LOAN_TYPES} />
             <Sel label="Country" value={form.country} onChange={f('country')} options={[{ value: 'home', label: 'Home Country' }, { value: 'foreign', label: 'Working Country' }]} />
@@ -5227,7 +5266,7 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
           </div>
           <div style={grid2}>
             <Input label="Original principal" type="number" value={form.principal} onChange={f('principal')} />
-            <Input label="Outstanding balance" type="number" value={form.outstanding} onChange={f('outstanding')} />
+            <Input label="Outstanding balance" type="number" value={form.outstanding} onChange={f('outstanding')} error={errors.outstanding} />
           </div>
           <div style={grid2}>
             <Input label="Monthly EMI" type="number" value={form.emi} onChange={f('emi')} />
@@ -5262,10 +5301,11 @@ function Family({ familyMembers, setFamilyMembers, remittances, foreignCurrency 
   const [editing, setEditing] = useState(null)
   const blank = { name: '', relation: 'Parent', city: '', phone: '' }
   const [form, setForm] = useState(blank)
-  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+  const [errors, setErrors] = useState({})
+  const f = k => e => { const v = e.target.value; setForm(p => ({ ...p, [k]: v })); setErrors(p => p[k] ? { ...p, [k]: undefined } : p) }
 
   const save = () => {
-    if (!form.name) return
+    if (!form.name || !form.name.trim()) { setErrors({ name: 'Please enter a name.' }); return }
     const item = { ...form, id: editing?.id || uid() }
     setFamilyMembers(p => editing ? p.map(m => m.id === editing.id ? item : m) : [...p, item])
     setShowAdd(false); setEditing(null); setForm(blank)
@@ -5318,8 +5358,8 @@ function Family({ familyMembers, setFamilyMembers, remittances, foreignCurrency 
       }
 
       {showAdd && (
-        <Modal title={editing ? 'Edit Family Member' : 'Add Family Member'} onClose={() => { setShowAdd(false); setEditing(null) }}>
-          <Input label="Name" value={form.name} onChange={f('name')} placeholder="e.g. Mom, Dad" />
+        <Modal title={editing ? 'Edit Family Member' : 'Add Family Member'} onClose={() => { setShowAdd(false); setEditing(null); setErrors({}) }}>
+          <Input label="Name" value={form.name} onChange={f('name')} placeholder="e.g. Mom, Dad" error={errors.name} />
           <Sel label="Relation" value={form.relation} onChange={f('relation')} options={RELATIONS} />
           <Input label="City in India (optional)" value={form.city} onChange={f('city')} placeholder="e.g. Mumbai" />
           <Input label="Phone (optional)" value={form.phone} onChange={f('phone')} placeholder="+91 98765 43210" />

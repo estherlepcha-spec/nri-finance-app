@@ -41,34 +41,44 @@ export function Btn({ onClick, variant = 'primary', children, style: s = {}, dis
 }
 
 // ─── Form Components ──────────────────────────────────────────────────────────
-export function Field({ label, children }) {
+// All accept an optional `error` string: when set, the input border turns red and
+// the message shows below the field (recommended inline-validation pattern).
+const errorInputStyle = { borderColor: C.red, boxShadow: `0 0 0 2px ${C.red}22` }
+
+function FieldError({ error }) {
+  if (!error) return null
+  return <div style={{ color: C.red, fontSize: 11, marginTop: 4, fontWeight: 600 }}>⚠ {error}</div>
+}
+
+export function Field({ label, children, error }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 11, color: C.mutedL, marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      {label && <label style={{ display: 'block', fontSize: 11, color: error ? C.red : C.mutedL, marginBottom: 5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>}
       {children}
+      <FieldError error={error} />
     </div>
   )
 }
 
-export function Input({ label, ...props }) {
-  const el = <input style={inputStyle} {...props} />
-  return label ? <Field label={label}>{el}</Field> : el
+export function Input({ label, error, style, ...props }) {
+  const el = <input style={{ ...inputStyle, ...(error ? errorInputStyle : {}), ...style }} {...props} />
+  return label ? <Field label={label} error={error}>{el}</Field> : (<>{el}<FieldError error={error} /></>)
 }
 
-export function Sel({ label, options, ...props }) {
+export function Sel({ label, options, error, style, ...props }) {
   const el = (
-    <select style={inputStyle} {...props}>
+    <select style={{ ...inputStyle, ...(error ? errorInputStyle : {}), ...style }} {...props}>
       {options.map(o => typeof o === 'string'
         ? <option key={o} value={o}>{o}</option>
         : <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   )
-  return label ? <Field label={label}>{el}</Field> : el
+  return label ? <Field label={label} error={error}>{el}</Field> : (<>{el}<FieldError error={error} /></>)
 }
 
-export function CurrencySel({ label, exclude = [], ...props }) {
+export function CurrencySel({ label, exclude = [], error, style, ...props }) {
   const el = (
-    <select style={inputStyle} {...props}>
+    <select style={{ ...inputStyle, ...(error ? errorInputStyle : {}), ...style }} {...props}>
       {Object.entries(CURRENCY_GROUPS).map(([group, codes]) => {
         const filtered = codes.filter(c => !exclude.includes(c))
         if (!filtered.length) return null
@@ -82,7 +92,7 @@ export function CurrencySel({ label, exclude = [], ...props }) {
       })}
     </select>
   )
-  return label ? <Field label={label}>{el}</Field> : el
+  return label ? <Field label={label} error={error}>{el}</Field> : (<>{el}<FieldError error={error} /></>)
 }
 
 export function CatSel({ label, value, onChange, incomeOnly }) {
