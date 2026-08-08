@@ -152,6 +152,30 @@ export const convertAmountToINR = (amount, currency, rates = {}, fallbackExchang
   return value
 }
 
+// ── Budget allocation helpers ─────────────────────────────────────────────────
+// Convert a real per-category amount to a % of income (1 decimal). 0 if no income.
+export const amountToPct = (amount, income) => {
+  if (!income || income <= 0) return 0
+  return Math.round((Number(amount || 0) / income) * 1000) / 10
+}
+
+// Given fixed (non-discretionary) commitments and income, return a summary:
+// { fixedPct, freePct, freeAmount, overBy } — overBy > 0 means commitments
+// exceed income (no allocation can fit in 100%).
+export const fixedCommitmentSummary = (fixedCommit, income) => {
+  const inc = Number(income || 0)
+  const fixed = Number(fixedCommit || 0)
+  if (inc <= 0) return { fixedPct: 0, freePct: 0, freeAmount: 0, overBy: 0 }
+  const fixedPct = Math.round((fixed / inc) * 1000) / 10
+  const freeAmount = inc - fixed
+  return {
+    fixedPct,
+    freePct: Math.round((freeAmount / inc) * 1000) / 10,
+    freeAmount,
+    overBy: fixed > inc ? fixed - inc : 0,
+  }
+}
+
 // ── Recurring-bill rollover ───────────────────────────────────────────────────
 // Advance a YYYY-MM-DD date string by one period of the given frequency.
 // Returns a new YYYY-MM-DD string. Unknown/One-time frequencies return null

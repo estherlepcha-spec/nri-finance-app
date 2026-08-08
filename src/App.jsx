@@ -6,7 +6,7 @@ import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from '@e965/xlsx'
 import { PDFDocument } from 'pdf-lib'
 import './App.css'
-import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill } from './utils/calculations.js'
+import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill, amountToPct, fixedCommitmentSummary } from './utils/calculations.js'
 import { getProPriceDisplay } from './pricing.js'
 
 // ─── Extracted modules ────────────────────────────────────────────────────────
@@ -5954,7 +5954,19 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
 
   const openAllocPlanner = () => {
     const init = {}
-    budgets.forEach(b => { init[b.id] = b.allocPct != null ? b.allocPct : getRecommendedPct(b.name) })
+    const inc = monthlySalary || 0
+    budgets.forEach(b => {
+      // Seed from the user's REAL expenses (fixed bills + EMIs, or 3-month spend
+      // average) as a % of income — so the plan reflects actual commitments, not
+      // generic guesses. Fall back to any saved allocPct, then the recommendation.
+      if (b.allocPct != null) { init[b.id] = b.allocPct; return }
+      if (inc > 0) {
+        const real = autoProjected(b.name)
+        init[b.id] = real > 0 ? amountToPct(real, inc) : getRecommendedPct(b.name)
+      } else {
+        init[b.id] = getRecommendedPct(b.name)
+      }
+    })
     setAllocPcts(init)
     setShowAllocPlanner(true)
   }
@@ -6379,6 +6391,14 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
         const total = Object.values(allocPcts).reduce((s, v) => s + v, 0)
         const totalRounded = Math.round(total * 10) / 10
         const totalColor = totalRounded === 100 ? C.green : (totalRounded >= 90 && totalRounded <= 110) ? C.yellow : C.red
+        // Fixed (non-discretionary) commitments from real data: rent, loan EMIs,
+        // and tracked bills. If these alone exceed income, no allocation can fit
+        // 100% — the plan is telling the user to cut fixed costs or raise income.
+        const FIXED_CATS = ['rent', 'loan emi', 'utilities', 'insurance', 'installment/emi purchase', 'apartment maintenance']
+        const fixedCommit = inc > 0 ? budgets
+          .filter(b => FIXED_CATS.includes((b.name || '').toLowerCase()))
+          .reduce((s, b) => s + autoProjected(b.name), 0) : 0
+        const { fixedPct } = fixedCommitmentSummary(fixedCommit, inc)
         return (
           <Modal title="📊 Budget Allocation Planner" onClose={() => setShowAllocPlanner(false)} width={560}>
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
@@ -6393,6 +6413,20 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
             {inc <= 0 && (
               <div style={{ background: C.yellow + '15', border: `1px solid ${C.yellow}44`, borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 11, color: C.yellow }}>
                 Add this month's salary in Transactions to allocate by amount. You can still set percentages now.
+              </div>
+            )}
+            {inc > 0 && fixedCommit > 0 && (
+              <div style={{ background: (fixedPct > 100 ? C.red : fixedPct > 70 ? C.yellow : C.green) + '15', border: `1px solid ${(fixedPct > 100 ? C.red : fixedPct > 70 ? C.yellow : C.green)}44`, borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 11.5, lineHeight: 1.6 }}>
+                <strong style={{ color: fixedPct > 100 ? C.red : fixedPct > 70 ? C.yellow : C.green }}>
+                  Fixed commitments: {fmt(fixedCommit, currency)} ({fixedPct}% of income)
+                </strong>
+                <div style={{ color: C.muted, marginTop: 3 }}>
+                  {fixedPct > 100
+                    ? `⚠ Your rent, EMIs and bills alone exceed your income by ${fmt(fixedCommit - inc, currency)}. Reduce fixed costs or increase income — no split can fit in 100%.`
+                    : fixedPct > 70
+                    ? `Only ${(100 - fixedPct).toFixed(1)}% (${fmt(inc - fixedCommit, currency)}) is left for savings & discretionary spending after fixed costs.`
+                    : `${(100 - fixedPct).toFixed(1)}% (${fmt(inc - fixedCommit, currency)}) is free for savings & discretionary spending — healthy.`}
+                </div>
               </div>
             )}
             <div style={{ marginBottom: 14 }}>
