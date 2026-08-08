@@ -151,3 +151,55 @@ export const convertAmountToINR = (amount, currency, rates = {}, fallbackExchang
   if (fallbackExchangeRate > 0 && currency !== 'INR') return value * fallbackExchangeRate
   return value
 }
+
+// ── Recurring-bill rollover ───────────────────────────────────────────────────
+// Advance a YYYY-MM-DD date string by one period of the given frequency.
+// Returns a new YYYY-MM-DD string. Unknown/One-time frequencies return null
+// (they don't recur). Month arithmetic clamps to end-of-month (e.g. Jan 31 →
+// Feb 28) so a 31st-of-month bill doesn't skip a month.
+export const advanceBillDate = (dateStr, frequency) => {
+  if (!dateStr) return null
+  // Work entirely in UTC so the result never shifts by a day in non-UTC zones.
+  const d = new Date(dateStr + 'T00:00:00Z')
+  if (isNaN(d.getTime())) return null
+  const day = d.getUTCDate()
+  switch (frequency) {
+    case 'Weekly':    d.setUTCDate(d.getUTCDate() + 7); break
+    case 'Monthly':   d.setUTCMonth(d.getUTCMonth() + 1); if (d.getUTCDate() < day) d.setUTCDate(0); break
+    case 'Quarterly': d.setUTCMonth(d.getUTCMonth() + 3); if (d.getUTCDate() < day) d.setUTCDate(0); break
+    case 'Yearly':    d.setUTCFullYear(d.getUTCFullYear() + 1); break
+    default: return null // One-time or unknown → does not recur
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+// Roll a paid recurring bill forward past its due date into the current period,
+// recording each completed period in `history`. Given a bill and a reference
+// "now" date, returns the updated bill (or the same object if no change).
+// Catches up multiple missed periods (e.g. app not opened for 3 months).
+// A bill only rolls when it is BOTH paid AND its due date is in the past — an
+// unpaid overdue bill stays as the current pending period.
+export const rollForwardBill = (bill, now = new Date()) => {
+  if (!bill || !bill.dueDate) return bill
+  const recurs = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'].includes(bill.frequency)
+  if (!recurs) return bill
+  const nowTime = now.getTime()
+  let b = bill
+  let guard = 0 // safety cap against runaway loops
+  while (b.paid && b.dueDate && Date.parse(b.dueDate + 'T23:59:59Z') < nowTime && guard < 240) {
+    const nextDue = advanceBillDate(b.dueDate, b.frequency)
+    if (!nextDue) break
+    const entry = {
+      month: (b.dueDate || '').slice(0, 7),
+      dueDate: b.dueDate,
+      amount: b.amount,
+      paidVia: b.autoPaid ? 'auto' : 'manual',
+      ...(b.autoPaidTxId ? { txId: b.autoPaidTxId } : {}),
+    }
+    const history = [...(b.history || []), entry]
+    b = { ...b, dueDate: nextDue, paid: false, history }
+    delete b.autoPaid; delete b.autoPaidTxId; delete b.autoSuppressed
+    guard++
+  }
+  return b
+}

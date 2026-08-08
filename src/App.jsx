@@ -6,7 +6,7 @@ import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from '@e965/xlsx'
 import { PDFDocument } from 'pdf-lib'
 import './App.css'
-import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit } from './utils/calculations.js'
+import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill } from './utils/calculations.js'
 import { getProPriceDisplay } from './pricing.js'
 
 // ─── Extracted modules ────────────────────────────────────────────────────────
@@ -3429,6 +3429,23 @@ function Bills({ bills, setBills, transactions = [], foreignCurrency, homeCurren
       return nameHit || catHit
     }) || null
   }, [transactions])
+
+  // ── Roll recurring bills forward ─────────────────────────────────────────────
+  // A paid recurring bill whose due date has passed advances to the next period
+  // (reset to unpaid) and records the completed period in `history`. Without this
+  // a paid monthly bill would stay "paid" forever and never show pending again
+  // for the new month. Runs before auto-match so the new period can be matched.
+  useEffect(() => {
+    let changed = false
+    const now = new Date()
+    const next = bills.map(b => {
+      const rolled = rollForwardBill(b, now)
+      if (rolled !== b) changed = true
+      return rolled
+    })
+    if (changed) setBills(next)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bills.length])
 
   useEffect(() => {
     let changed = false
