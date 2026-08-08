@@ -33,4 +33,15 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ## Dev Commands
 - `npm run dev` — start Vite dev server
 - `npm run build` — production build
+- `npm test` — unit tests (financial math, user-isolation, bill recurrence; Node's built-in runner)
+- `npm run test:e2e` — Playwright end-to-end tests
 - `node sync-server.js` — start the sync server
+
+Run `npx vite build` + `npm test` before committing changes to `src/App.jsx`.
+Note: the `tests/` dir is gitignored — add new test files with `git add -f`.
+
+## Testing & go-live
+- Manual test checklist: `docs/TESTING_CHECKLIST.md` (walk before any deploy).
+- **Do NOT enable billing in Vercel prod / go live until tests for ALL features
+  are finished** (owner's rule). Billing is gated by `VITE_ENABLE_BILLING`
+  (currently on locally for the trial-reminder UI; not set in prod).
