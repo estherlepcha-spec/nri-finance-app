@@ -56,3 +56,17 @@ test('a "Loan EMI" car-loan tx does NOT match on the installment category', () =
   const tx = { type: 'expense', category: 'Installment/EMI Purchase', description: 'x', amount: 96, currency: 'KWD' }
   assert.equal(emiTxMatchesLoan(tx, alMulla, true), false)
 })
+
+test('a single EMI tx matching by BOTH name and amount is counted once (no double-count)', () => {
+  // Reproduces the "KD 192 / 200%" bug: one KD 96 EMI matched by name AND amount
+  // must total KD 96, not KD 192. Mirror the budget dedupe-by-id filter.
+  const txs = [{ id: 't1', type: 'expense', category: 'Loan EMI', description: 'AL MULLA FINANCE EMI', amount: 96, currency: 'KWD' }]
+  const seen = new Set()
+  const matched = txs.filter(t => {
+    if (!emiTxMatchesLoan(t, alMulla, true)) return false
+    if (seen.has(t.id)) return false
+    seen.add(t.id); return true
+  })
+  assert.equal(matched.length, 1)
+  assert.equal(matched.reduce((s, t) => s + Math.abs(t.amount), 0), 96)
+})

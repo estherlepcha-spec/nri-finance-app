@@ -5801,14 +5801,30 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
     ? (isWorking ? wkAccIds : hmAccIds).has(t.accountId)
     : (isWorking ? (t.currency || '') !== 'INR' : (t.currency || '') === 'INR')
 
-  const getSpentFrom = (txs, amtFn, name) => {
-    // A per-loan EMI budget ("<loan> EMI") is named after the specific loan, but
-    // EMI transactions carry the generic "Loan EMI" category, so plain name
-    // matching never links them. Match the underlying loan's EMI payments instead.
+  // The transactions that belong to a budget category — the SINGLE source of
+  // truth for both the spent total and the drill-down list/count (so they can
+  // never disagree). Deduplicated by transaction id to prevent any row being
+  // counted twice (e.g. if it matches an EMI loan by both name and amount, or a
+  // stray duplicate exists in the data).
+  const txsForBudget = (txs, name) => {
     const loan = findLoanForBudget(name)
-    if (loan) return txs.filter(t => emiTxMatchesLoan(t, loan, txSameCountry(t))).reduce((s, t) => s + amtFn(t), 0)
-    return txs.filter(t => matchCategory(t.category, name)).reduce((s, t) => s + amtFn(t), 0)
+    const pred = loan
+      // A per-loan EMI/installment budget is named after the loan, but the
+      // transactions carry the generic "Loan EMI"/"Installment/EMI Purchase"
+      // category — match the underlying loan's payments instead of the name.
+      ? (t => emiTxMatchesLoan(t, loan, txSameCountry(t)))
+      : (t => matchCategory(t.category, name))
+    const seen = new Set()
+    return txs.filter(t => {
+      if (!pred(t)) return false
+      const id = t.id != null ? t.id : `${t.date}|${t.amount}|${t.description}`
+      if (seen.has(id)) return false // never count the same transaction twice
+      seen.add(id)
+      return true
+    })
   }
+  const getSpentFrom = (txs, amtFn, name) =>
+    txsForBudget(txs, name).reduce((s, t) => s + amtFn(t), 0)
 
   // Re-categorise a transaction directly from the budget drill-down. Also learns
   // the correction (description → category) so future ones from that merchant
@@ -6277,7 +6293,7 @@ function Budget({ transactions, setTransactions, accounts, wkBudgets, setWkBudge
             const actualSpent = getSpent(b.name)
             const isProjected = isFutureMonth && actualSpent === 0
             const s = isProjected ? getProjected(b.name) : actualSpent
-            const catTxs = activeTx.filter(t => matchCategory(t.category, b.name))
+            const catTxs = txsForBudget(activeTx, b.name)
               .sort((x, y) => (y.date || '').localeCompare(x.date || ''))
             const txCount = catTxs.length
             const isExpanded = expandedCat === b.id
