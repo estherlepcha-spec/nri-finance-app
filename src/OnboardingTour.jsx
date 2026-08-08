@@ -163,6 +163,9 @@ export default function OnboardingTour({ autoStart = true, onComplete }) {
         showProgress: true,
         allowClose: true,
         overlayColor: "rgba(0,0,0,0.65)",
+        // Compact popover styling that matches the app's font scale (see the
+        // .nri-tour rules in index.css).
+        popoverClass: "nri-tour",
         steps: runnable.length ? runnable : steps.filter((s) => !s.element),
         onDestroyed: () => {
           window.localStorage.setItem(STORAGE_KEY, "true");

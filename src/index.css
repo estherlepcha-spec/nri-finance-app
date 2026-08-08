@@ -302,3 +302,36 @@ input:focus, select:focus, textarea:focus {
 .tx-row-wrap.swiped .tx-row-actions { transform: translateX(0); }
 .tx-row-wrap.swiped .tx-row-inner  { transform: translateX(-110px); }
 .tx-row-inner { transition: transform 0.2s; }
+
+/* ── Onboarding tour (Driver.js) — compact, matches the app's font scale ──────
+   Defaults are large (title 19px, body 14px, 300px wide). Scope overrides to our
+   .nri-tour popoverClass so nothing else is affected. */
+.driver-popover.nri-tour {
+  min-width: 200px;
+  max-width: 260px;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+.driver-popover.nri-tour .driver-popover-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+.driver-popover.nri-tour .driver-popover-description {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.driver-popover.nri-tour .driver-popover-progress-text {
+  font-size: 10px;
+}
+.driver-popover.nri-tour .driver-popover-footer-btn {
+  font-size: 11px;
+  padding: 3px 9px;
+}
+.driver-popover.nri-tour .driver-popover-close-btn {
+  font-size: 15px;
+  width: 26px;
+  height: 24px;
+}

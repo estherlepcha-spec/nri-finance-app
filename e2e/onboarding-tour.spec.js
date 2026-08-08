@@ -12,6 +12,20 @@ test('the onboarding tour auto-starts with a welcome step for a new user', async
   await expect(page.getByText(/Let's take a quick tour/i)).toBeVisible({ timeout: 10_000 })
 })
 
+test('tour popover uses the compact font sizing (matches app scale)', async ({ tourAuthedPage: page }) => {
+  await page.goto('/')
+  await expect(page.getByText(/Let's take a quick tour/i)).toBeVisible({ timeout: 15_000 })
+
+  // Our .nri-tour override sets title 14px / description 12px (vs Driver's 19/14).
+  const titleSize = await page.locator('.driver-popover.nri-tour .driver-popover-title')
+    .evaluate(el => parseFloat(getComputedStyle(el).fontSize))
+  expect(titleSize).toBeLessThanOrEqual(14)
+
+  const descSize = await page.locator('.driver-popover.nri-tour .driver-popover-description')
+    .evaluate(el => parseFloat(getComputedStyle(el).fontSize))
+  expect(descSize).toBeLessThanOrEqual(12)
+})
+
 test('the tour advances through feature steps and can be completed', async ({ tourAuthedPage: page }) => {
   await page.goto('/')
   await expect(page.getByText(/Let's take a quick tour/i)).toBeVisible({ timeout: 15_000 })
