@@ -6,7 +6,7 @@ import { anthropicMessages } from './services/anthropic.js'
 import * as XLSX from '@e965/xlsx'
 import { PDFDocument } from 'pdf-lib'
 import './App.css'
-import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill, amountToPct, fixedCommitmentSummary, emiTxMatchesLoan } from './utils/calculations.js'
+import { calcTxDelta, convertAmountToINR, getOpeningBalance, getClosingBalance, recomputeAllBalances, calculateBalanceAudit, rollForwardBill, amountToPct, fixedCommitmentSummary, emiTxMatchesLoan, renameBudgetCategory } from './utils/calculations.js'
 import { getProPriceDisplay } from './pricing.js'
 
 // ─── Extracted modules ────────────────────────────────────────────────────────
@@ -4842,14 +4842,43 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
     return { months, interest: Math.round(interest) }
   }
 
+  // The budget-category name for a loan/installment. Suffix reflects its nature
+  // (formal loan → "EMI"; interest-free installment → "Installment").
+  const budgetCatName = loan => isInstallmentType(loan.type) ? `${loan.name} Installment` : `${loan.name} EMI`
+
   const addToBudget = loan => {
-    // Per-item budget line. The label suffix reflects whether it's a formal loan
-    // (EMI) or an interest-free installment purchase, so the two read correctly.
-    const catName = isInstallmentType(loan.type) ? `${loan.name} Installment` : `${loan.name} EMI`
+    const catName = budgetCatName(loan)
     ;(loan.country === 'foreign' ? setWkBudgets : setHmBudgets)(p => {
       if (p.find(b => b.name.toLowerCase() === catName.toLowerCase())) return p
       return [...p, { id: uid(), name: catName, limit: loan.emi || 0 }]
     })
+  }
+
+  // When a loan is edited, keep its budget category in sync — rename it if the
+  // name/type changed (e.g. Car Loan → Installment/Appliance flips the suffix),
+  // update its limit to the new EMI, and move it between the working/home budget
+  // sets if the country changed. No-op when nothing relevant changed.
+  const syncBudgetForEditedLoan = (oldLoan, newLoan) => {
+    if (!oldLoan) return
+    const oldName = budgetCatName(oldLoan)
+    const newName = budgetCatName(newLoan)
+    const oldSetter = oldLoan.country === 'foreign' ? setWkBudgets : setHmBudgets
+    const newSetter = newLoan.country === 'foreign' ? setWkBudgets : setHmBudgets
+    const countryChanged = (oldLoan.country || 'home') !== (newLoan.country || 'home')
+
+    if (countryChanged) {
+      // Remove from the old country's set…
+      oldSetter(p => p.filter(b => b.name.toLowerCase() !== oldName.toLowerCase()))
+      // …and add/refresh in the new country's set.
+      newSetter(p => {
+        const rest = p.filter(b => b.name.toLowerCase() !== newName.toLowerCase())
+        return [...rest, { id: uid(), name: newName, limit: newLoan.emi || 0 }]
+      })
+      return
+    }
+    // Same country: rename in place + update the limit if the category exists,
+    // otherwise create it (covers loans added before auto-budget existed).
+    oldSetter(p => renameBudgetCategory(p, oldName, newName, newLoan.emi || 0))
   }
 
   const save = () => {
@@ -4859,8 +4888,14 @@ function Loans({ loans, setLoans, foreignCurrency, homeCurrency, toINR, setWkBud
       if (Object.keys(errs).length) { setErrors(errs); return } }
     const item = { ...form, principal: parseFloat(form.principal)||0, outstanding: parseFloat(form.outstanding)||0, emi: parseFloat(form.emi)||0, rate: parseFloat(form.rate)||0, tenureMonths: parseInt(form.tenureMonths)||0, remainingMonths: parseInt(form.remainingMonths)||0, extraMonthly: parseFloat(form.extraMonthly)||0, asOfDate: today(), id: editing?.id || uid() }
     setLoans(p => editing ? p.map(l => l.id === editing.id ? item : l) : [...p, item])
-    if (autoAddEMI && item.emi > 0) addToBudget(item)
-    setShowAdd(false); setEditing(null); setForm(blank)
+    if (editing) {
+      // Keep the linked budget category in sync with the edited loan (rename on
+      // type/name change, update limit, move on country change).
+      syncBudgetForEditedLoan(editing, item)
+    } else if (autoAddEMI && item.emi > 0) {
+      addToBudget(item)
+    }
+    setShowAdd(false); setEditing(null); setForm(blank); setErrors({})
   }
 
   const del = id => { if (confirm('Delete this loan?')) setLoans(p => p.filter(l => l.id !== id)) }

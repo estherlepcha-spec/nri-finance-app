@@ -152,6 +152,23 @@ export const convertAmountToINR = (amount, currency, rates = {}, fallbackExchang
   return value
 }
 
+// ── Loan → budget category sync (same country) ────────────────────────────────
+// Pure transform: given a budget-category array, rename the category matching
+// oldName to newName and set its limit; if it doesn't exist, add newName (unless
+// already present). Case-insensitive match. Returns a new array.
+export const renameBudgetCategory = (budgets, oldName, newName, newLimit) => {
+  const list = budgets || []
+  const on = (oldName || '').toLowerCase(), nn = (newName || '').toLowerCase()
+  const idx = list.findIndex(b => (b.name || '').toLowerCase() === on)
+  if (idx === -1) {
+    if (list.some(b => (b.name || '').toLowerCase() === nn)) return list
+    return [...list, { id: `budcat-${Date.now()}`, name: newName, limit: newLimit || 0 }]
+  }
+  const next = [...list]
+  next[idx] = { ...next[idx], name: newName, limit: newLimit || 0 }
+  return next
+}
+
 // ── EMI budget matching ───────────────────────────────────────────────────────
 // A per-loan EMI budget category ("<loan> EMI") must attribute the right EMI
 // transactions to itself. With multiple EMI loans a generic "Loan EMI" category
