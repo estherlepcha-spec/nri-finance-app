@@ -44,7 +44,7 @@ export function syncServerPlugin() {
         const url = new URL(req.url || '/', 'http://localhost')
         const authHeader = req.headers.authorization || ''
         const token = process.env.SYNC_SHARED_TOKEN || ''
-        const requiresAuth = Boolean(token) || process.env.NODE_ENV === 'production'
+        const requiresAuth = true
         const queryToken = url.searchParams.get('token') || ''
         const isAuthorized = !requiresAuth || authHeader.startsWith('Bearer ') && authHeader.slice(7) === token || queryToken === token
         if (requiresAuth && !isAuthorized) {
