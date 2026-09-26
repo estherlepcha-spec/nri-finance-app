@@ -9809,10 +9809,11 @@ function LegalFooter() {
 }
 
 export default function App() {
-  // Standalone legal pages — checked first so /privacy, /terms, /ai-disclosure
+  // Standalone legal pages — resolved here so /privacy, /terms, /ai-disclosure
   // render regardless of auth/session state (consent links open them directly).
+  // Rendered at the bottom of this component's return, after all hooks, so
+  // hook order stays stable even if the route changes without a full reload.
   const LegalRoute = legalRouteFor(window.location.pathname)
-  if (LegalRoute) return <LegalRoute />
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   // session === undefined → still checking (show splash, avoid auth-screen flash)
@@ -10736,6 +10737,8 @@ export default function App() {
     const d = new Date(b.dueDate), now = new Date()
     return d >= now && d <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
   }).length
+
+  if (LegalRoute) return <LegalRoute />
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, overflow: 'hidden' }}>
