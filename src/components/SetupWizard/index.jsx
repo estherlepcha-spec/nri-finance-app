@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { C, HOME_ACCOUNT_TYPES, WORK_ACCOUNT_TYPES } from '../../utils/constants.js'
 import { Flag } from '../../utils/formatting.jsx'
 import { Btn, Field, Sel, CurrencySel, inputStyle } from '../shared/index.jsx'
+import ExitSurvey from '../shared/ExitSurvey.jsx'
 
 // Onboarding wizard. Guaranteed first stop for a new user (gated in App.jsx on
 // "onboarding not completed"). Four steps:
@@ -156,6 +157,21 @@ export default function SetupWizard({
   const isRegion = step === 0
   const isAccountStep = step === 2
   const isLast = step === steps.length - 1
+  const [showExitSurvey, setShowExitSurvey] = useState(false)
+
+  // Minimal exit survey submit: POST to /api/exit-survey if available,
+  // otherwise log to console. Non-blocking — we continue onboarding.
+  const submitExitSurvey = async (payload) => {
+    try {
+      if (window.fetch) {
+        await fetch('/api/exit-survey', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      } else {
+        console.log('Exit survey', payload)
+      }
+    } catch (e) {
+      console.log('Exit survey submit failed', e, payload)
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -184,7 +200,7 @@ export default function SetupWizard({
             {step > 0 && <Btn variant="ghost" onClick={() => setStep(s => s - 1)} style={{ flex: 1, justifyContent: 'center' }}>← Back</Btn>}
             {isAccountStep ? (
               <>
-                <Btn variant="ghost" onClick={() => setStep(3)} style={{ flex: 1, justifyContent: 'center' }}>Skip for now</Btn>
+                <Btn variant="ghost" onClick={() => setShowExitSurvey(true)} style={{ flex: 1, justifyContent: 'center' }}>Skip for now</Btn>
                 <Btn onClick={addAccount} disabled={!acctName.trim()} style={{ flex: 1, justifyContent: 'center' }}>Add account →</Btn>
               </>
             ) : (
@@ -198,6 +214,9 @@ export default function SetupWizard({
           </div>
         </div>
       </div>
+      {showExitSurvey && (
+        <ExitSurvey onClose={() => { setShowExitSurvey(false); setStep(3) }} onSubmit={submitExitSurvey} />
+      )}
     </div>
   )
 }

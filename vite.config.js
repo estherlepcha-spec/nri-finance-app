@@ -9,6 +9,13 @@ export default defineConfig({
     strictPort: false,
     host: 'localhost',
     open: false,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     headers: {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       'Pragma': 'no-cache',

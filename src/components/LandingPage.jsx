@@ -21,6 +21,7 @@
  */
 
 import { useState } from "react";
+import ExitSurveyAdmin from './Admin/ExitSurveyAdmin.jsx'
 
 const heroScreenshot = "/assets/hero-dashboard.png"; // replace with your real screenshot
 const demoVideoUrl = "/assets/demo.mp4"; // or a Loom/YouTube embed URL
@@ -68,6 +69,7 @@ const testimonials = [
 
 export default function LandingPage() {
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false)
 
   return (
     <div className="landing">
@@ -186,6 +188,12 @@ export default function LandingPage() {
           .hero, .feature-row, .feature-row.reverse { flex-direction: column; }
         }
       `}</style>
+      {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
+        <div style={{ position: 'fixed', right: 18, bottom: 18 }}>
+          <button onClick={() => setShowAdmin(true)} style={{ background: '#111827', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 10, cursor: 'pointer' }}>Admin</button>
+        </div>
+      )}
+      {showAdmin && <ExitSurveyAdmin onClose={() => setShowAdmin(false)} />}
     </div>
   );
 }
