@@ -10039,6 +10039,25 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on user?.id only, not the user object reference
   }, [user?.id])
 
+  // ── Marketing-site handoff: ?plan=pro_usd_monthly / ?plan=pro_inr_monthly ──
+  // A visitor who picks a plan on the marketing site lands here with ?plan=
+  // in the URL, signs in (if not already), and is sent straight to Stripe
+  // Checkout for that plan — no separate signup form on the marketing site.
+  // Fires once per visit (param is stripped immediately after use) and only
+  // for the known price keys create-checkout actually recognizes.
+  const VALID_PLAN_KEYS = ['pro_usd_monthly', 'pro_inr_monthly']
+  useEffect(() => {
+    if (!user?.id) return
+    const params = new URLSearchParams(window.location.search)
+    const plan = params.get('plan')
+    if (!plan || !VALID_PLAN_KEYS.includes(plan)) return
+    params.delete('plan')
+    const newSearch = params.toString()
+    window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : ''))
+    import('./subscription.js').then(({ startCheckout }) => startCheckout(plan).catch(() => {}))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on user?.id only, not the user object reference
+  }, [user?.id])
+
   // ── Clear cached data when the signed-in user changes ───────────────────────
   // Initial state is seeded from localStorage (the `load()` calls above). On a
   // shared device that cache could belong to a *different* user, so whenever the
