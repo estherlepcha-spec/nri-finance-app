@@ -22,6 +22,7 @@
 
 import { useState } from "react";
 import ExitSurveyAdmin from './Admin/ExitSurveyAdmin.jsx'
+import SiteFeedbackAdmin from './Admin/SiteFeedbackAdmin.jsx'
 
 const heroScreenshot = "/assets/hero-dashboard.png"; // replace with your real screenshot
 const demoVideoUrl = "/assets/demo.mp4"; // or a Loom/YouTube embed URL
@@ -70,6 +71,7 @@ const testimonials = [
 export default function LandingPage() {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showFeedbackAdmin, setShowFeedbackAdmin] = useState(false)
 
   return (
     <div className="landing">
@@ -189,11 +191,13 @@ export default function LandingPage() {
         }
       `}</style>
       {typeof window !== 'undefined' && window.location.hostname === 'localhost' && (
-        <div style={{ position: 'fixed', right: 18, bottom: 18 }}>
-          <button onClick={() => setShowAdmin(true)} style={{ background: '#111827', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 10, cursor: 'pointer' }}>Admin</button>
+        <div style={{ position: 'fixed', right: 18, bottom: 18, display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowAdmin(true)} style={{ background: '#111827', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 10, cursor: 'pointer' }}>Exit Surveys</button>
+          <button onClick={() => setShowFeedbackAdmin(true)} style={{ background: '#111827', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 10, cursor: 'pointer' }}>Site Feedback</button>
         </div>
       )}
       {showAdmin && <ExitSurveyAdmin onClose={() => setShowAdmin(false)} />}
+      {showFeedbackAdmin && <SiteFeedbackAdmin onClose={() => setShowFeedbackAdmin(false)} />}
     </div>
   );
 }
