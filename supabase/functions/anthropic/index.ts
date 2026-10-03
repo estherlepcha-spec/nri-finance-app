@@ -32,6 +32,7 @@ const MAX_REQUESTS_PER_WINDOW = 10
 const WINDOW_MS = 5 * 60 * 1000
 const FREE_TRIAL_DAYS = 14
 const FREE_TRIAL_AI_UPLOADS = 4
+const PRO_MONTHLY_AI_UPLOADS = 20
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
@@ -46,12 +47,14 @@ function isUploadRequest(parsedBody: any): boolean {
     Array.isArray(m?.content) && m.content.some((b: { type?: string }) => b?.type === 'image' || b?.type === 'document'))
 }
 
-// Server-side entitlement check: a paid/trialing Stripe subscription has no
-// cap here (Stripe's own trial_period_days + card-on-file already bounds
-// abuse). A user with no Stripe subscription gets a 14-day, no-card grace
-// window with a hard cap on AI uploads (the real cost driver), tracked in
-// trial_usage so it can't be reset by clearing localStorage. Returns null if
-// the request may proceed, or an error message if it must be blocked.
+// Server-side entitlement check. A paid/trialing Stripe subscription (Pro)
+// gets a generous but real monthly AI-upload cap, tracked in pro_ai_usage —
+// Stripe's own trial_period_days + card-on-file already bounds pre-payment
+// abuse, but an active Pro subscriber could otherwise still run unlimited AI
+// calls indefinitely. A user with no Stripe subscription gets a 14-day,
+// no-card grace window with its own (smaller) cap, tracked in trial_usage so
+// neither cap can be reset by clearing localStorage. Returns null if the
+// request may proceed, or an error message if it must be blocked.
 async function checkEntitlement(userId: string, isUpload: boolean): Promise<string | null> {
   const { data: sub } = await admin
     .from('subscriptions')
@@ -61,7 +64,28 @@ async function checkEntitlement(userId: string, isUpload: boolean): Promise<stri
   const isPaidOrTrialing = sub &&
     (sub.status === 'trialing' || sub.status === 'active') &&
     (!sub.current_period_end || new Date(sub.current_period_end) > new Date())
-  if (isPaidOrTrialing) return null
+
+  if (isPaidOrTrialing) {
+    if (!isUpload) return null
+    const month = new Date().toISOString().slice(0, 7) // YYYY-MM, UTC
+    const { data: proUsage } = await admin
+      .from('pro_ai_usage')
+      .select('ai_uploads')
+      .eq('user_id', userId)
+      .eq('month', month)
+      .maybeSingle()
+    const proUploads = proUsage?.ai_uploads ?? 0
+    if (proUploads >= PRO_MONTHLY_AI_UPLOADS) {
+      return `Monthly AI upload limit reached (${PRO_MONTHLY_AI_UPLOADS}). Your limit resets next month.`
+    }
+    await admin.from('pro_ai_usage').upsert({
+      user_id: userId,
+      month,
+      ai_uploads: proUploads + 1,
+      updated_at: new Date().toISOString(),
+    })
+    return null
+  }
 
   const { data: usage } = await admin
     .from('trial_usage')

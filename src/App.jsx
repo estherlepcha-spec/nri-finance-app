@@ -222,11 +222,20 @@ const BILL_CATS = ['Utilities', 'Rent', 'Apartment Maintenance', 'Insurance', 'S
 const REMIT_PURPOSES = ['Family Support', 'Property Purchase', 'Investment', 'Medical', 'Education', 'Business', 'Other']
 
 // Quotas that apply during the free 14-day trial (see requireUpgrade / onTrial).
-// Paid users are unrestricted. Modeled on freemium finance apps (Emma/PocketGuard):
-// let users feel the core value, gate the cost/differentiation centers.
+// Modeled on freemium finance apps (Emma/PocketGuard): let users feel the
+// core value, gate the cost/differentiation centers.
 const TRIAL_LIMITS = {
   accounts: 2,   // max accounts a trial user can create
   aiUploads: 4,  // total AI receipt/statement scans across the trial
+}
+
+// Quotas for paid Pro subscribers. Intentionally generous (covers a typical
+// NRI/expat's home + working-country footprint — bank, credit card, and a
+// loan/investment account on each side) but still capped, leaving clear
+// headroom for a future Enterprise tier above it.
+const PRO_LIMITS = {
+  accounts: 6,     // max accounts a Pro user can create
+  aiUploads: 20,   // AI receipt/statement scans per calendar month
 }
 
 // ─── Default Data ─────────────────────────────────────────────────────────────
@@ -7974,9 +7983,19 @@ Return: [{"date":"same","description":"same","amount":same,"type":"same","catego
       // quote in a payee name), it is no longer silently dropped — but flag it so
       // the user double-checks those rows' details before importing.
       const salvagedRows = (result.transactions || []).filter(t => t._salvaged)
+      const warnings = []
       if (salvagedRows.length) {
-        setUploadWarning(`${salvagedRows.length} transaction${salvagedRows.length > 1 ? 's were' : ' was'} recovered from a formatting issue in the statement — please verify ${salvagedRows.length > 1 ? 'their' : 'its'} amount and description before importing.`)
+        warnings.push(`${salvagedRows.length} transaction${salvagedRows.length > 1 ? 's were' : ' was'} recovered from a formatting issue in the statement — please verify ${salvagedRows.length > 1 ? 'their' : 'its'} amount and description before importing.`)
       }
+      // A single upload should cover one calendar month. Transactions spanning
+      // more than one real month (e.g. a multi-month PDF) risk being filed
+      // under the wrong month's budget/bill rollover — flag it so the user can
+      // split the file and re-upload rather than import a blended statement.
+      const monthsSeen = [...new Set((result.transactions || []).map(t => (t.date || '').slice(0, 7)).filter(Boolean))].sort()
+      if (monthsSeen.length > 1) {
+        warnings.push(`This statement has transactions across ${monthsSeen.length} different months (${monthsSeen.join(', ')}). Please upload one month at a time to avoid entries being filed under the wrong month.`)
+      }
+      if (warnings.length) setUploadWarning(warnings.join(' '))
       setAiResult(result)
 
       // Auto-detect account if none selected: match by account number, then by
@@ -10891,7 +10910,7 @@ export default function App() {
             </div>
           )}
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} showPremiumBadge={showPremiumBadge} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
-          {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} accountLimit={onTrial ? TRIAL_LIMITS.accounts : Infinity} onLimitReached={() => requireUpgrade(`unlimited accounts (your trial includes ${TRIAL_LIMITS.accounts})`)} />}
+          {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} accountLimit={onTrial ? TRIAL_LIMITS.accounts : (billingEnabled ? PRO_LIMITS.accounts : Infinity)} onLimitReached={() => { if (onTrial) requireUpgrade(`more accounts (your trial includes ${TRIAL_LIMITS.accounts})`); else window.alert(`You've reached the Pro plan's ${PRO_LIMITS.accounts}-account limit. Contact support if you need more.`) }} />}
           {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
           {activeTab === 'bills' && <Bills {...shared} {...setters} />}
