@@ -10909,8 +10909,20 @@ export default function App() {
               </button>
             </div>
           )}
+          {billingEnabled && !isPaid && !onTrial && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '12px 16px 0', padding: '10px 14px', background: `${C.card2}`, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.textS }}>Free plan</span>
+              <span style={{ fontSize: 12, color: C.muted }}>
+                Accounts {Math.min(accounts.length, TRIAL_LIMITS.accounts)}/{TRIAL_LIMITS.accounts} · AI uploads &amp; Estelle paused
+              </span>
+              <button onClick={() => requireUpgrade('all Pro features')}
+                style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: 8, border: 'none', background: C.accent, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                Upgrade to Pro
+              </button>
+            </div>
+          )}
           {activeTab === 'dashboard' && <Dashboard {...shared} netWorth={netWorth} totalINR={totalINR} totalForeign={totalForeign} totalLoanBalance={totalLoanBalance} monthlyEMI={monthlyEMI} setActiveTab={setActiveTab} setBudgetMonth={setBudgetMonth} onOpenImport={openImport} lastImport={lastImport} showPremiumBadge={showPremiumBadge} onAddSalary={() => { setInvoicePrefill({ type: 'income', category: 'Salary', description: 'Salary' }); setActiveTab('transactions') }} />}
-          {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} accountLimit={onTrial ? TRIAL_LIMITS.accounts : (billingEnabled ? PRO_LIMITS.accounts : Infinity)} onLimitReached={() => { if (onTrial) requireUpgrade(`more accounts (your trial includes ${TRIAL_LIMITS.accounts})`); else window.alert(`You've reached the Pro plan's ${PRO_LIMITS.accounts}-account limit. Contact support if you need more.`) }} />}
+          {activeTab === 'accounts' && <Accounts {...shared} {...setters} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} accountLimit={!billingEnabled ? Infinity : (isPaid ? PRO_LIMITS.accounts : TRIAL_LIMITS.accounts)} onLimitReached={() => { if (isPaid) window.alert(`You've reached the Pro plan's ${PRO_LIMITS.accounts}-account limit. Contact support if you need more.`); else requireUpgrade(`more accounts (free includes ${TRIAL_LIMITS.accounts})`) }} />}
           {activeTab === 'transactions' && <Transactions {...shared} {...setters} setAccounts={setAccounts} onOpenImport={openImport} showPremiumBadge={showPremiumBadge} invoicePrefill={invoicePrefill} onClearInvoicePrefill={() => setInvoicePrefill(null)} smartRules={smartRules} setSmartRules={setSmartRules} />}
           {activeTab === 'remittances' && <Remittances {...shared} {...setters} />}
           {activeTab === 'bills' && <Bills {...shared} {...setters} />}
