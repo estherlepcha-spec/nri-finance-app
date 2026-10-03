@@ -15,8 +15,8 @@ export default function ExitSurvey({ onClose = () => {}, onSubmit = async () => 
       await onSubmit({ q1, q2, comment, timestamp: Date.now() })
       setSubmitted(true)
       setTimeout(() => onClose(true), 1000)
-    } catch (e) {
-      // swallow — caller may log
+    } catch (err) {
+      console.warn('Exit survey submission failed', err)
       onClose(false)
     } finally {
       setSubmitting(false)

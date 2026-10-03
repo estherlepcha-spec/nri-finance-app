@@ -57,7 +57,7 @@ export function FloatingEstelle({ onOpen }) {
       return () => clearTimeout(t2)
     }, 4000)
     return () => clearTimeout(t)
-  }, [showBubble])
+  }, [showBubble, tips.length])
 
   return (
     <div style={{ position: 'fixed', bottom: 90, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, pointerEvents: 'none' }}>

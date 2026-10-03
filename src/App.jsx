@@ -12,7 +12,8 @@ import { getProPriceDisplay } from './pricing.js'
 // ─── Extracted modules ────────────────────────────────────────────────────────
 import SetupWizardComponent from './components/SetupWizard/index.jsx'
 import FamilyComponent from './components/Family/index.jsx'
-import OnboardingTour, { resetOnboarding } from './OnboardingTour.jsx'
+import OnboardingTour from './OnboardingTour.jsx'
+import { resetOnboarding } from './onboardingStorage.js'
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 const load = (key, fallback) => {
@@ -126,21 +127,13 @@ const CURRENCY_GROUPS = {
   'Middle East': ['ILS', 'TRY'],
   'Africa': ['ZAR', 'NGN', 'KES', 'GHS', 'ETB'],
 }
-const CURRENCIES = Object.values(CURRENCY_GROUPS).flat()
 const HOME_ACCOUNT_TYPES  = ['NRE', 'NRO', 'FCNR', 'Savings Account', 'Current Account', 'Credit Card', 'Fixed Deposit', 'Loan Account', 'Investment Account']
 const WORK_ACCOUNT_TYPES  = ['Savings Account', 'Current Account', 'Salary Account', 'Credit Card', 'Loan Account', 'Fixed Deposit', 'Investment Account']
-const ACCOUNT_TYPES = [...new Set([...HOME_ACCOUNT_TYPES, ...WORK_ACCOUNT_TYPES])]
 const INVESTMENT_TYPES = ['Mutual Fund', 'Fixed Deposit', 'Stocks', 'PPF', 'NPS', 'Real Estate', 'Gold', 'Bonds', 'ETF']
-const GOAL_CATEGORIES = ['House', 'Education', 'Retirement', 'Emergency Fund', 'Travel', 'Wedding', 'Business', 'Other']
 const GOAL_TYPES = ['Home Down Payment', 'Children Education', 'Emergency Fund', 'Car Purchase', 'Wedding', 'Retirement', 'Travel/Holiday', 'Business Setup', 'Other']
 const GOAL_PRIORITIES = ['High', 'Medium', 'Low']
 const INVEST_TYPES_SIM = ['Mutual Fund', 'Fixed Deposit', 'Stock Market', 'Gold', 'Mix']
 const INVEST_RETURNS = { 'Mutual Fund': 12, 'Fixed Deposit': 7, 'Stock Market': 15, 'Gold': 9, 'Mix': 10 }
-const DEFAULT_GOALS = [
-  { id: 1, name: 'Home Down Payment',  type: 'Home Down Payment',  target: 2500000, saved: 850000,  currency: 'INR', deadline: '2027-12-31', monthlyContribution: 25000, priority: 'High', notes: 'Apartment in Bangalore' },
-  { id: 2, name: 'Emergency Fund',     type: 'Emergency Fund',     target: 5000,    saved: 3200,    currency: 'KWD', deadline: '2026-12-31', monthlyContribution: 300,   priority: 'High', notes: '6 months Kuwait expenses' },
-  { id: 3, name: 'Children Education', type: 'Children Education', target: 5000000, saved: 1200000, currency: 'INR', deadline: '2030-06-30', monthlyContribution: 20000, priority: 'High', notes: 'Engineering college fund' },
-]
 const LOAN_TYPES = ['Home Loan', 'Car Loan', 'Personal Loan', 'Education Loan', 'Business Loan', 'Installment/Appliance', 'Other']
 // Interest-free item bought in installments (appliance, gym membership, BNPL) —
 // tracked here for convenience but it is NOT a formal loan. Its budget category
@@ -184,13 +177,13 @@ const CURRENCY_ISO2 = {
   MXN:'mx', BRL:'br', ARS:'ar', CLP:'cl', ILS:'il', TRY:'tr',
 }
 // Returns a flag img element or currency text fallback — use instead of <Flag> when an img tag is needed inline
-const getCurrencyFlag = (currency, size = 16) => {
+const getCurrencyFlag = (currency) => {
   const cc = CURRENCY_ISO2[currency]
   if (!cc) return null
   return `https://flagcdn.com/${cc}.svg`
 }
 function Flag({ currency, size = 16, style: extraStyle }) {
-  const src = getCurrencyFlag(currency, size)
+  const src = getCurrencyFlag(currency)
   if (!src) return (
     <span style={{ fontSize: size * 0.85, color: '#94a3b8', verticalAlign: 'middle', flexShrink: 0, display: 'inline-block', ...extraStyle }}>
       {currency || '?'}
@@ -223,43 +216,10 @@ function ProBadge({ show, tiny = false }) {
     </span>
   )
 }
-const ALLOCATION_BUCKETS = {
-  Essentials:    ['Groceries', 'Dining', 'Transport', 'Utilities', 'Household', 'Healthcare', 'Apartment Maintenance', 'Family Support'],
-  Remittance:    ['Remittance'],
-  Investments:   ['Investment', 'Savings'],
-  Discretionary: ['Shopping', 'Entertainment', 'Personal Care', 'Travel', 'Subscription', 'Giving/Donation'],
-  Bills:         ['Loan EMI', 'Installment/EMI Purchase', 'Credit Card Bill', 'Insurance', 'Fees & Charges'],
-  Buffer:        ['Other', 'ATM Withdrawal'],
-}
-const DEFAULT_BUDGETS = {
-  Groceries: 15000, Dining: 8000, Transport: 5000, Utilities: 4000, Household: 3000,
-  Healthcare: 5000, Education: 10000, 'Personal Care': 3000, Shopping: 8000, Entertainment: 3000,
-  'Apartment Maintenance': 3000, 'Family Support': 10000,
-  Remittance: 50000, 'Loan EMI': 20000, 'Installment/EMI Purchase': 5000, 'Credit Card Bill': 10000, Insurance: 3000, Investment: 20000, Savings: 15000,
-  Travel: 10000, Subscription: 2000, 'Fees & Charges': 1000, 'Giving/Donation': 2000,
-  Salary: 0, 'Other Income': 0, 'Rental Income': 0, Dividends: 0,
-  'ATM Withdrawal': 5000, Transfer: 0, Other: 3000,
-}
 const RELATIONS = ['Parent', 'Spouse', 'Sibling', 'Child', 'In-laws', 'Relative', 'Other']
 const BILL_FREQS = ['Weekly', 'Monthly', 'Quarterly', 'Yearly', 'One-time']
 const BILL_CATS = ['Utilities', 'Rent', 'Apartment Maintenance', 'Insurance', 'Subscription', 'Internet', 'Phone', 'Family Support', 'EMI', 'Other']
 const REMIT_PURPOSES = ['Family Support', 'Property Purchase', 'Investment', 'Medical', 'Education', 'Business', 'Other']
-
-const DEFAULT_WK_BUDGETS = [
-  { id: 'wk-rent',       name: 'Rent',          limit: 250 },
-  { id: 'wk-groc',       name: 'Groceries',     limit: 150 },
-  { id: 'wk-dining',     name: 'Dining',         limit: 80 },
-  { id: 'wk-transport',  name: 'Transport',      limit: 60 },
-  { id: 'wk-health',     name: 'Healthcare',     limit: 40 },
-  { id: 'wk-care',       name: 'Personal Care',  limit: 30 },
-  { id: 'wk-entertain',  name: 'Entertainment',  limit: 50 },
-  { id: 'wk-shopping',   name: 'Shopping',       limit: 80 },
-  { id: 'wk-sub',        name: 'Subscription',   limit: 15 },
-  { id: 'wk-fees',       name: 'Fees & Charges', limit: 10 },
-  { id: 'wk-travel',     name: 'Travel',         limit: 100 },
-  { id: 'wk-giving',     name: 'Giving/Donation', limit: 20 },
-  { id: 'wk-other',      name: 'Other',          limit: 30 },
-]
 
 // Quotas that apply during the free 14-day trial (see requireUpgrade / onTrial).
 // Paid users are unrestricted. Modeled on freemium finance apps (Emma/PocketGuard):
@@ -268,25 +228,6 @@ const TRIAL_LIMITS = {
   accounts: 2,   // max accounts a trial user can create
   aiUploads: 4,  // total AI receipt/statement scans across the trial
 }
-
-const DEFAULT_HM_BUDGETS = [
-  { id: 'hm-homeloan',   name: 'Home Loan EMI',      limit: 35000 },
-  { id: 'hm-electricity',name: 'Electricity',         limit: 5000 },
-  { id: 'hm-water',      name: 'Water Bill',          limit: 1000 },
-  { id: 'hm-internet',   name: 'Internet & Cable',    limit: 2000 },
-  { id: 'hm-phone',      name: 'Phone',               limit: 1000 },
-  { id: 'hm-maint',      name: 'Apartment Maintenance', limit: 3000 },
-  { id: 'hm-family',     name: 'Family Support',      limit: 10000 },
-  { id: 'hm-groceries',  name: 'Groceries (Family)',  limit: 15000 },
-  { id: 'hm-school',     name: 'School Fees',         limit: 10000 },
-  { id: 'hm-health',     name: 'Healthcare',          limit: 5000 },
-  { id: 'hm-insurance',  name: 'Insurance Premium',   limit: 8000 },
-  { id: 'hm-household',  name: 'Household',           limit: 5000 },
-  { id: 'hm-care',       name: 'Personal Care',       limit: 3000 },
-  { id: 'hm-entertain',  name: 'Entertainment',       limit: 2000 },
-  { id: 'hm-giving',     name: 'Giving/Donation',     limit: 3000 },
-  { id: 'hm-other',      name: 'Other',               limit: 5000 },
-]
 
 // ─── Default Data ─────────────────────────────────────────────────────────────
 const DEFAULT_HOME_CURRENCY = 'INR'
@@ -520,6 +461,20 @@ const C = {
 // ─── Scroll-to-top / bottom floating arrows ───────────────────────────────────
 // Two filled-yellow triangles fixed at the bottom-right. The up arrow jumps to
 // the top of the scrolling main area, the down arrow to the bottom.
+// Bare filled-yellow triangle, no button box/border/background. Rounded
+// corners via stroke-linejoin:round (stroke same colour as fill so the
+// rounding reads as a solid shape, like the reference image).
+function Tri({ dir }) {
+  return (
+    <svg width="15" height="13" viewBox="0 0 30 26" aria-hidden="true">
+      <polygon
+        points={dir === 'up' ? '15,3 27,23 3,23' : '3,3 27,3 15,23'}
+        fill={C.yellow} stroke={C.yellow} strokeWidth="4"
+        strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function ScrollArrows({ scrollRef, isMobile }) {
   // The actual scrolling element is the page wrapper INSIDE <main> (it has
   // overflowY:auto + height:100%), not <main> itself. Resolve it at click time
@@ -536,22 +491,11 @@ function ScrollArrows({ scrollRef, isMobile }) {
     if (!el) return
     el.scrollTo({ top: pos === 'top' ? 0 : el.scrollHeight, behavior: 'smooth' })
   }
-  // Bare filled-yellow triangle, no button box/border/background. Rounded
-  // corners via stroke-linejoin:round (stroke same colour as fill so the
-  // rounding reads as a solid shape, like the reference image).
   const btn = {
     background: 'none', border: 'none', padding: 0, cursor: 'pointer',
     display: 'flex', lineHeight: 0, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.45))',
     transition: 'transform 0.12s',
   }
-  const Tri = ({ dir }) => (
-    <svg width="15" height="13" viewBox="0 0 30 26" aria-hidden="true">
-      <polygon
-        points={dir === 'up' ? '15,3 27,23 3,23' : '3,3 27,3 15,23'}
-        fill={C.yellow} stroke={C.yellow} strokeWidth="4"
-        strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  )
   return (
     <div style={{
       position: 'fixed', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 6,
@@ -688,7 +632,7 @@ function Modal({ title, onClose, children, width = 480 }) {
   )
 }
 
-function StatCard({ label, value, sub, color = C.accent, icon, trend }) {
+function StatCard({ label, value, sub, color = C.accent, icon }) {
   return (
     <div className="card-lift" style={{ background: `linear-gradient(135deg, ${color}12, ${color}06)`, border: `1px solid ${color}2e`, borderRadius: 14, padding: '16px 18px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${color}, ${color}44)` }} />
@@ -750,6 +694,7 @@ function DonutChart({ segments, size = 72, thickness = 11, label }) {
     if (activeSegs.length === 1) return { full: true, color: seg.color }
     const sweep = frac * 2 * Math.PI
     const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle)
+    // eslint-disable-next-line react-hooks/immutability -- local accumulator for arc math, not render state
     angle += sweep
     const x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle)
     const large = sweep > Math.PI ? 1 : 0
@@ -1003,18 +948,6 @@ function Dashboard({ accounts, transactions, investments, goals, loans, bills, r
 
   const srClr = r => r == null ? C.muted  : r >= 20 ? C.green  : r >= 10 ? C.yellow  : C.red
   const srLbl = r => r == null ? 'No salary recorded' : r >= 20 ? '🟢 On Track' : r >= 10 ? '🟡 Review' : '🔴 Low'
-
-  // Point 1: income debug log
-  useEffect(() => {
-    console.log('=== INCOME DEBUG ===')
-    console.log('All accounts:', accounts.map(a => ({ id: a.id, name: a.name, currency: a.currency, country: a.country })))
-    console.log('All income transactions:', transactions.filter(t => t.type === 'income').map(t => {
-      const acc = accounts.find(a => a.id === t.accountId)
-      return { id: t.id, date: t.date, desc: t.description, amount: t.amount, currency: t.currency, accountId: t.accountId, accountName: acc?.name || 'NOT FOUND', accountCountry: acc?.country || 'UNKNOWN', accountCurrency: acc?.currency || 'UNKNOWN' }
-    }))
-    console.log('wkMonIn:', wkMonIn, foreignCurrency, '| wkMonEx (display):', wkMonEx, '| wkMonSaved (rate):', wkMonSaved)
-    console.log('=== END DEBUG ===')
-  }, [accounts, transactions])
 
   // Month navigation
   const goToPrevMonth = () => {
@@ -7816,6 +7749,7 @@ function BankStatementImport({ accounts, transactions, loans, setLoans, onImport
     // "Bad control character in string literal" from AI output — e.g. a literal
     // newline/tab inside a merchant name) before falling back to the salvager.
     try {
+      // eslint-disable-next-line no-control-regex -- intentionally stripping control chars from AI output
       const deControlled = jsonStr.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]+/g, ' ')
       return validateAndClean(JSON.parse(deControlled))
     } catch { /* fall through to field-level repair below */ }
@@ -9703,7 +9637,7 @@ function LegalShell({ title, subtitle, children }) {
 function PrivacyPolicyPage() {
   return (
     <LegalShell title="Privacy Policy" subtitle={`Operator: ${LEGAL_OPERATOR} · Contact: ${LEGAL_CONTACT} · Effective: [DATE]`}>
-      {({ h, p, li }) => (<>
+      {({ h, p }) => (<>
         <h2 style={h}>1. Who we are</h2>
         <p style={p}>The NRI's & Expat's Personal Finance Manager ("the App") is a personal-finance tool for NRIs and expats, operated by an individual sole operator ({LEGAL_OPERATOR}). This policy explains what data we collect, why, how it is processed (including by our AI provider), and your rights.</p>
         <h2 style={h}>2. What data we collect</h2>
@@ -9981,7 +9915,7 @@ export default function App() {
       return changed ? next : prev
     })
     persist('nri_fuelRetagDone', true)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // One-time: undo the earlier auto-backfill, which guessed delayed salaries
   // from data alone and could mis-tag a month's extra salary (e.g. tagging an
@@ -10007,7 +9941,7 @@ export default function App() {
       return changed ? next : prev
     })
     persist('nri_salaryBackfillUndone', true)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // Auto-detect self-transfers: a "Transfer" expense that matches a credit landing
   // in ANOTHER of the user's OWN accounts (same |amount|, within ±3 days) is an
@@ -10102,6 +10036,7 @@ export default function App() {
     const onFocus = () => check()
     window.addEventListener('focus', onFocus)
     return () => { alive = false; window.removeEventListener('focus', onFocus) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on user?.id only, not the user object reference
   }, [user?.id])
 
   // ── Clear cached data when the signed-in user changes ───────────────────────
@@ -10286,6 +10221,7 @@ export default function App() {
     })
 
     return () => { channel?.unsubscribe(); _syncPush = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on user?.id only, not the user object reference
   }, [user?.id])
 
   useEffect(() => {
@@ -10294,7 +10230,6 @@ export default function App() {
       if (!_syncPush) { _syncPush = sync.push; sync.init(setSyncStatus, () => {}) }
     })
     return () => {}
-  // eslint-disable-next-line
   }, [])
 
 
@@ -10335,21 +10270,6 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── startup verification ─────────────────────────────────────────────────────
-  useEffect(() => {
-    console.log('=== NRI Finance App Started ===')
-    console.log('Home Currency:', homeCurrency)
-    console.log('Foreign Currency:', foreignCurrency)
-    console.log('Setup Complete:', setupComplete)
-    console.log('Accounts loaded:', accounts.length)
-    console.log('Transactions loaded:', transactions.length)
-    console.log('Loans loaded:', loans.length)
-    console.log('Investments loaded:', investments.length)
-    console.log('Goals loaded:', goals.length)
-    console.log('Bills loaded:', bills.length)
-    console.log('==============================')
-  }, [])
-
   // ── live exchange rates ───────────────────────────────────────────────────────
   const fetchRates = async () => {
     setRatesFetching(true)
@@ -10373,6 +10293,7 @@ export default function App() {
     fetchRates()
     const id = setInterval(fetchRates, 30 * 60 * 1000)
     return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-only; fetchRates is recreated each render
   }, [])
 
   useEffect(() => {

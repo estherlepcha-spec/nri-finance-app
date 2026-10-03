@@ -82,10 +82,10 @@ test('WIPE: sign-out (user -> null) wipes the cache', () => {
 
 test('end-to-end scenario: A creates data, signs out, B signs in => B sees nothing of A', () => {
   // 1. A is signed in, cache tagged to A.
-  let taggedOwner = USER_A
-  // 2. A signs out: wipe fires (prev A -> null).
+  const taggedOwner = USER_A
+  // 2. A signs out: wipe fires (prev A -> null). This also clears nri_cacheOwner
+  //    along with the nri_* keys, so no tagged owner persists afterward.
   assert.equal(shouldWipeCache({ prevUserId: USER_A, currentUserId: null, taggedOwner }), true)
-  taggedOwner = null // wipe cleared nri_cacheOwner along with nri_* keys
   // 3. B signs in fresh. Even if some stale A cache lingered (taggedOwner=A),
   //    neither wipe-suppression nor seeding would leak it:
   assert.equal(shouldWipeCache({ prevUserId: undefined, currentUserId: USER_B, taggedOwner: USER_A }), true,

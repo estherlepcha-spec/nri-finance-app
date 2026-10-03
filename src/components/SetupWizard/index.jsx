@@ -39,8 +39,10 @@ export default function SetupWizard({
   const [rateAutoFilled, setRateAutoFilled] = useState(false)
   useEffect(() => {
     // Pre-fill the rate once, when entering the rate step, if we have a live one.
+    // One-shot guarded by rateAutoFilled, so this can't cascade into a render loop.
     if (step === 1 && liveRate && !rateAutoFilled) {
       setExchangeRate(Number(liveRate.toFixed(4)))
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRateAutoFilled(true)
     }
   }, [step, liveRate, rateAutoFilled, setExchangeRate])

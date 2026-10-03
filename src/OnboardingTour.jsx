@@ -22,8 +22,7 @@
 import { useEffect, useRef } from "react";
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
-
-const STORAGE_KEY = "onboarding_tour_completed_v1";
+import { STORAGE_KEY, shouldShowOnboarding } from "./onboardingStorage.js";
 
 // Guided walkthrough of the app's key features for a first-time user. Each step
 // highlights a real element (see the data-tour anchors in App.jsx). Steps whose
@@ -119,15 +118,6 @@ const steps = [
     },
   },
 ];
-
-export function shouldShowOnboarding() {
-  if (typeof window === "undefined") return false;
-  return !window.localStorage.getItem(STORAGE_KEY);
-}
-
-export function resetOnboarding() {
-  window.localStorage.removeItem(STORAGE_KEY);
-}
 
 // An element is a usable tour target only if it's actually rendered AND visible.
 // The sidebar (and its nav items) is display:none on mobile and collapsed on

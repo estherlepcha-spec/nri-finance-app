@@ -15,6 +15,7 @@ export default function ExitSurveyAdmin({ onClose = () => {} }) {
     } finally { setLoading(false) }
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-mount
   useEffect(() => { load() }, [])
 
   return (
@@ -33,7 +34,7 @@ export default function ExitSurveyAdmin({ onClose = () => {} }) {
           <div key={i} style={{ padding: 12, borderBottom: '1px solid #eee', fontSize: 13 }}>
             <div style={{ marginBottom: 6, color: '#111' }}><strong>{it.q1 || '(no answer)'}</strong> → {it.q2 || '(no answer)'}</div>
             <div style={{ color: '#374151' }}>{it.comment || ''}</div>
-            <div style={{ color: '#9ca3af', marginTop: 6, fontSize: 12 }}>{new Date(it.receivedAt || it.timestamp || Date.now()).toLocaleString()}</div>
+            <div style={{ color: '#9ca3af', marginTop: 6, fontSize: 12 }}>{it.receivedAt || it.timestamp ? new Date(it.receivedAt || it.timestamp).toLocaleString() : 'Unknown time'}</div>
           </div>
         ))}
       </div>
