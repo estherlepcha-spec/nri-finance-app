@@ -30,6 +30,62 @@ const rateLimits = new Map<string, number[]>()
 const MAX_BODY_BYTES = 1_000_000
 const MAX_REQUESTS_PER_WINDOW = 10
 const WINDOW_MS = 5 * 60 * 1000
+const FREE_TRIAL_DAYS = 14
+const FREE_TRIAL_AI_UPLOADS = 4
+
+const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+
+// A request counts as a capped "AI upload" if any message attaches an image
+// or document block (receipt/statement scans) rather than plain chat text —
+// mirrors the client's own "4 AI uploads" trial copy, so routine Estelle chat
+// isn't swept into the same cap.
+// deno-lint-ignore no-explicit-any
+function isUploadRequest(parsedBody: any): boolean {
+  const messages = Array.isArray(parsedBody?.messages) ? parsedBody.messages : []
+  return messages.some((m: { content?: unknown }) =>
+    Array.isArray(m?.content) && m.content.some((b: { type?: string }) => b?.type === 'image' || b?.type === 'document'))
+}
+
+// Server-side entitlement check: a paid/trialing Stripe subscription has no
+// cap here (Stripe's own trial_period_days + card-on-file already bounds
+// abuse). A user with no Stripe subscription gets a 14-day, no-card grace
+// window with a hard cap on AI uploads (the real cost driver), tracked in
+// trial_usage so it can't be reset by clearing localStorage. Returns null if
+// the request may proceed, or an error message if it must be blocked.
+async function checkEntitlement(userId: string, isUpload: boolean): Promise<string | null> {
+  const { data: sub } = await admin
+    .from('subscriptions')
+    .select('status, current_period_end')
+    .eq('user_id', userId)
+    .maybeSingle()
+  const isPaidOrTrialing = sub &&
+    (sub.status === 'trialing' || sub.status === 'active') &&
+    (!sub.current_period_end || new Date(sub.current_period_end) > new Date())
+  if (isPaidOrTrialing) return null
+
+  const { data: usage } = await admin
+    .from('trial_usage')
+    .select('trial_start, ai_uploads')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  const trialStart = usage?.trial_start ? new Date(usage.trial_start) : new Date()
+  const elapsedDays = (Date.now() - trialStart.getTime()) / 86_400_000
+  if (elapsedDays > FREE_TRIAL_DAYS) return 'Your free trial has ended. Please subscribe to continue using AI features.'
+
+  const aiUploads = usage?.ai_uploads ?? 0
+  if (isUpload && aiUploads >= FREE_TRIAL_AI_UPLOADS) {
+    return `Free trial AI limit reached (${FREE_TRIAL_AI_UPLOADS} uploads). Please subscribe to continue.`
+  }
+
+  await admin.from('trial_usage').upsert({
+    user_id: userId,
+    trial_start: usage?.trial_start ?? new Date().toISOString(),
+    ai_uploads: isUpload ? aiUploads + 1 : aiUploads,
+    updated_at: new Date().toISOString(),
+  })
+  return null
+}
 
 function isRateLimited(userId: string) {
   const now = Date.now()
@@ -170,6 +226,14 @@ Deno.serve(async (req) => {
     // unchanged (it does res.json() as before).
     let parsedBody: Record<string, unknown>
     try { parsedBody = JSON.parse(body) } catch { parsedBody = {} }
+
+    const entitlementError = await checkEntitlement(user.id, isUploadRequest(parsedBody))
+    if (entitlementError) {
+      return new Response(JSON.stringify({ error: { message: entitlementError } }), {
+        status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const upstreamBody = JSON.stringify({ ...parsedBody, stream: true })
 
     const anthropicRes = await fetch(ANTHROPIC_URL, {
