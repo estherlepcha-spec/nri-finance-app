@@ -13,16 +13,24 @@ import assert from 'node:assert/strict'
 
 // Mirror of the wipe decision: wipe the local cache (and reload) when the cache
 // belongs to a different user than the one now signed in.
-function shouldWipeCache({ prevUserId, currentUserId, taggedOwner }) {
+function shouldWipeCache({ prevUserId, currentUserId, taggedOwner, hasCacheData = false }) {
   const switchedInPage = prevUserId !== undefined && prevUserId !== currentUserId
   const foreignCache = !!currentUserId && !!taggedOwner && taggedOwner !== currentUserId
-  return switchedInPage || foreignCache
+  const unownedCache = !!currentUserId && !taggedOwner && hasCacheData
+  return switchedInPage || foreignCache || unownedCache
 }
 
 // Mirror of the seed gate: only seed Supabase from localStorage when the cache
 // provably belongs to THIS user.
 function shouldSeedFromCache({ currentUserId, taggedOwner }) {
   return !!currentUserId && taggedOwner === currentUserId
+}
+
+function mayRenderUserCache({ currentUserId, taggedOwner, hasCacheData = false }) {
+  if (!currentUserId) return false
+  if (taggedOwner && taggedOwner !== currentUserId) return false
+  if (!taggedOwner && hasCacheData) return false
+  return true
 }
 
 const USER_A = '11111111-1111-4111-8111-111111111111'
@@ -48,6 +56,24 @@ test('untagged cache is NOT seeded (unknown owner => treat as foreign)', () => {
   assert.equal(
     shouldSeedFromCache({ currentUserId: USER_A, taggedOwner: null }),
     false,
+  )
+})
+
+test('unowned local financial data is purged rather than shown to the first signed-in user', () => {
+  assert.equal(
+    shouldWipeCache({ currentUserId: USER_A, taggedOwner: null, hasCacheData: true }),
+    true,
+  )
+  assert.equal(
+    mayRenderUserCache({ currentUserId: USER_A, taggedOwner: null, hasCacheData: true }),
+    false,
+  )
+})
+
+test('a matching owner cache may render after authentication', () => {
+  assert.equal(
+    mayRenderUserCache({ currentUserId: USER_A, taggedOwner: USER_A, hasCacheData: true }),
+    true,
   )
 })
 

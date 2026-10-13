@@ -33,6 +33,8 @@ const WINDOW_MS = 5 * 60 * 1000
 const FREE_TRIAL_DAYS = 14
 const FREE_TRIAL_AI_UPLOADS = 4
 const PRO_MONTHLY_AI_UPLOADS = 20
+const IBAN_RE = /\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]){10,30}\b/gi
+const LONG_DIGIT_SEQUENCE_RE = /\b(?:\d[ -]?){8,}\d\b/g
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
@@ -45,6 +47,46 @@ function isUploadRequest(parsedBody: any): boolean {
   const messages = Array.isArray(parsedBody?.messages) ? parsedBody.messages : []
   return messages.some((m: { content?: unknown }) =>
     Array.isArray(m?.content) && m.content.some((b: { type?: string }) => b?.type === 'image' || b?.type === 'document'))
+}
+
+function maskLastFour(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  return digits ? `•••• ${digits.slice(-4)}` : '[redacted]'
+}
+
+function maskFinancialIdentifiers(text: string): string {
+  return text
+    .replace(IBAN_RE, maskLastFour)
+    .replace(LONG_DIGIT_SEQUENCE_RE, maskLastFour)
+}
+
+function maskAnthropicContent(content: unknown): unknown {
+  if (typeof content === 'string') return maskFinancialIdentifiers(content)
+  if (!Array.isArray(content)) return content
+  return content.map((block) => {
+    if (!block || typeof block !== 'object') return block
+    const item = block as Record<string, unknown>
+    if (item.type === 'text' && typeof item.text === 'string') {
+      return { ...item, text: maskFinancialIdentifiers(item.text) }
+    }
+    if (item.type === 'tool_result' && 'content' in item) {
+      return { ...item, content: maskAnthropicContent(item.content) }
+    }
+    return block
+  })
+}
+
+function maskRequestText(parsedBody: Record<string, unknown>): Record<string, unknown> {
+  const masked = { ...parsedBody }
+  if ('system' in masked) masked.system = maskAnthropicContent(masked.system)
+  if (Array.isArray(masked.messages)) {
+    masked.messages = masked.messages.map((message) => {
+      if (!message || typeof message !== 'object') return message
+      const item = message as Record<string, unknown>
+      return 'content' in item ? { ...item, content: maskAnthropicContent(item.content) } : item
+    })
+  }
+  return masked
 }
 
 // Server-side entitlement check. A paid/trialing Stripe subscription (Pro)
@@ -258,7 +300,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const upstreamBody = JSON.stringify({ ...parsedBody, stream: true })
+    const upstreamBody = JSON.stringify({ ...maskRequestText(parsedBody), stream: true })
 
     const anthropicRes = await fetch(ANTHROPIC_URL, {
       method: 'POST',
@@ -283,6 +325,7 @@ Deno.serve(async (req) => {
 
     // 3. Reassemble the SSE stream into a single Messages API response object.
     const message = await reassembleStream(anthropicRes.body)
+    message.content = maskAnthropicContent(message.content) as typeof message.content
     return new Response(JSON.stringify(message), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

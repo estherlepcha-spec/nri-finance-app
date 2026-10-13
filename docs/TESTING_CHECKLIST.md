@@ -151,6 +151,19 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 - [ ] Purchase-analysis ("can I afford X?") uses real account data
 - [ ] Response references correct balances/goals
 - [ ] Rate-limit / not-authenticated paths fail gracefully
+- [ ] Auto routing selects budget, goals, loans, investment, and remittance specialists
+- [ ] Manual specialist selection overrides automatic routing
+- [ ] Each specialist request contains only its task-scoped financial summary
+- [ ] Passwords, full account/card numbers, and detected IBAN/long-number strings are absent from AI text requests
+- [ ] Uploaded photo cannot be sent until the user confirms its sensitive-data review
+
+## 17a. AI upload privacy and account identifiers
+- [ ] Account-number entry accepts/stores no more than the last four digits
+- [ ] Legacy account numbers are normalized to last-four-only after loading from cache/Supabase
+- [ ] Document extraction requires both AI-processing consent and a sensitive-data review
+- [ ] CSV/Excel statement data is masked before the Claude request
+- [ ] Scanned statement/receipt/loan/investment copies with full identifiers are not uploaded; verify user is prompted to redact locally
+- [ ] User A's account data remains inaccessible to user B (RLS + local-cache owner guard)
 
 ## 18. Settings & Data Management
 - [ ] Change currencies / exchange rate → app-wide reconversion

@@ -95,3 +95,21 @@ statement doesn't connect to the anchor.
 - Remittance receipt scanning
 - Invoice/receipt scanning
 - Estelle AI financial advisor with purchase analysis
+- Estelle specialist modes for budget/cash flow, goals/savings, loans/debt,
+  investments, and remittances, with automatic routing and a manual override
+
+### AI privacy guardrails
+- Passwords are entered only in the Supabase Auth login/signup flow; the password
+  field is masked and credentials are not included in AI prompts.
+- Account numbers stored by the app are restricted to their last four digits.
+  Text sent to AI has detected IBANs and long digit sequences masked, including
+  Estelle chat history and text-based statement exports.
+- Before document extraction, users must separately consent to AI processing and
+  confirm they checked for passwords/CVV. For scanned PDFs and photos, users
+  must upload a copy with full account/card numbers and IBANs already obscured:
+  the browser does not have reliable OCR/redaction to guarantee automatic
+  removal from image content.
+- Each specialist receives a task-scoped financial summary. Estelle is
+  read-only; all financial changes remain explicit user actions.
+- Signed-in access remains isolated by Supabase Row-Level Security and the
+  app's per-user local-cache ownership check.

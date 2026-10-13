@@ -6,6 +6,15 @@
 
 ## Uploading to the right account
 
+## Protecting statement details
+
+Before using AI extraction, check the statement for passwords, CVV, full card
+numbers, full account numbers, and IBANs. The app masks detected long number
+sequences in CSV/Excel text before sending it to Claude. It cannot reliably
+redact identifiers from scanned PDFs or photos, so make and upload a redacted
+copy first; leaving only the last four digits visible is recommended. You must
+confirm this review and separately consent to AI processing before extraction.
+
 **Always upload a statement from the account it belongs to.** The easiest way:
 
 1. Go to **Accounts**.

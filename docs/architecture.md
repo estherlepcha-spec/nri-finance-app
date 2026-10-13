@@ -39,4 +39,20 @@ src/
 - `src/utils/constants.js` — theme colors, all static data
 - `src/utils/calculations.js` — pure financial math functions
 - `src/services/anthropic.js` — centralised AI API calls
+- `src/services/aiPrivacy.js` — masks financial identifiers and limits stored
+  account identifiers to their last four digits
+- `src/services/estelleSpecialists.js` — Estelle specialist routing, task
+  instructions, and scoped financial context
 - `database/supabase-setup.sql` — run once to set up the DB table
+
+## AI privacy and account isolation
+- Supabase Auth password inputs are masked; passwords are not sent to the AI
+  service. Authenticated Supabase user IDs scope database rows through RLS.
+- Account-number values are normalized to the last four digits at UI entry,
+  cache/database load, and persistence boundaries.
+- PII-like sequences in text prompts and text-based document exports are
+  masked before the AI request. Binary scans/PDFs cannot be reliably redacted
+  in the browser; upload flows require a user review/confirmation and warn the
+  user to upload a pre-redacted copy.
+- Estelle specialists receive only the financial context required for their
+  task and have no tools to modify user data.
