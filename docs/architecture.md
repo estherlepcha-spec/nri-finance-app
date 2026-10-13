@@ -43,6 +43,11 @@ src/
   account identifiers to their last four digits
 - `src/services/estelleSpecialists.js` — Estelle specialist routing, task
   instructions, and scoped financial context
+- `src/services/estelleMemory.js` and `estelleMemoryPolicy.js` — authenticated
+  per-user memory storage, validation, expiry-aware loading, and specialist
+  filtering
+- `supabase/migrations/0008_estelle_memory.sql` — private memory settings and
+  records with per-user RLS policies
 - `database/supabase-setup.sql` — run once to set up the DB table
 
 ## AI privacy and account isolation
@@ -56,3 +61,13 @@ src/
   user to upload a pre-redacted copy.
 - Estelle specialists receive only the financial context required for their
   task and have no tools to modify user data.
+- Estelle's application-level dispatcher selects a specialist before composing
+  one Claude request; only one chat request runs at a time. Optional memory is
+  disabled by default, stored separately from browser cache, and included only
+  after an authenticated RLS-protected read confirms the setting is enabled.
+  Each turn sends at most eight relevant memories (3,000 characters total);
+  records are scoped to general or one specialist and expire after 12 months.
+  AI-generated suggestions are drafts only and require user review and an
+  explicit save action. The existing Anthropic Edge Function remains the
+  provider proxy; no separate agent workers or infrastructure load balancer
+  are introduced in this first version.

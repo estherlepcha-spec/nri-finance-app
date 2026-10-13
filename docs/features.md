@@ -113,3 +113,10 @@ statement doesn't connect to the anchor.
   read-only; all financial changes remain explicit user actions.
 - Signed-in access remains isolated by Supabase Row-Level Security and the
   app's per-user local-cache ownership check.
+- Estelle's long-term memory is optional and off by default. Users can request
+  a short suggested memory from a chat exchange, edit it, then explicitly save
+  it for General or one specialist. Only relevant, user-approved memories are
+  included in an Estelle request. Memories are private Supabase rows, limited
+  to 50 active items of up to 500 characters each, expire after 12 months, and
+  can be edited or deleted in Settings. "Clear All Data" also clears these
+  memories and turns memory off.

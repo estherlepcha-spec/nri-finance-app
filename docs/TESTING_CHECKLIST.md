@@ -156,6 +156,14 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 - [ ] Each specialist request contains only its task-scoped financial summary
 - [ ] Passwords, full account/card numbers, and detected IBAN/long-number strings are absent from AI text requests
 - [ ] Uploaded photo cannot be sent until the user confirms its sensitive-data review
+- [ ] Estelle long-term memory is off by default; disabling it prevents memory from being sent on the next request
+- [ ] A suggested memory remains an editable draft until explicitly saved
+- [ ] General memories are available across specialists; specialist memories are not sent to other specialists
+- [ ] Memory content rejects credential-like values, masks long identifiers, and enforces length/item limits
+- [ ] Memory settings and records are isolated by Supabase RLS; user B cannot read, update, or delete user A's memories
+- [ ] Memory records expire after 12 months and can be edited/deleted in Settings
+- [ ] "Clear All Data" deletes saved Estelle memories and disables memory
+- [ ] AI request continues without memory if memory loading fails and surfaces the memory error
 
 ## 17a. AI upload privacy and account identifiers
 - [ ] Account-number entry accepts/stores no more than the last four digits
@@ -167,6 +175,7 @@ Do a full pass before any deploy. Money math is also covered automatically by `n
 
 ## 18. Settings & Data Management
 - [ ] Change currencies / exchange rate → app-wide reconversion
+- [ ] Apply `supabase/migrations/0008_estelle_memory.sql` before enabling Estelle memory
 - [ ] Export all data → file downloads with correct contents
 - [ ] "Clear All Data" wipes financial data but keeps the login (typed DELETE confirm)
 - [ ] Billing toggle (if enabled) shows plan state

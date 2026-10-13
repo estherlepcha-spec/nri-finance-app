@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { lastFourOnly, maskFinancialIdentifiers, sanitizeAccounts } from '../src/services/aiPrivacy.js'
+import { normalizeMemoryContent, selectRelevantMemories } from '../src/services/estelleMemoryPolicy.js'
 import {
   getSpecialistContext,
   getSpecialistInstruction,
@@ -68,4 +69,37 @@ test('manual specialist choice takes precedence and receives only its scoped con
     remittances: { sent: 200, received: 200 },
   })
   assert.match(getSpecialistInstruction('loans'), /read-only|illustrative|lender quotes/i)
+})
+
+test('memory content is bounded and credential-like content is rejected', () => {
+  assert.equal(normalizeMemoryContent('  Prefer monthly budget summaries.  '), 'Prefer monthly budget summaries.')
+  assert.equal(normalizeMemoryContent('My account ends 1234567890'), 'My account ends •••• 7890')
+  assert.throws(() => normalizeMemoryContent('My password is private'), /Do not save passwords/)
+  assert.throws(() => normalizeMemoryContent('x'.repeat(501)), /500 characters/)
+})
+
+test('memory retrieval includes only general and selected-specialist memories', () => {
+  const memories = [
+    { content: 'Use a monthly summary', specialist: 'general' },
+    { content: 'Focus on savings pace', specialist: 'goals' },
+    { content: 'Focus on loan payoff', specialist: 'loans' },
+  ]
+  assert.deepEqual(selectRelevantMemories(memories, 'goals'), [
+    { content: 'Focus on savings pace', specialist: 'goals' },
+    { content: 'Use a monthly summary', specialist: 'general' },
+  ])
+  assert.deepEqual(selectRelevantMemories(memories, 'budget'), [
+    { content: 'Use a monthly summary', specialist: 'general' },
+  ])
+})
+
+test('specialist memories rank ahead of general memory and retrieval is capped', () => {
+  const memories = [
+    { content: 'General preference', specialist: 'general' },
+    { content: 'Relevant specialist memory', specialist: 'goals' },
+    ...Array.from({ length: 9 }, (_, index) => ({ content: `General ${index}`, specialist: 'general' })),
+  ]
+  const selected = selectRelevantMemories(memories, 'goals')
+  assert.equal(selected.length, 8)
+  assert.equal(selected[0].content, 'Relevant specialist memory')
 })

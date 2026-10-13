@@ -60,6 +60,12 @@ the Delete Account button will show an error instead of deleting.
 
 ## Step B — Deploy the frontend to Vercel
 
+Before enabling Estelle Long-Term Memory, apply
+`supabase/migrations/0008_estelle_memory.sql` to the linked Supabase project
+(for example, with `supabase db push` or by running the migration in the
+Supabase SQL editor). The memory setting defaults off, and its tables enforce
+per-user Row-Level Security.
+
 1. Go to <https://vercel.com>, sign in **with GitHub**.
 2. **Add New → Project** → import `estherlepcha-spec/nri-finance-app`.
 3. Framework preset: **Vite** (auto-detected). Build/output already set in
@@ -111,4 +117,3 @@ OAuth client):
   `--no-verify-jwt`.
 - The legacy-data claim (`0003_claim_legacy_data.sql`) is still pending and
   independent of deployment.
-
