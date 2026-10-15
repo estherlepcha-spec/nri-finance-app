@@ -5,6 +5,7 @@
 // in while status is 'trialing' or 'active' and the period hasn't ended.
 
 import { supabase } from './supabase.js'
+import { isInFreeTrial, trialDaysLeft } from './trial.js'
 
 const FN = (name) => `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`
 
@@ -53,34 +54,13 @@ export function isExpired(sub) {
 
 // Free-trial window for users who have NOT started a Stripe subscription yet.
 // Every user gets 14 days of full access from first sign-in before the paywall
-// appears. We record the first-seen timestamp per user in local storage.
-const FREE_TRIAL_DAYS = 14
-const TRIAL_KEY = (userId) => `nri_freeTrialStart_${userId}`
-
-// Returns whether the user is still inside their 14-day free window, seeding
-// the start timestamp on first call. `userId` scopes it so switching accounts
-// doesn't leak one user's trial to another.
-export function inFreeTrial(userId) {
-  if (!userId) return false
-  try {
-    const key = TRIAL_KEY(userId)
-    let start = localStorage.getItem(key)
-    if (!start) { start = String(Date.now()); localStorage.setItem(key, start) }
-    const elapsedDays = (Date.now() - Number(start)) / 86400000
-    return elapsedDays < FREE_TRIAL_DAYS
-  } catch { return false }
-}
+// appears. The window runs from ACCOUNT CREATION (server-side `user.created_at`),
+// not first sign-in in this browser, so clearing site data or switching
+// browsers/devices can't restart it. See trial.js.
+export function inFreeTrial(createdAt) { return isInFreeTrial(createdAt) }
 
 // Whole days remaining in the free window (0 if elapsed / unknown). For display.
-export function freeTrialDaysLeft(userId) {
-  if (!userId) return 0
-  try {
-    const start = localStorage.getItem(TRIAL_KEY(userId))
-    if (!start) return FREE_TRIAL_DAYS
-    const left = FREE_TRIAL_DAYS - (Date.now() - Number(start)) / 86400000
-    return Math.max(0, Math.ceil(left))
-  } catch { return 0 }
-}
+export function freeTrialDaysLeft(createdAt) { return trialDaysLeft(createdAt) }
 
 // Start Stripe Checkout (14-day trial). Redirects the browser to Stripe.
 export async function startCheckout(priceKey = 'pro_usd_monthly') {

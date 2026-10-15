@@ -10357,7 +10357,7 @@ export default function App() {
       setSub(s ?? null)
       // isPaid = a real active/trialing Stripe subscription (unrestricted).
       setIsPaid(isEntitled(s))
-      setTrialDaysLeft(freeTrialDaysLeft(user.id))
+      setTrialDaysLeft(freeTrialDaysLeft(user.created_at))
       // Entitled if they have an active/trialing Stripe sub, OR — for users who
       // never started one and whose Stripe sub hasn't expired — while they're
       // still inside their 14-day free window. Once the 14 days are up (or a
@@ -10368,7 +10368,7 @@ export default function App() {
       // The free window stands on its own so a leftover/canceled test-mode row
       // can't lock a new user out during their first 14 days. Once the window
       // closes, only a paid subscription keeps them in — otherwise: paywall.
-      setSubEntitled(isEntitled(s) || inFreeTrial(user.id))
+      setSubEntitled(isEntitled(s) || inFreeTrial(user.created_at))
     })
     check()
     const onFocus = () => check()

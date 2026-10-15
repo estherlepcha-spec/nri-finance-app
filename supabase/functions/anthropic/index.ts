@@ -97,7 +97,7 @@ function maskRequestText(parsedBody: Record<string, unknown>): Record<string, un
 // no-card grace window with its own (smaller) cap, tracked in trial_usage so
 // neither cap can be reset by clearing localStorage. Returns null if the
 // request may proceed, or an error message if it must be blocked.
-async function checkEntitlement(userId: string, isUpload: boolean): Promise<string | null> {
+async function checkEntitlement(userId: string, createdAt: string, isUpload: boolean): Promise<string | null> {
   const { data: sub } = await admin
     .from('subscriptions')
     .select('status, current_period_end')
@@ -135,9 +135,12 @@ async function checkEntitlement(userId: string, isUpload: boolean): Promise<stri
     .eq('user_id', userId)
     .maybeSingle()
 
-  const trialStart = usage?.trial_start ? new Date(usage.trial_start) : new Date()
-  const elapsedDays = (Date.now() - trialStart.getTime()) / 86_400_000
-  if (elapsedDays > FREE_TRIAL_DAYS) return 'Your free trial has ended. Please subscribe to continue using AI features.'
+  // The trial runs from account creation (auth user.created_at) — the same
+  // source the client uses — so it can't drift from, or be reset relative to,
+  // the in-app window. Unknown date fails closed.
+  const createdMs = Date.parse(createdAt)
+  const elapsedDays = Number.isFinite(createdMs) ? (Date.now() - createdMs) / 86_400_000 : Infinity
+  if (elapsedDays >= FREE_TRIAL_DAYS) return 'Your free trial has ended. Please subscribe to continue using AI features.'
 
   const aiUploads = usage?.ai_uploads ?? 0
   if (isUpload && aiUploads >= FREE_TRIAL_AI_UPLOADS) {
@@ -293,7 +296,7 @@ Deno.serve(async (req) => {
     let parsedBody: Record<string, unknown>
     try { parsedBody = JSON.parse(body) } catch { parsedBody = {} }
 
-    const entitlementError = await checkEntitlement(user.id, isUploadRequest(parsedBody))
+    const entitlementError = await checkEntitlement(user.id, user.created_at, isUploadRequest(parsedBody))
     if (entitlementError) {
       return new Response(JSON.stringify({ error: { message: entitlementError } }), {
         status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
