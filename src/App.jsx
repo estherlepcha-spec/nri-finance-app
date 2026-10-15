@@ -10425,6 +10425,13 @@ export default function App() {
     if (switchedInPage || foreignCache || unownedCache) {
       try {
         Object.keys(localStorage).filter(k => k.startsWith('nri_')).forEach(k => localStorage.removeItem(k))
+        // Re-tag the (now empty) cache for the current user BEFORE reloading.
+        // The wipe above also removed nri_cacheOwner; without this, the reloaded
+        // page re-persists default nri_* keys with no owner tag, trips the
+        // unownedCache check again, and wipes + reloads forever (visible as
+        // screen flicker right after sign-in). The cache is empty here, so
+        // tagging it for uid can't leak anyone else's data.
+        if (uid) localStorage.setItem('nri_cacheOwner', uid)
       } catch { /* ignore */ }
       // Reload so every useState initialiser re-reads a clean cache.
       window.location.reload()
