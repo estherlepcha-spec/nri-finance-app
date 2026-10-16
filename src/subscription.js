@@ -5,7 +5,7 @@
 // in while status is 'trialing' or 'active' and the period hasn't ended.
 
 import { supabase } from './supabase.js'
-import { isInFreeTrial, trialDaysLeft } from './trial.js'
+import { isInFreeTrial, trialDaysLeft, FREE_TRIAL_DAYS } from './trial.js'
 
 const FN = (name) => `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`
 
@@ -57,10 +57,18 @@ export function isExpired(sub) {
 // appears. The window runs from ACCOUNT CREATION (server-side `user.created_at`),
 // not first sign-in in this browser, so clearing site data or switching
 // browsers/devices can't restart it. See trial.js.
-export function inFreeTrial(createdAt) { return isInFreeTrial(createdAt) }
+export function inFreeTrial(createdAt) { return bypassTrial() || isInFreeTrial(createdAt) }
 
 // Whole days remaining in the free window (0 if elapsed / unknown). For display.
-export function freeTrialDaysLeft(createdAt) { return trialDaysLeft(createdAt) }
+export function freeTrialDaysLeft(createdAt) { return bypassTrial() ? FREE_TRIAL_DAYS : trialDaysLeft(createdAt) }
+
+// Local-testing switch: VITE_BYPASS_TRIAL=true in .env skips the trial-date
+// check so an old test account can keep exploring the app. Honoured ONLY by the
+// Vite dev server (import.meta.env.DEV) — a production build ignores it, so it
+// can't unlock the paywall for real users.
+function bypassTrial() {
+  return import.meta.env.DEV && import.meta.env.VITE_BYPASS_TRIAL === 'true'
+}
 
 // Start Stripe Checkout (14-day trial). Redirects the browser to Stripe.
 export async function startCheckout(priceKey = 'pro_usd_monthly') {
